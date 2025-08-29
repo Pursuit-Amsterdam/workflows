@@ -1,0 +1,230 @@
+name: 'Web Application CI/CD'
+
+on:
+  workflow_call:
+    inputs:
+      framework:
+        description: 'Framework type (next, vue, react, etc.)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '22.x'
+      pnpm-version:
+        description: 'PNPM version'
+        required: false
+        type: string
+        default: 'latest'
+      working-directory:
+        description: 'Working directory for the project'
+        required: false
+        type: string
+        default: '.'
+      
+      # Code generation options
+      codegen:
+        description: 'Enable code generation'
+        required: false
+        type: boolean
+        default: false
+      codegen_command:
+        description: 'Custom codegen command to run'
+        required: false
+        type: string
+        default: ''
+      generate-importmap:
+        description: 'Generate import maps'
+        required: false
+        type: boolean
+        default: true
+      generate-types:
+        description: 'Generate types'
+        required: false
+        type: boolean
+        default: true
+      generate-graphql:
+        description: 'Generate GraphQL code'
+        required: false
+        type: boolean
+        default: false
+      
+      # Build and test options
+      run-build:
+        description: 'Run build step'
+        required: false
+        type: boolean
+        default: true
+      run-test:
+        description: 'Run tests'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Run linting'
+        required: false
+        type: boolean
+        default: true
+      run-typecheck:
+        description: 'Run type checking'
+        required: false
+        type: boolean
+        default: true
+      
+      # Custom commands
+      build-command:
+        description: 'Custom build command'
+        required: false
+        type: string
+        default: 'build'
+      test-command:
+        description: 'Custom test command'
+        required: false
+        type: string
+        default: 'test'
+      lint-command:
+        description: 'Custom lint command'
+        required: false
+        type: string
+        default: 'lint'
+      typecheck-command:
+        description: 'Custom typecheck command'
+        required: false
+        type: string
+        default: 'type-check'
+      
+      # Vercel deployment options
+      vercel_deploy:
+        description: 'Enable Vercel deployment'
+        required: false
+        type: boolean
+        default: false
+      vercel_build_env:
+        description: 'Vercel build environment (preview, production)'
+        required: false
+        type: string
+        default: 'preview'
+      vercel_build_mode:
+        description: 'Vercel build mode: "github" (build in Actions) or "vercel" (build on Vercel)'
+        required: false
+        type: string
+        default: 'github'
+      vercel_prepare_package:
+        description: 'Prepare package.json for Vercel runtime'
+        required: false
+        type: boolean
+        default: false
+      
+      # 1Password secrets
+      onepassword_enabled:
+        description: 'Enable 1Password secrets loading'
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        description: '1Password vault name'
+        required: false
+        type: string
+        default: ''
+      onepassword_item:
+        description: '1Password item name'
+        required: false
+        type: string
+        default: ''
+      
+      # Artifact upload
+      upload_artifacts:
+        description: 'Upload build artifacts'
+        required: false
+        type: boolean
+        default: false
+      artifact_path:
+        description: 'Path to upload as artifacts'
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      VERCEL_TOKEN:
+        description: 'Vercel authentication token'
+        required: false
+      VERCEL_ORG_ID:
+        description: 'Vercel organization ID'
+        required: false
+      VERCEL_PROJECT_ID:
+        description: 'Vercel project ID'
+        required: false
+      OP_SERVICE_ACCOUNT_TOKEN:
+        description: '1Password service account token'
+        required: false
+
+jobs:
+  ci:
+    name: 'CI/CD Pipeline'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and PNPM
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ inputs.node-version }}
+          pnpm-version: ${{ inputs.pnpm-version }}
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: ./.github/actions/onepassword-secrets
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-for-vercel: ${{ inputs.vercel_deploy }}
+
+      - name: Run Custom Code Generation
+        if: inputs.codegen && inputs.codegen_command != ''
+        run: ${{ inputs.codegen_command }}
+
+      - name: Run Standard Code Generation
+        if: inputs.codegen && inputs.codegen_command == ''
+        uses: ./.github/actions/codegen
+        with:
+          generate-importmap: ${{ inputs.generate-importmap }}
+          generate-types: ${{ inputs.generate-types }}
+          generate-graphql: ${{ inputs.generate-graphql }}
+
+      - name: Build and Test
+        uses: ./.github/actions/build-test
+        with:
+          run-build: ${{ inputs.run-build && !(inputs.vercel_deploy && inputs.vercel_build_mode == 'vercel') }}
+          run-test: ${{ inputs.run-test }}
+          run-lint: ${{ inputs.run-lint }}
+          run-typecheck: ${{ inputs.run-typecheck }}
+          build-command: ${{ inputs.build-command }}
+          test-command: ${{ inputs.test-command }}
+          lint-command: ${{ inputs.lint-command }}
+          typecheck-command: ${{ inputs.typecheck-command }}
+
+      - name: Upload build artifacts
+        if: inputs.upload_artifacts && inputs.artifact_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.framework }}-build-${{ github.sha }}
+          path: ${{ inputs.artifact_path }}
+          retention-days: 7
+
+      - name: Deploy to Vercel
+        if: inputs.vercel_deploy
+        uses: ./.github/actions/vercel-deploy
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          environment: ${{ inputs.vercel_build_env }}
+          build-mode: ${{ inputs.vercel_build_mode }}
+          prepare-package: ${{ inputs.vercel_prepare_package }}

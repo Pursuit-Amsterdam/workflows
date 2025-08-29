@@ -1,0 +1,86 @@
+name: 'Load 1Password Secrets'
+description: 'Fetches secrets from 1Password and exports them to environment'
+inputs:
+  service-account-token:
+    description: '1Password Service Account Token'
+    required: true
+  vault-name:
+    description: '1Password vault name'
+    required: true
+  item-name:
+    description: '1Password item name'
+    required: true
+  export-for-vercel:
+    description: 'Export secrets in Vercel deployment format'
+    required: false
+    default: 'false'
+  vercel-env-file:
+    description: 'Path to save Vercel environment arguments'
+    required: false
+    default: 'vercel_env_args.bin'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install 1Password CLI
+      uses: 1password/install-cli-action@v2
+
+    - name: Configure 1Password
+      uses: 1password/load-secrets-action/configure@v2
+      with:
+        service-account-token: ${{ inputs.service-account-token }}
+
+    - name: Load secrets from 1Password
+      shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.service-account-token }}
+        OP_VAULT_NAME: ${{ inputs.vault-name }}
+        OP_ITEM_NAME: ${{ inputs.item-name }}
+        EXPORT_FOR_VERCEL: ${{ inputs.export-for-vercel }}
+        VERCEL_ENV_FILE: ${{ inputs.vercel-env-file }}
+      run: |
+        set -euo pipefail
+
+        echo "📡 Fetching secrets from 1Password..."
+        item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
+
+        mapfile -t kvs < <(jq -r '
+          .fields[]
+          | select(.value != null)
+          | select((.label // "") != "notesPlain")
+          | "\(.label)=\(.value)"
+        ' <<<"$item_json")
+
+        if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
+          : > "${VERCEL_ENV_FILE}"
+        fi
+
+        secret_count=0
+        for kv in "${kvs[@]}"; do
+          name="${kv%%=*}"
+          value="${kv#*=}"
+
+          # Mask values in logs
+          echo "::add-mask::$value"
+
+          # Export to runner env for build (supports multiline)
+          {
+            echo "${name}<<__OP_EOF__"
+            echo "${value}"
+            echo "__OP_EOF__"
+          } >> "$GITHUB_ENV"
+
+          # Append to NUL-safe args for Vercel deploy if requested
+          if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
+            printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
+          fi
+
+          ((secret_count++))
+        done
+
+        echo "✅ Loaded ${secret_count} secrets from 1Password"
+        
+        if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
+          echo "VERCEL_ENV_ARGS_BIN=$PWD/${VERCEL_ENV_FILE}" >> "$GITHUB_ENV"
+          echo "📦 Vercel environment file prepared: ${VERCEL_ENV_FILE}"
+        fi

@@ -1,0 +1,122 @@
+name: 'Deploy to Vercel'
+description: 'Deploys application to Vercel with environment variables'
+inputs:
+  vercel-token:
+    description: 'Vercel authentication token'
+    required: true
+  vercel-org-id:
+    description: 'Vercel organization ID'
+    required: true
+  vercel-project-id:
+    description: 'Vercel project ID'
+    required: true
+  environment:
+    description: 'Deployment environment (staging, production)'
+    required: false
+    default: 'staging'
+  vercel-env-args-file:
+    description: 'Path to file containing Vercel environment arguments'
+    required: false
+    default: ''
+  build-mode:
+    description: 'Build mode: "github" (build prebuilt artifacts) or "vercel" (build on Vercel)'
+    required: false
+    default: 'github'
+  prepare-package:
+    description: 'Remove "type": "module" from package.json for runtime'
+    required: false
+    default: 'false'
+  build-command:
+    description: 'Custom build command to run before deployment'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Vercel CLI
+      shell: bash
+      run: npm install --global vercel@latest
+
+    - name: Prepare package for runtime
+      if: inputs.prepare-package == 'true'
+      shell: bash
+      run: |
+        echo "📦 Preparing package.json for runtime..."
+        node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          delete pkg.type;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          console.log('✅ Removed type field from package.json');
+        "
+
+    - name: Run custom build command
+      if: inputs.build-command != '' && inputs.build-mode == 'github'
+      shell: bash
+      run: ${{ inputs.build-command }}
+
+    - name: Deploy with GitHub Build (Prebuilt)
+      if: inputs.build-mode == 'github'
+      shell: bash
+      env:
+        VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+        VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
+      run: |
+        echo "🔨 Building project for ${{ inputs.environment }} (GitHub build mode)..."
+        
+        # Pull Vercel project settings
+        target_flag=""
+        if [[ "${{ inputs.environment }}" != "production" ]]; then
+          target_flag="--target=${{ inputs.environment }}"
+        fi
+        vercel pull --yes --environment=${{ inputs.environment }} --token=${{ inputs.vercel-token }}
+        
+        # Build project artifacts
+        vercel build $target_flag --token=${{ inputs.vercel-token }}
+        
+        echo "� Deploying prebuilt artifacts to Vercel (${{ inputs.environment }})..."
+        
+        deploy_args=("--prebuilt" "--archive=tgz" "--token=${{ inputs.vercel-token }}")
+        
+        if [[ "${{ inputs.environment }}" != "production" ]]; then
+          deploy_args+=("--target=${{ inputs.environment }}")
+        fi
+        
+        if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
+          echo "📝 Loading environment variables from 1Password export..."
+          mapfile -d '' -t ENV_ARGS < "${VERCEL_ENV_ARGS_BIN}"
+          deploy_args+=("${ENV_ARGS[@]}")
+        fi
+        
+        vercel deploy "${deploy_args[@]}"
+        echo "✅ Deployment completed successfully!"
+
+    - name: Deploy with Vercel Build
+      if: inputs.build-mode == 'vercel'
+      shell: bash
+      env:
+        VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+        VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
+      run: |
+        echo "🚀 Deploying to Vercel with Vercel build (${{ inputs.environment }})..."
+        
+        deploy_args=("--archive=tgz" "--token=${{ inputs.vercel-token }}")
+        
+        # Add environment target
+        if [[ "${{ inputs.environment }}" != "production" ]]; then
+          deploy_args+=("--target=${{ inputs.environment }}")
+        else
+          deploy_args+=("--prod")
+        fi
+        
+        # Add environment variables from 1Password if available
+        if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
+          echo "📝 Loading environment variables from 1Password export..."
+          mapfile -d '' -t ENV_ARGS < "${VERCEL_ENV_ARGS_BIN}"
+          deploy_args+=("${ENV_ARGS[@]}")
+        fi
+        
+        # Deploy (Vercel will build automatically)
+        vercel deploy "${deploy_args[@]}"
+        echo "✅ Deployment completed successfully!"

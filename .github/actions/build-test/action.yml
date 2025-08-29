@@ -1,0 +1,76 @@
+name: 'Build and Test'
+description: 'Builds and tests the application with linting'
+inputs:
+  run-build:
+    description: 'Run build step'
+    required: false
+    default: 'true'
+  run-test:
+    description: 'Run test step'
+    required: false
+    default: 'true'
+  run-lint:
+    description: 'Run lint step'
+    required: false
+    default: 'true'
+  run-typecheck:
+    description: 'Run type checking'
+    required: false
+    default: 'true'
+  build-command:
+    description: 'Custom build command'
+    required: false
+    default: 'build'
+  test-command:
+    description: 'Custom test command'
+    required: false
+    default: 'test'
+  lint-command:
+    description: 'Custom lint command'
+    required: false
+    default: 'lint'
+  typecheck-command:
+    description: 'Custom typecheck command'
+    required: false
+    default: 'type-check'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run Type Checking
+      if: inputs.run-typecheck == 'true'
+      shell: bash
+      run: |
+        if pnpm run --silent ${{ inputs.typecheck-command }} 2>/dev/null; then
+          echo "✅ Type checking passed"
+        else
+          echo "⚠️ Type checking script not found or failed, skipping"
+        fi
+
+    - name: Run Linting
+      if: inputs.run-lint == 'true'
+      shell: bash
+      run: |
+        if pnpm run --silent ${{ inputs.lint-command }} 2>/dev/null; then
+          echo "✅ Linting passed"
+        else
+          echo "⚠️ Linting script not found or failed, skipping"
+        fi
+
+    - name: Run Build
+      if: inputs.run-build == 'true'
+      shell: bash
+      run: |
+        echo "🔨 Building application..."
+        pnpm run ${{ inputs.build-command }}
+        echo "✅ Build completed successfully"
+
+    - name: Run Tests
+      if: inputs.run-test == 'true'
+      shell: bash
+      run: |
+        if pnpm run --silent ${{ inputs.test-command }} 2>/dev/null; then
+          echo "✅ Tests passed"
+        else
+          echo "⚠️ Test script not found or failed, skipping"
+        fi

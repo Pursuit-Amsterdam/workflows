@@ -1,0 +1,223 @@
+name: 'Vercel Deploy'
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '22.x'
+      pnpm-version:
+        description: 'PNPM version'
+        required: false
+        type: string
+        default: 'latest'
+      working-directory:
+        description: 'Working directory for the project'
+        required: false
+        type: string
+        default: '.'
+      
+      # Deployment environment
+      environment:
+        description: 'Deployment environment (production, preview, staging)'
+        required: false
+        type: string
+        default: 'preview'
+      
+      # Code generation options
+      codegen:
+        description: 'Enable code generation'
+        required: false
+        type: boolean
+        default: false
+      codegen_command:
+        description: 'Custom codegen command to run'
+        required: false
+        type: string
+        default: ''
+      
+      # Build and test options before deploy
+      run-test:
+        description: 'Run tests before deployment'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Run linting before deployment'
+        required: false
+        type: boolean
+        default: true
+      run-typecheck:
+        description: 'Run type checking before deployment'
+        required: false
+        type: boolean
+        default: true
+      
+      # Custom commands
+      test-command:
+        description: 'Custom test command'
+        required: false
+        type: string
+        default: 'test'
+      lint-command:
+        description: 'Custom lint command'
+        required: false
+        type: string
+        default: 'lint'
+      typecheck-command:
+        description: 'Custom typecheck command'
+        required: false
+        type: string
+        default: 'type-check'
+      
+      # Vercel options
+      build-mode:
+        description: 'Build mode: "github" (build in GitHub Actions) or "vercel" (build on Vercel)'
+        required: false
+        type: string
+        default: 'github'
+      prepare-package:
+        description: 'Prepare package.json for Vercel runtime'
+        required: false
+        type: boolean
+        default: false
+      vercel-build-command:
+        description: 'Custom build command for Vercel (when build-mode is "vercel")'
+        required: false
+        type: string
+        default: ''
+      vercel-output-directory:
+        description: 'Output directory for Vercel builds'
+        required: false
+        type: string
+        default: ''
+      
+      # 1Password secrets
+      onepassword_enabled:
+        description: 'Enable 1Password secrets loading'
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        description: '1Password vault name'
+        required: false
+        type: string
+        default: ''
+      onepassword_item:
+        description: '1Password item name'
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      VERCEL_TOKEN:
+        description: 'Vercel authentication token'
+        required: true
+      VERCEL_ORG_ID:
+        description: 'Vercel organization ID'
+        required: true
+      VERCEL_PROJECT_ID:
+        description: 'Vercel project ID'
+        required: true
+      OP_SERVICE_ACCOUNT_TOKEN:
+        description: '1Password service account token'
+        required: false
+
+jobs:
+  deploy:
+    name: 'Deploy to Vercel'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and PNPM
+        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ inputs.node-version }}
+          pnpm-version: ${{ inputs.pnpm-version }}
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: ./.github/actions/onepassword-secrets
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-for-vercel: true
+
+      - name: Run Code Generation
+        if: inputs.codegen
+        run: ${{ inputs.codegen_command }}
+
+      - name: Run Quality Checks
+        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
+        uses: ./.github/actions/build-test
+        with:
+          run-build: ${{ inputs.build-mode == 'github' }}
+          run-test: ${{ inputs.run-test }}
+          run-lint: ${{ inputs.run-lint }}
+          run-typecheck: ${{ inputs.run-typecheck }}
+          test-command: ${{ inputs.test-command }}
+          lint-command: ${{ inputs.lint-command }}
+          typecheck-command: ${{ inputs.typecheck-command }}
+
+      - name: Deploy to Vercel (GitHub Build Mode)
+        if: inputs.build-mode == 'github'
+        uses: ./.github/actions/vercel-deploy
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          environment: ${{ inputs.environment }}
+          prepare-package: ${{ inputs.prepare-package }}
+
+      - name: Deploy to Vercel (Vercel Build Mode)
+        if: inputs.build-mode == 'vercel'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          echo "🚀 Deploying to Vercel with Vercel build..."
+          
+          # Install Vercel CLI
+          npm install --global vercel@latest
+          
+          # Prepare deployment arguments
+          deploy_args=("--archive=tgz" "--token=${{ secrets.VERCEL_TOKEN }}")
+          
+          # Add environment target
+          if [[ "${{ inputs.environment }}" != "production" ]]; then
+            deploy_args+=("--target=${{ inputs.environment }}")
+          else
+            deploy_args+=("--prod")
+          fi
+          
+          # Add custom build command if specified
+          if [[ -n "${{ inputs.vercel-build-command }}" ]]; then
+            deploy_args+=("--build-env" "BUILD_COMMAND=${{ inputs.vercel-build-command }}")
+          fi
+          
+          # Add output directory if specified
+          if [[ -n "${{ inputs.vercel-output-directory }}" ]]; then
+            deploy_args+=("--build-env" "OUTPUT_DIRECTORY=${{ inputs.vercel-output-directory }}")
+          fi
+          
+          # Add environment variables from 1Password if available
+          if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
+            echo "📝 Loading environment variables from 1Password export..."
+            mapfile -d '' -t ENV_ARGS < "${VERCEL_ENV_ARGS_BIN}"
+            deploy_args+=("${ENV_ARGS[@]}")
+          fi
+          
+          # Deploy
+          vercel deploy "${deploy_args[@]}"
+          echo "✅ Deployment completed successfully!"

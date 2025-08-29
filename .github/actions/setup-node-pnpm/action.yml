@@ -1,0 +1,33 @@
+name: 'Setup Node.js and PNPM'
+description: 'Sets up Node.js with specified version and installs PNPM'
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '22.x'
+  pnpm-version:
+    description: 'PNPM version to use'
+    required: false
+    default: 'latest'
+  cache:
+    description: 'Enable dependency caching'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install PNPM
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
