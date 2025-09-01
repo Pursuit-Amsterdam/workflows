@@ -70,7 +70,7 @@ Sets up Node.js environment with PNPM package manager and dependency caching.
 
 **Example:**
 ```yaml
-- uses: ./.github/actions/setup-node-pnpm
+- uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
   with:
     node-version: '20.x'
     pnpm-version: '8.15.0'
@@ -322,7 +322,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
       - run: pnpm publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -487,8 +487,8 @@ jobs:
 
 **After:**
 ```yaml
-- uses: ./.github/actions/setup-node-pnpm
-- uses: ./.github/actions/build-test
+- uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
+- uses: Pursuit-Amsterdam/.github/.github/actions/build-test
   with:
     run-test: false
 ```

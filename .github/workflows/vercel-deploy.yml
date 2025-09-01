@@ -140,14 +140,14 @@ jobs:
 
       - name: Setup Node.js and PNPM
         if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
-        uses: ./.github/actions/setup-node-pnpm
+        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
         with:
           node-version: ${{ inputs.node-version }}
           pnpm-version: ${{ inputs.pnpm-version }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: ./.github/actions/onepassword-secrets
+        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -160,7 +160,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: ./.github/actions/build-test
+        uses: Pursuit-Amsterdam/.github/.github/actions/build-test
         with:
           run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
@@ -172,7 +172,7 @@ jobs:
 
       - name: Deploy to Vercel (GitHub Build Mode)
         if: inputs.build-mode == 'github'
-        uses: ./.github/actions/vercel-deploy
+        uses: Pursuit-Amsterdam/.github/.github/actions/vercel-deploy
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
