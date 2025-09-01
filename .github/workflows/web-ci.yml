@@ -92,7 +92,7 @@ on:
         description: 'Custom typecheck command'
         required: false
         type: string
-        default: 'type-check'
+        default: 'typecheck'
       
       # Vercel deployment options
       vercel_deploy:

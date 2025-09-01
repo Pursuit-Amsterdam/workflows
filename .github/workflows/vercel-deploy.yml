@@ -70,7 +70,7 @@ on:
         description: 'Custom typecheck command'
         required: false
         type: string
-        default: 'type-check'
+        default: 'typecheck'
       
       # Vercel options
       build-mode:
