@@ -44,18 +44,19 @@ runs:
         echo "📡 Fetching secrets from 1Password..."
         item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
 
+        echo "🔐 Parsing and exporting secrets..."
         mapfile -t kvs < <(jq -r '
           .fields[]
           | select(.value != null)
           | select((.label // "") != "notesPlain")
           | "\(.label)=\(.value)"
         ' <<<"$item_json")
-
+        
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           : > "${VERCEL_ENV_FILE}"
         fi
 
-        secret_count=0
+        echo "Exporting ${#kvs[@]} secrets to environment variables..."
         for kv in "${kvs[@]}"; do
           name="${kv%%=*}"
           value="${kv#*=}"
@@ -70,16 +71,12 @@ runs:
             echo "__OP_EOF__"
           } >> "$GITHUB_ENV"
 
-          # Append to NUL-safe args for Vercel deploy if requested
-          if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
-            printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
-          fi
-
-          ((secret_count++))
+          # Append to NUL-safe args for deploy
+          printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
         done
 
-        echo "✅ Loaded ${secret_count} secrets from 1Password"
-        
+        echo "✅ Successfully exported secrets."
+
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           echo "VERCEL_ENV_ARGS_BIN=$PWD/${VERCEL_ENV_FILE}" >> "$GITHUB_ENV"
           echo "📦 Vercel environment file prepared: ${VERCEL_ENV_FILE}"
