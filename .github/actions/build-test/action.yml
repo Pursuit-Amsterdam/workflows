@@ -32,7 +32,7 @@ inputs:
   typecheck-command:
     description: 'Custom typecheck command'
     required: false
-    default: 'type-check'
+    default: 'typecheck'
 
 runs:
   using: 'composite'
