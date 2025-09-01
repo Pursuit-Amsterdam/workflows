@@ -33,6 +33,7 @@ runs:
         cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
 
     - name: Configure npm auth for GitHub Packages
+      shell: bash
       run: |
         printf "@pursuit-amsterdam:registry=https://npm.pkg.github.com\nalways-auth=true\n" > ~/.npmrc
         printf "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n" >> ~/.npmrc
