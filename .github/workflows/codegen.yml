@@ -72,7 +72,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
 
       - name: Setup Node.js and PNPM
-        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
+        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm@main
         with:
           node-version: '22.x'
 
@@ -80,7 +80,7 @@ jobs:
         if: |
           (inputs.generate-graphql == true || inputs.generate-payload == true) &&
           inputs.onepassword-vault != '' && inputs.onepassword-item != ''
-        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets
+        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword-vault }}
@@ -88,7 +88,7 @@ jobs:
           export-for-vercel: 'false'
 
       - name: Run Code Generation
-        uses: Pursuit-Amsterdam/.github/.github/actions/codegen
+        uses: Pursuit-Amsterdam/.github/.github/actions/codegen@main
         with:
           generate-importmap: 'true'
           generate-types: ${{ inputs.generate-types || 'true' }}

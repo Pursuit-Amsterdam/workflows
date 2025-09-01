@@ -172,14 +172,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js and PNPM
-        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm
+        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           pnpm-version: ${{ inputs.pnpm-version }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets
+        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -192,14 +192,14 @@ jobs:
 
       - name: Run Standard Code Generation
         if: inputs.codegen && inputs.codegen_command == ''
-        uses: Pursuit-Amsterdam/.github/.github/actions/codegen
+        uses: Pursuit-Amsterdam/.github/.github/actions/codegen@main
         with:
           generate-importmap: ${{ inputs.generate-importmap }}
           generate-types: ${{ inputs.generate-types }}
           generate-graphql: ${{ inputs.generate-graphql }}
 
       - name: Build and Test
-        uses: Pursuit-Amsterdam/.github/.github/actions/build-test
+        uses: Pursuit-Amsterdam/.github/.github/actions/build-test@main
         with:
           run-build: ${{ inputs.run-build && !(inputs.vercel_deploy && inputs.vercel_build_mode == 'vercel') }}
           run-test: ${{ inputs.run-test }}
@@ -220,7 +220,7 @@ jobs:
 
       - name: Deploy to Vercel
         if: inputs.vercel_deploy
-        uses: Pursuit-Amsterdam/.github/.github/actions/vercel-deploy
+        uses: Pursuit-Amsterdam/.github/.github/actions/vercel-deploy@main
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
