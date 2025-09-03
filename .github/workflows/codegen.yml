@@ -51,8 +51,7 @@ on:
         type: boolean
 
 jobs:
-  codegen:
-    name: 'Run Code Generation'
+  pipeline:
     runs-on: ubuntu-latest
     
     steps:

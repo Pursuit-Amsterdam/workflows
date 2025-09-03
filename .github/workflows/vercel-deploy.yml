@@ -126,8 +126,7 @@ on:
         required: false
 
 jobs:
-  deploy:
-    name: 'Deploy to Vercel'
+  pipeline:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     defaults:

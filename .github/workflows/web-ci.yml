@@ -117,8 +117,7 @@ on:
         required: false
 
 jobs:
-  ci:
-    name: 'CI Pipeline'
+  pipeline:
     runs-on: ubuntu-latest
     defaults:
       run:

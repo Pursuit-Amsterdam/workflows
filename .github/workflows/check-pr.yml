@@ -21,7 +21,7 @@ on:
 # develop can be merged into acceptance
 
 jobs:
-  check-pr:
+  pipeline:
     runs-on: ubuntu-latest
 
     steps:
