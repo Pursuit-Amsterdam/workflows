@@ -14,48 +14,42 @@ This directory contains a comprehensive collection of reusable GitHub Actions an
 │   └── vercel-deploy/       # Vercel deployment
 └── workflows/               # Reusable workflows
     ├── codegen.yml          # Automated code generation pipeline
-    ├── node-ci.yml          # Node.js CI/CD pipeline
     ├── vercel-deploy.yml    # Vercel deployment pipeline
-    └── web-ci.yml           # Full-stack web application pipeline
+    └── web-ci.yml           # Web application CI pipeline
 ```
 
 ## 🚀 Quick Start
 
-### Basic Next.js Project with Vercel Deployment
+### Basic Next.js CI Pipeline
 
 ```yaml
-# .github/workflows/ci-cd.yml
-name: CI/CD Pipeline
+# .github/workflows/ci.yml
+name: CI Pipeline
 on: [push, pull_request]
 
 jobs:
   web:
-    uses: your-org/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
-      vercel_deploy: true
-      vercel_build_env: ${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }}
-    secrets:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      run-test: true
+      run-lint: true
+      run-typecheck: true
 ```
 
-### TypeScript Library
+### Code Generation Pipeline
 
 ```yaml
-# .github/workflows/ci.yml
-name: CI
+# .github/workflows/codegen.yml
+name: Code Generation
 on: [push, pull_request]
 
 jobs:
-  ci:
-    uses: your-org/.github/.github/workflows/node-ci.yml@main
+  codegen:
+    uses: Pursuit-Amsterdam/.github/.github/workflows/codegen.yml@main
     with:
-      run-build: true
-      run-test: true
-      upload_artifacts: true
-      artifact_path: "dist/"
+      generate-types: true
+      generate-graphql: true
 ```
 
 ## 📦 Available Actions
@@ -148,37 +142,21 @@ Sophisticated Vercel deployment action with multiple build modes and environment
 
 ## 🔄 Available Workflows
 
-### 🌐 `web-ci.yml` - Full-Stack Web Application Pipeline
-Comprehensive CI/CD pipeline for modern web applications with framework detection, code generation, testing, and deployment capabilities.
+### 🌐 `web-ci.yml` - Web Application CI Pipeline
+Focused CI pipeline for modern web applications with framework detection, code generation, and comprehensive quality checks.
 
 **Key Features:**
 - 🎯 Multi-framework support (Next.js, Vue, React, etc.)
 - 🔄 Intelligent code generation pipeline
 - 🧪 Comprehensive quality checks (test, lint, typecheck)
-- 🚀 Integrated Vercel deployment
 - 🔐 1Password secrets integration
-- 📦 Build artifact management
+- ⚡ Fast, CI-focused execution
 
 **Use Cases:**
 - Next.js applications with GraphQL
 - Vue.js SPAs with TypeScript
 - React applications with custom build processes
-- Full-stack applications with code generation
-
-### 🏗️ `node-ci.yml` - Node.js CI Pipeline
-Streamlined CI pipeline for Node.js projects without deployment concerns.
-
-**Key Features:**
-- ⚡ Fast setup and execution
-- 🔧 Flexible build and test configuration
-- 📊 Artifact upload support
-- 🎯 Custom command support
-
-**Use Cases:**
-- TypeScript libraries
-- Node.js backend services
-- NPM packages
-- Shared component libraries
+- Quality gates for pull requests
 
 ### 🚀 `vercel-deploy.yml` - Vercel Deployment Pipeline
 Dedicated deployment workflow with quality gates and environment management.
@@ -221,7 +199,7 @@ on:
 
 jobs:
   quality-gates:
-    uses: your-org/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       node-version: "22.x"
@@ -240,22 +218,24 @@ jobs:
       test-command: "test:coverage"
       build-command: "build:prod"
       
-      # Deployment
-      vercel_deploy: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
-      vercel_build_env: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      vercel_build_mode: "github"
-      
       # Security
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: ${{ github.ref == 'refs/heads/main' && 'production-env' || 'staging-env' }}
-      
-      # Artifacts
-      upload_artifacts: true
-      artifact_path: |
-        .next/
-        !.next/cache/
         
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  deploy:
+    needs: quality-gates
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      build-mode: "github"
+      onepassword_enabled: true
+      onepassword_vault: "my-project"
+      onepassword_item: ${{ github.ref == 'refs/heads/main' && 'production-env' || 'staging-env' }}
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -271,34 +251,45 @@ on: [push, pull_request]
 
 jobs:
   frontend:
-    uses: your-org/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       working_directory: "apps/web"
       codegen: true
       codegen_command: "pnpm --filter web generate"
-      vercel_deploy: true
       
   backend-api:
-    uses: your-org/.github/.github/workflows/node-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
+      framework: "node"
       working_directory: "apps/api"
       build-command: "build:api"
       test-command: "test:integration"
       
   shared-components:
-    uses: your-org/.github/.github/workflows/node-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
+      framework: "library"
       working_directory: "packages/ui"
       build-command: "build:components"
-      upload_artifacts: true
-      artifact_path: "packages/ui/dist/"
+
+  deploy-frontend:
+    needs: frontend
+    if: github.ref == 'refs/heads/main'
+    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
+    with:
+      working_directory: "apps/web"
+      environment: "production"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 ```
 
-### TypeScript Library with NPM Publishing
+### TypeScript Library with Custom Build
 
 ```yaml
-name: Library CI/CD
+name: Library CI
 on:
   push:
     branches: [main]
@@ -307,14 +298,12 @@ on:
 
 jobs:
   ci:
-    uses: your-org/.github/.github/workflows/node-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
+      framework: "library"
       build-command: "build:lib"
       test-command: "test:coverage"
       lint-command: "lint:strict"
-      upload_artifacts: true
-      artifact_path: "dist/"
-      artifact_name: "library-build"
       
   publish:
     needs: ci
@@ -350,7 +339,7 @@ on:
 
 jobs:
   codegen:
-    uses: your-org/.github/.github/workflows/codegen.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -373,7 +362,7 @@ on:
 
 jobs:
   deploy:
-    uses: your-org/.github/.github/workflows/vercel-deploy.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
     with:
       environment: "production"
       run-test: true
@@ -420,19 +409,6 @@ Configure these organization or repository secrets:
 
 ## 📊 Monitoring & Debugging
 
-### Artifact Collection
-Enable artifact upload to debug build issues:
-
-```yaml
-with:
-  upload_artifacts: true
-  artifact_path: |
-    dist/
-    .next/
-    build-logs/
-  artifact_name: "debug-build-${{ github.sha }}"
-```
-
 ### Verbose Logging
 Enable detailed logging for troubleshooting:
 
@@ -467,8 +443,9 @@ jobs:
 ```yaml
 jobs:
   ci:
-    uses: your-org/.github/.github/workflows/node-ci.yml@main
+    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
     with:
+      framework: "next"
       build-command: "build"
       test-command: "test"
 ```
@@ -504,7 +481,7 @@ git push origin v1.0.0
 
 Reference specific versions in your workflows:
 ```yaml
-uses: your-org/.github/.github/workflows/web-ci.yml@v1.0.0
+uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@v1.0.0
 ```
 
 ## 🤝 Contributing

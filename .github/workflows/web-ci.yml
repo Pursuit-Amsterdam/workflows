@@ -1,4 +1,4 @@
-name: 'Web Application CI/CD'
+name: 'Web Application CI'
 
 on:
   workflow_call:
@@ -94,28 +94,6 @@ on:
         type: string
         default: 'typecheck'
       
-      # Vercel deployment options
-      vercel_deploy:
-        description: 'Enable Vercel deployment'
-        required: false
-        type: boolean
-        default: false
-      vercel_build_env:
-        description: 'Vercel build environment (preview, production)'
-        required: false
-        type: string
-        default: 'preview'
-      vercel_build_mode:
-        description: 'Vercel build mode: "github" (build in Actions) or "vercel" (build on Vercel)'
-        required: false
-        type: string
-        default: 'github'
-      vercel_prepare_package:
-        description: 'Prepare package.json for Vercel runtime'
-        required: false
-        type: boolean
-        default: false
-      
       # 1Password secrets
       onepassword_enabled:
         description: 'Enable 1Password secrets loading'
@@ -132,36 +110,15 @@ on:
         required: false
         type: string
         default: ''
-      
-      # Artifact upload
-      upload_artifacts:
-        description: 'Upload build artifacts'
-        required: false
-        type: boolean
-        default: false
-      artifact_path:
-        description: 'Path to upload as artifacts'
-        required: false
-        type: string
-        default: ''
 
     secrets:
-      VERCEL_TOKEN:
-        description: 'Vercel authentication token'
-        required: false
-      VERCEL_ORG_ID:
-        description: 'Vercel organization ID'
-        required: false
-      VERCEL_PROJECT_ID:
-        description: 'Vercel project ID'
-        required: false
       OP_SERVICE_ACCOUNT_TOKEN:
         description: '1Password service account token'
         required: false
 
 jobs:
   ci:
-    name: 'CI/CD Pipeline'
+    name: 'CI Pipeline'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -185,7 +142,6 @@ jobs:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
-          export-for-vercel: ${{ inputs.vercel_deploy }}
 
       - name: Run Custom Code Generation
         if: inputs.codegen && inputs.codegen_command != ''
@@ -202,7 +158,7 @@ jobs:
       - name: Build and Test
         uses: Pursuit-Amsterdam/.github/.github/actions/build-test@main
         with:
-          run-build: ${{ inputs.run-build && !(inputs.vercel_deploy && inputs.vercel_build_mode == 'vercel') }}
+          run-build: ${{ inputs.run-build }}
           run-test: ${{ inputs.run-test }}
           run-lint: ${{ inputs.run-lint }}
           run-typecheck: ${{ inputs.run-typecheck }}
@@ -210,22 +166,3 @@ jobs:
           test-command: ${{ inputs.test-command }}
           lint-command: ${{ inputs.lint-command }}
           typecheck-command: ${{ inputs.typecheck-command }}
-
-      - name: Upload build artifacts
-        if: inputs.upload_artifacts && inputs.artifact_path != ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.framework }}-build-${{ github.sha }}
-          path: ${{ inputs.artifact_path }}
-          retention-days: 7
-
-      - name: Deploy to Vercel
-        if: inputs.vercel_deploy
-        uses: Pursuit-Amsterdam/.github/.github/actions/vercel-deploy@main
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          environment: ${{ inputs.vercel_build_env }}
-          build-mode: ${{ inputs.vercel_build_mode }}
-          prepare-package: ${{ inputs.vercel_prepare_package }}

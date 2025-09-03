@@ -1,11 +1,5 @@
 name: 'Code Generation'
 
-# This workflow runs code generation and handles different scenarios:
-# 1. On PR: Checks if generated code is up-to-date, fails if not (unless auto-commit is enabled)
-# 2. Manual dispatch: Can optionally auto-commit to PR branch or create new PR
-# 3. Scheduled: Automatically creates PR with any updates
-# 4. When schema/config files change: Triggers validation on PRs
-
 on:
   pull_request:
     branches: [main, develop]
@@ -55,8 +49,6 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 jobs:
   codegen:
