@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js and PNPM
-        uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           pnpm-version: ${{ inputs.pnpm-version }}
@@ -136,7 +136,7 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/.github/.github/actions/onepassword-secrets@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/onepassword-secrets@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -148,14 +148,14 @@ jobs:
 
       - name: Run Standard Code Generation
         if: inputs.codegen && inputs.codegen_command == ''
-        uses: Pursuit-Amsterdam/.github/.github/actions/codegen@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/codegen@main
         with:
           generate-importmap: ${{ inputs.generate-importmap }}
           generate-types: ${{ inputs.generate-types }}
           generate-graphql: ${{ inputs.generate-graphql }}
 
       - name: Build and Test
-        uses: Pursuit-Amsterdam/.github/.github/actions/build-test@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/build-test@main
         with:
           run-build: ${{ inputs.run-build }}
           run-test: ${{ inputs.run-test }}

@@ -29,7 +29,7 @@ on: [push, pull_request]
 
 jobs:
   web:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       run-test: true
@@ -46,7 +46,7 @@ on: [push, pull_request]
 
 jobs:
   codegen:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/codegen.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -64,7 +64,7 @@ Sets up Node.js environment with PNPM package manager and dependency caching.
 
 **Example:**
 ```yaml
-- uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm@main
+- uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
   with:
     node-version: '20.x'
     pnpm-version: '8.15.0'
@@ -199,7 +199,7 @@ on:
 
 jobs:
   quality-gates:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       node-version: "22.x"
@@ -229,7 +229,7 @@ jobs:
   deploy:
     needs: quality-gates
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
     with:
       environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
       build-mode: "github"
@@ -251,7 +251,7 @@ on: [push, pull_request]
 
 jobs:
   frontend:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       working_directory: "apps/web"
@@ -259,7 +259,7 @@ jobs:
       codegen_command: "pnpm --filter web generate"
       
   backend-api:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "node"
       working_directory: "apps/api"
@@ -267,7 +267,7 @@ jobs:
       test-command: "test:integration"
       
   shared-components:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "library"
       working_directory: "packages/ui"
@@ -276,7 +276,7 @@ jobs:
   deploy-frontend:
     needs: frontend
     if: github.ref == 'refs/heads/main'
-    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
     with:
       working_directory: "apps/web"
       environment: "production"
@@ -298,7 +298,7 @@ on:
 
 jobs:
   ci:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/web-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "library"
       build-command: "build:lib"
@@ -311,7 +311,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Pursuit-Amsterdam/.github/.github/actions/setup-node-pnpm@main
+      - uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
       - run: pnpm publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -339,7 +339,7 @@ on:
 
 jobs:
   codegen:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/codegen.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -362,7 +362,7 @@ on:
 
 jobs:
   deploy:
-    uses: Pursuit-Amsterdam/.github/.github/workflows/vercel-deploy.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
     with:
       environment: "production"
       run-test: true
