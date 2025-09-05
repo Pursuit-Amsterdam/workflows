@@ -69,7 +69,10 @@ runs:
         target_flag=""
         if [[ "${{ inputs.environment }}" != "production" ]]; then
           target_flag="--target=${{ inputs.environment }}"
+        else
+          deploy_args+=("--prod")
         fi
+
         vercel pull --yes --environment=${{ inputs.environment }} --token=${{ inputs.vercel-token }}
 
         # Build project artifacts
