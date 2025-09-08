@@ -70,7 +70,7 @@ runs:
         if [[ "${{ inputs.environment }}" != "production" ]]; then
           target_flag="--target=${{ inputs.environment }}"
         else
-          target_flag+=("--prod")
+          target_flag=("--prod")
         fi
 
         vercel pull --yes --environment=${{ inputs.environment }} --token=${{ inputs.vercel-token }}
