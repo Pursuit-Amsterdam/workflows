@@ -51,6 +51,10 @@ on:
         type: string
         default: ""
 
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+
 jobs:
   deploy-supabase:
     if: ${{ inputs.platform == 'supabase' }}
