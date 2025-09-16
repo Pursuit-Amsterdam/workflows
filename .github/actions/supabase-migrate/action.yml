@@ -7,6 +7,9 @@ inputs:
   db-url:
     description: Supabase DB URL. Prefer passing via secrets in workflow using this action.
     required: true
+  db-password:
+    description: Supabase DB Password. Prefer passing via secrets in workflow using this action.
+    required: true
 
 runs:
   using: composite
@@ -24,6 +27,7 @@ runs:
       run: |
         # Determine branch name and choose DB URL
         echo "SUPABASE_DB_URL=${{ inputs.db-url }}" >> $GITHUB_ENV
+        echo "SUPABASE_DB_PASSWORD=${{ inputs.db-password }}" >> $GITHUB_ENV
 
     - name: Apply Supabase migrations
       shell: bash

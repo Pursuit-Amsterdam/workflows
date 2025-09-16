@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: "DB_CONNECTION_STRING"
+      db-password-variable:
+        description: "Name of the secret containing the database password (e.g., DB_PASSWORD_PRODUCTION)"
+        required: false
+        type: string
+        default: "DB_PASSWORD"
 
       # 1Password secrets
       onepassword_enabled:
@@ -81,6 +86,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/supabase-migrate@main
         with:
           db-url: ${{ env[inputs.db-url-variable] }}
+          db-password: ${{ secrets[inputs.db-password-variable] }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'supabase' }}
