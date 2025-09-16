@@ -26,4 +26,5 @@ runs:
         echo "SUPABASE_DB_URL=${{ inputs.db-url }}" >> $GITHUB_ENV
 
     - name: Apply Supabase migrations
+      shell: bash
       run: supabase db push --db-url $SUPABASE_DB_URL
