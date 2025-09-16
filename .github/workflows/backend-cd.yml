@@ -75,7 +75,7 @@ jobs:
 
       - name: Run Supabase Migrations
         if: ${{ inputs.run-migrations }}
-        uses: ./.github/actions/supabase-migrate
+        uses: Pursuit-Amsterdam/workflows/.github/actions/supabase-migrate@main
         with:
           db-url: ${{ secrets[inputs.db-url-variable] }}
 
