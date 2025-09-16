@@ -1,0 +1,29 @@
+name: Deploy Supabase Migrations
+description: Applies Supabase migrations using the Supabase CLI. This composite action installs the Supabase CLI, selects the database URL based on the branch, and runs `supabase db push`.
+inputs:
+  env:
+    description: Optional environment name used to pick a DB URL (not required).
+    required: false
+  db-url:
+    description: Supabase DB URL. Prefer passing via secrets in workflow using this action.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+
+    - name: Set database URL based on branch
+      shell: bash
+      run: |
+        # Determine branch name and choose DB URL
+        echo "SUPABASE_DB_URL=${{ inputs.db-url }}" >> $GITHUB_ENV
+
+    - name: Apply Supabase migrations
+      run: supabase db push --db-url $SUPABASE_DB_URL

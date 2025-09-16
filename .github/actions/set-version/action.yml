@@ -1,0 +1,80 @@
+name: Set version
+description: >-
+  Compute a version string and export it as an environment variable for later
+  steps. If `framework` is set to `nextjs` the variable name will be
+  prefixed with `NEXT_PUBLIC_` (recommended for Next.js public env vars).
+
+inputs:
+  version:
+    description: "The semver or datever for the build, e.g. v1.2.3 or v2025.01.01"
+    required: true
+  framework:
+    description: 'Optional framework hint. If set to "next" the env var name will start with NEXT_PUBLIC_'
+    required: false
+    default: ""
+  environment:
+    description: 'Target environment. If set to "development" or "dev" a -dev-[commit] suffix will be appended.'
+    required: false
+    default: "production"
+
+outputs:
+  version:
+    description: "The computed version string (value of the env var)"
+    value: ${{ steps.compute.outputs.version }}
+  version_var_name:
+    description: "The env var name that was written to GITHUB_ENV"
+    value: ${{ steps.compute.outputs.version_var_name }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: compute
+      name: Compute and export version
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Inputs from the action
+        version_input="${{ inputs.version }}"
+        framework_input="${{ inputs.framework }}"
+        environment_input="${{ inputs.environment }}"
+
+        # Resolve a commit short sha to append for dev builds
+        sha="${GITHUB_SHA:-}"
+        if [ -z "$sha" ]; then
+          # Fallback to run id if no sha is available
+          sha="${GITHUB_RUN_ID:-local}"
+        fi
+        short_sha="${sha:0:7}"
+
+        # Ensure version starts with 'v' as requested in examples
+        version="$version_input"
+        if [[ "$version" != v* ]]; then
+          version="v$version"
+        fi
+
+        # Normalize environment and decide whether to append dev suffix
+        env_lc="$(echo "$environment_input" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$env_lc" == "dev" || "$env_lc" == "development" ]]; then
+          version_value="${version}-dev-${short_sha}"
+        else
+          version_value="$version"
+        fi
+
+        # Compute variable name based on framework
+        framework_lc="$(echo "$framework_input" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$framework_lc" == "next" ]]; then
+          var_name="NEXT_PUBLIC_VERSION"
+        else
+          var_name="VERSION"
+        fi
+
+        # Export to GITHUB_ENV so later steps in the job see it
+        echo "${var_name}=${version_value}" >> "$GITHUB_ENV"
+
+        # Emit outputs for callers of this action
+        echo "version=${version_value}" >> "$GITHUB_OUTPUT"
+        echo "version_var_name=${var_name}" >> "$GITHUB_OUTPUT"
+
+        # Also print summary for logs
+        echo "Wrote env var ${var_name}=${version_value} (short sha: ${short_sha})"

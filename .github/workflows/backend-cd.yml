@@ -1,0 +1,90 @@
+name: "Backend CD (generic)"
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: "Target deployment platform (supabase, ...)."
+        required: true
+        type: string
+        default: "supabase"
+      node-version:
+        description: "Node.js version (if needed by actions)"
+        required: false
+        type: string
+        default: "18.x"
+      working-directory:
+        description: "Working directory for the project"
+        required: false
+        type: string
+        default: "."
+      environment:
+        description: "Deployment environment (production, staging, preview)"
+        required: false
+        type: string
+        default: "preview"
+      run-migrations:
+        description: "Whether to run DB migrations"
+        required: false
+        type: boolean
+        default: true
+      db-url-variable:
+        description: "Name of the secret containing the database URL (e.g., DB_URL_PRODUCTION)"
+        required: false
+        type: string
+        default: "DB_CONNECTION_STRING"
+
+      # 1Password secrets
+      onepassword_enabled:
+        description: "Enable 1Password secrets loading"
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        description: "1Password vault name"
+        required: false
+        type: string
+        default: ""
+      onepassword_item:
+        description: "1Password item name"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  deploy-supabase:
+    if: ${{ inputs.platform == 'supabase' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: Pursuit-Amsterdam/workflows/.github/actions/onepassword-secrets@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-for-vercel: true
+
+      - name: Run Supabase Migrations
+        if: ${{ inputs.run-migrations }}
+        uses: ./.github/actions/supabase-migrate
+        with:
+          db-url: ${{ secrets[inputs.db-url-variable] }}
+
+  unsupported-platform:
+    if: ${{ inputs.platform != 'supabase' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail for unsupported platform
+        run: |
+          echo "Platform '${{ inputs.platform }}' is not supported by this workflow yet."
+          echo "Supported platforms: supabase"
+          exit 1

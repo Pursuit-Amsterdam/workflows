@@ -1,29 +1,56 @@
-# Software Agency GitHub Actions & Workflows
+# GitHub Workflows & Actions
 
-This directory contains a comprehensive collection of reusable GitHub Actions and workflows designed for modern web development projects. Our GitHub Actions suite provides automated CI/CD pipelines for JavaScript/TypeScript projects with support for multiple frameworks, code generation, testing, deployment, and secure secret management.
+A comprehensive collection of reusable GitHub Actions and workflows designed for modern web development projects. This repository provides automated CI/CD pipelines for JavaScript/TypeScript projects with support for multiple frameworks, code generation, testing, deployment, and secure secret management.
 
-## 🏗️ Architecture Overview
+## 📋 Table of Contents
+
+- [Overall Setup](#overall-setup)
+- [Composite Actions](#composite-actions)
+- [Workflows](#workflows)
+- [Usage Examples](#usage-examples)
+
+---
+
+## Overall Setup
+
+### Architecture Overview
+
+This repository is structured to provide maximum reusability and modularity:
 
 ```
 .github/
-├── actions/                  # Reusable composite actions
-│   ├── build-test/          # Build, test, lint, and typecheck
-│   ├── codegen/             # Code generation (GraphQL, types, etc.)
-│   ├── onepassword-secrets/ # Secure secret management
-│   ├── setup-node-pnpm/     # Node.js and PNPM setup
-│   └── vercel-deploy/       # Vercel deployment
-└── workflows/               # Reusable workflows
-    ├── codegen.yml          # Automated code generation pipeline
-    ├── vercel-deploy.yml    # Vercel deployment pipeline
-    └── web-ci.yml           # Web application CI pipeline
+├── actions/                     # Reusable composite actions
+│   ├── build-test/             # Build, test, lint, and typecheck
+│   ├── codegen/                # Code generation (GraphQL, types, etc.)
+│   ├── onepassword-secrets/    # Secure secret management with 1Password
+│   ├── set-version/            # Version management and environment variables
+│   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
+│   ├── supabase-migrate/       # Supabase database migrations
+│   └── vercel-deploy/          # Vercel deployment with multiple build modes
+└── workflows/                   # Reusable workflows
+    ├── backend-cd.yml          # Backend continuous deployment (Supabase)
+    ├── check-pr.yml            # PR validation and branch naming enforcement
+    ├── codegen.yml             # Automated code generation pipeline
+    ├── vercel-deploy.yml       # Vercel deployment pipeline
+    ├── web-cd.yml              # Generic web continuous deployment
+    └── web-ci.yml              # Web application continuous integration
 ```
 
-## 🚀 Quick Start
+### Core Principles
 
-### Basic Next.js CI Pipeline
+- **� Reusability**: All actions and workflows are designed to be used across multiple projects
+- **🎯 Modularity**: Each action has a single, well-defined responsibility
+- **🛡️ Security**: Built-in secret management and security best practices
+- **⚡ Performance**: Optimized for speed with intelligent caching and conditional execution
+- **🔧 Flexibility**: Extensive configuration options for different project needs
+
+### Quick Start Guide
+
+#### 1. Basic CI Pipeline for a Next.js Project
+
+Create `.github/workflows/ci.yml` in your repository:
 
 ```yaml
-# .github/workflows/ci.yml
 name: CI Pipeline
 on: [push, pull_request]
 
@@ -37,12 +64,15 @@ jobs:
       run-typecheck: true
 ```
 
-### Code Generation Pipeline
+#### 2. Code Generation Pipeline
+
+Create `.github/workflows/codegen.yml`:
 
 ```yaml
-# .github/workflows/codegen.yml
 name: Code Generation
-on: [push, pull_request]
+on:
+  pull_request:
+    paths: ["**/*.graphql", "**/schema.ts", "package.json"]
 
 jobs:
   codegen:
@@ -52,180 +82,629 @@ jobs:
       generate-graphql: true
 ```
 
-## 📦 Available Actions
+#### 3. Deployment Pipeline
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "production"
+      build-mode: "github"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+```
+
+#### 4. Required Secrets Configuration
+
+Configure these secrets in your repository or organization settings:
+
+**For Vercel Deployments:**
+
+- `VERCEL_TOKEN`: Your Vercel authentication token
+- `VERCEL_ORG_ID`: Your Vercel organization ID
+- `VERCEL_PROJECT_ID`: Your Vercel project ID
+
+**For 1Password Integration:**
+
+- `OP_SERVICE_ACCOUNT_TOKEN`: 1Password service account token
+
+**For Supabase Backend:**
+
+- `DB_URL_PRODUCTION`: Production database URL
+- `DB_URL_STAGING`: Staging database URL
+
+---
+
+## Composite Actions
 
 ### 🛠️ `setup-node-pnpm`
-Sets up Node.js environment with PNPM package manager and dependency caching.
+
+Sets up a Node.js environment with PNPM package manager, dependency caching, and GitHub Packages authentication.
+
+**Location**: `.github/actions/setup-node-pnpm`
 
 **Inputs:**
-- `node-version` (default: `22.x`) - Node.js version
-- `pnpm-version` (default: `latest`) - PNPM version
-- `cache` (default: `true`) - Enable dependency caching
 
-**Example:**
+- `node-version` (default: `22.x`) - Node.js version to install
+- `pnpm-version` (default: `latest`) - PNPM version to install
+- `cache` (default: `true`) - Enable dependency caching for faster builds
+- `node-auth-token` (optional) - Authentication token for private registries
+
+**Features:**
+
+- ✅ Automatic PNPM installation and caching
+- 🔐 GitHub Packages authentication setup
+- ⚡ Frozen lockfile installation for reproducible builds
+- 📦 Private registry support
+
+**Example Usage:**
+
 ```yaml
 - uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
   with:
-    node-version: '20.x'
-    pnpm-version: '8.15.0'
+    node-version: "20.x"
+    pnpm-version: "8.15.0"
+    node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+---
+
 ### 🔨 `build-test`
-Comprehensive build, test, lint, and type-checking action with flexible configuration.
+
+Comprehensive build, test, lint, and type-checking action with graceful error handling and customizable commands.
+
+**Location**: `.github/actions/build-test`
 
 **Inputs:**
+
 - `run-build` (default: `true`) - Execute build step
 - `run-test` (default: `true`) - Execute test suite
 - `run-lint` (default: `true`) - Execute linting
 - `run-typecheck` (default: `true`) - Execute type checking
-- `build-command` (default: `build`) - Custom build command
-- `test-command` (default: `test`) - Custom test command
-- `lint-command` (default: `lint`) - Custom lint command
-- `typecheck-command` (default: `type-check`) - Custom typecheck command
+- `build-command` (default: `build`) - Custom build command name
+- `test-command` (default: `test`) - Custom test command name
+- `lint-command` (default: `lint`) - Custom lint command name
+- `typecheck-command` (default: `typecheck`) - Custom typecheck command name
 
 **Features:**
-- ✅ Graceful handling of missing scripts
-- 🔄 Customizable command names
-- 📊 Clear success/failure reporting
+
+- ✅ Graceful handling of missing scripts (warns instead of failing)
+- 🔄 Customizable command names for different project setups
+- 📊 Clear success/failure reporting with emojis
 - ⚡ Conditional execution based on inputs
 
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/build-test@main
+  with:
+    run-test: true
+    run-lint: true
+    run-typecheck: true
+    test-command: "test:coverage"
+    build-command: "build:prod"
+```
+
+---
+
 ### 🔄 `codegen`
-Advanced code generation pipeline supporting multiple generation types and frameworks.
+
+Advanced code generation pipeline supporting multiple generation types and custom commands.
+
+**Location**: `.github/actions/codegen`
 
 **Inputs:**
-- `generate-importmap` (default: `true`) - Generate import maps
+
+- `generate-importmap` (default: `true`) - Generate ES module import maps
 - `generate-types` (default: `true`) - Generate TypeScript types
-- `generate-graphql` (default: `false`) - Generate GraphQL code
-- `generate-payload` (default: `false`) - Generate PayloadCMS types
-- `custom-commands` - Space-separated list of custom commands
-- `custom-command` - Single custom command (overrides standard flow)
+- `generate-graphql` (default: `false`) - Generate GraphQL schema and operations
+- `generate-payload` (default: `false`) - Generate PayloadCMS collection types
+- `custom-commands` - Space-separated list of additional commands to run
+- `custom-command` - Single custom command (overrides all standard commands)
 
 **Supported Generators:**
-- 📝 TypeScript type generation
-- 🌐 GraphQL schema and operations
-- 📦 ES module import maps
-- 🏗️ PayloadCMS collection types
+
+- 📝 TypeScript type generation (`generate:types`)
+- 🌐 GraphQL schema and operations (`generate:graphql`)
+- 📦 ES module import maps (`generate:importmap`)
+- 🏗️ PayloadCMS collection types (`generate:payload`)
 - 🔧 Custom generation commands
 
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/codegen@main
+  with:
+    generate-types: true
+    generate-graphql: true
+    custom-commands: "generate:prisma generate:openapi"
+```
+
+---
+
 ### 🔐 `onepassword-secrets`
-Secure environment variable management using 1Password vaults with Vercel integration.
+
+Secure environment variable management using 1Password vaults with optional Vercel deployment integration.
+
+**Location**: `.github/actions/onepassword-secrets`
 
 **Inputs:**
+
 - `service-account-token` (**required**) - 1Password service account token
 - `vault-name` (**required**) - 1Password vault name
-- `item-name` (**required**) - 1Password item name
-- `export-for-vercel` (default: `false`) - Export for Vercel deployment
-- `vercel-env-file` (default: `vercel_env_args.bin`) - Vercel env args file path
+- `item-name` (**required**) - 1Password item name containing secrets
+- `export-for-vercel` (default: `false`) - Export secrets for Vercel deployment
+- `vercel-env-file` (default: `vercel_env_args.bin`) - File path for Vercel env args
 
 **Features:**
-- 🔒 Secure secret loading from 1Password
-- 🎭 Automatic secret masking in logs
-- 🚀 Vercel deployment integration
-- 📁 Multi-line environment variable support
+
+- 🔒 Secure secret loading from 1Password vaults
+- 🎭 Automatic secret masking in GitHub Actions logs
+- 🚀 Direct Vercel deployment integration
+- 📁 Support for multi-line environment variables
 - 🛡️ Service account authentication
 
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/onepassword-secrets@main
+  with:
+    service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    vault-name: "my-project"
+    item-name: "production-env"
+    export-for-vercel: true
+```
+
+---
+
 ### 🚀 `vercel-deploy`
+
 Sophisticated Vercel deployment action with multiple build modes and environment management.
 
+**Location**: `.github/actions/vercel-deploy`
+
 **Inputs:**
+
 - `vercel-token` (**required**) - Vercel authentication token
 - `vercel-org-id` (**required**) - Vercel organization ID
 - `vercel-project-id` (**required**) - Vercel project ID
 - `environment` (default: `staging`) - Deployment environment
 - `build-mode` (default: `github`) - Build location (`github` or `vercel`)
-- `prepare-package` (default: `false`) - Remove `"type": "module"` for runtime
+- `prepare-package` (default: `false`) - Remove `"type": "module"` for runtime compatibility
 - `build-command` - Custom build command for GitHub build mode
+- `vercel-env-args-file` - Path to file containing environment arguments
 
 **Build Modes:**
-- **GitHub Build**: Artifacts built in GitHub Actions, deployed as prebuilt
-- **Vercel Build**: Source code deployed, built on Vercel infrastructure
 
-## 🔄 Available Workflows
+- **GitHub Build (`github`)**: Builds artifacts in GitHub Actions, deploys as prebuilt
+- **Vercel Build (`vercel`)**: Deploys source code, builds on Vercel infrastructure
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/vercel-deploy@main
+  with:
+    vercel-token: ${{ secrets.VERCEL_TOKEN }}
+    vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+    vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+    environment: "production"
+    build-mode: "github"
+```
+
+---
+
+### 📝 `set-version`
+
+Version management action that computes version strings and exports them as environment variables with framework-specific support.
+
+**Location**: `.github/actions/set-version`
+
+**Inputs:**
+
+- `version` (**required**) - Semantic version (e.g., `1.2.3` or `v1.2.3`)
+- `framework` (optional) - Framework hint (`nextjs` prefixes with `NEXT_PUBLIC_`)
+- `environment` (default: `production`) - Target environment (dev builds get commit suffix)
+
+**Outputs:**
+
+- `version` - The computed version string
+- `version_var_name` - The environment variable name that was set
+
+**Features:**
+
+- 📅 Automatic version normalization (ensures `v` prefix)
+- 🔄 Development build suffix (`-dev-{commit}` for dev environments)
+- 🎯 Framework-specific environment variables (Next.js public vars)
+- 📊 Commit SHA integration for unique dev builds
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/set-version@main
+  with:
+    version: "1.2.3"
+    framework: "nextjs"
+    environment: "development"
+```
+
+---
+
+### 🗄️ `supabase-migrate`
+
+Supabase database migration action that applies migrations using the Supabase CLI with environment-aware database URL selection.
+
+**Location**: `.github/actions/supabase-migrate`
+
+**Inputs:**
+
+- `env` (optional) - Environment name for URL selection
+- `db-url-production` (**required**) - Production database URL
+- `db-url-staging` (**required**) - Staging database URL
+
+**Features:**
+
+- 🔄 Automatic environment detection (main branch → production, others → staging)
+- 📊 Supabase CLI installation and configuration
+- 🗄️ Migration execution with `supabase db push`
+- 🔐 Secure database URL handling
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/supabase-migrate@main
+  with:
+    db-url-production: ${{ secrets.DB_URL_PRODUCTION }}
+```
+
+---
+
+## Workflows
 
 ### 🌐 `web-ci.yml` - Web Application CI Pipeline
-Focused CI pipeline for modern web applications with framework detection, code generation, and comprehensive quality checks.
+
+Comprehensive CI pipeline for modern web applications with framework detection, code generation, and quality checks.
+
+**Location**: `.github/workflows/web-ci.yml`
 
 **Key Features:**
+
 - 🎯 Multi-framework support (Next.js, Vue, React, etc.)
 - 🔄 Intelligent code generation pipeline
 - 🧪 Comprehensive quality checks (test, lint, typecheck)
 - 🔐 1Password secrets integration
 - ⚡ Fast, CI-focused execution
 
-**Use Cases:**
-- Next.js applications with GraphQL
-- Vue.js SPAs with TypeScript
-- React applications with custom build processes
-- Quality gates for pull requests
+**Essential Inputs:**
 
-### 🚀 `vercel-deploy.yml` - Vercel Deployment Pipeline
-Dedicated deployment workflow with quality gates and environment management.
+- `framework` (**required**) - Framework type (next, vue, react, etc.)
+- `node-version` (default: `22.x`) - Node.js version
+- `working-directory` (default: `.`) - Project working directory
+
+**Code Generation Options:**
+
+- `codegen` (default: `false`) - Enable code generation
+- `generate-types` (default: `true`) - Generate TypeScript types
+- `generate-graphql` (default: `false`) - Generate GraphQL code
+- `codegen_command` - Custom codegen command
+
+**Quality Check Options:**
+
+- `run-build` (default: `true`) - Run build step
+- `run-test` (default: `true`) - Run tests
+- `run-lint` (default: `true`) - Run linting
+- `run-typecheck` (default: `true`) - Run type checking
+
+**1Password Integration:**
+
+- `onepassword_enabled` (default: `false`) - Enable 1Password secrets
+- `onepassword_vault` - Vault name
+- `onepassword_item` - Item name
+
+**Example Usage:**
+
+```yaml
+jobs:
+  ci:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
+    with:
+      framework: "next"
+      codegen: true
+      generate-graphql: true
+      onepassword_enabled: true
+      onepassword_vault: "my-project"
+      onepassword_item: "dev-env"
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+```
+
+---
+
+### 🚢 `web-cd.yml` - Generic Web Continuous Deployment
+
+Generic web deployment workflow with platform abstraction (currently supports Vercel).
+
+**Location**: `.github/workflows/web-cd.yml`
 
 **Key Features:**
+
+- 🌍 Multi-platform support (extensible architecture)
 - 🛡️ Quality gates before deployment
-- 🌍 Multi-environment support
 - 🔄 Code generation integration
 - 🔐 Secure secret management
-- 📈 Deployment monitoring
 
-### 🔄 `codegen.yml` - Automated Code Generation
-Specialized workflow for automated code generation with intelligent change detection.
+**Essential Inputs:**
+
+- `platform` (default: `vercel`) - Deployment platform
+- `environment` (default: `preview`) - Target environment
+
+**Quality Options:**
+
+- `run-test` (default: `true`) - Run tests before deployment
+- `run-lint` (default: `true`) - Run linting before deployment
+- `run-typecheck` (default: `true`) - Run type checking before deployment
+
+**Vercel-Specific Options:**
+
+- `build-mode` (default: `github`) - Build location
+- `prepare-package` (default: `false`) - Prepare package.json for runtime
+
+**Example Usage:**
+
+```yaml
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
+    with:
+      platform: "vercel"
+      environment: "production"
+      build-mode: "github"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+```
+
+---
+
+### 🚀 `vercel-deploy.yml` - Vercel Deployment Pipeline
+
+Dedicated Vercel deployment workflow with comprehensive build and quality management.
+
+**Location**: `.github/workflows/vercel-deploy.yml`
 
 **Key Features:**
+
+- 🛡️ Pre-deployment quality gates
+- 🔧 Multiple build modes (GitHub vs Vercel)
+- 🔐 1Password secrets integration
+- ⚡ Optimized deployment pipeline
+
+**Build Options:**
+
+- `build-mode` (default: `github`) - Where to build (`github` or `vercel`)
+- `prepare-package` (default: `false`) - Runtime package preparation
+- `vercel-build-command` - Custom Vercel build command
+
+**Quality Gates:**
+
+- `run-test` (default: `true`) - Pre-deployment testing
+- `run-lint` (default: `true`) - Pre-deployment linting
+- `run-typecheck` (default: `true`) - Pre-deployment type checking
+
+**Example Usage:**
+
+```yaml
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "production"
+      build-mode: "github"
+      onepassword_enabled: true
+      onepassword_vault: "production"
+      onepassword_item: "app-secrets"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+```
+
+---
+
+### 🔄 `codegen.yml` - Automated Code Generation
+
+Specialized workflow for automated code generation with intelligent change detection and automated PR management.
+
+**Location**: `.github/workflows/codegen.yml`
+
+**Key Features:**
+
 - 🎯 Smart trigger detection (schema changes, config changes)
 - 🔄 Automated PR creation for updates
 - ✅ Validation mode for pull requests
-- 📅 Scheduled generation runs
 - 🤖 Auto-commit capabilities
+- 📅 Scheduled generation runs
 
 **Trigger Conditions:**
+
 - Schema file changes (`*.graphql`, `*.gql`, `schema.ts`)
 - Configuration changes (`payload.config.ts`)
 - Dependency updates (`package.json`, `pnpm-lock.yaml`)
 - Manual workflow dispatch
-- Scheduled runs (daily at 2 AM UTC)
+- Pull request events
 
-## 💡 Usage Examples
+**Manual Inputs (workflow_dispatch):**
+
+- `generate-types` (default: `true`) - Generate TypeScript types
+- `generate-graphql` (default: `false`) - Generate GraphQL code
+- `generate-payload` (default: `false`) - Generate PayloadCMS types
+- `custom-commands` - Custom generation commands
+- `auto-commit` (default: `false`) - Auto-commit changes to PR
+
+**Behavior Modes:**
+
+- **PR Mode**: Validates generated code is up-to-date, fails if outdated
+- **Auto-commit Mode**: Automatically commits changes to PR branch
+- **Scheduled Mode**: Creates new PR with generated changes
+
+**Example Usage:**
+
+```yaml
+jobs:
+  codegen:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/codegen.yml@main
+    with:
+      generate-types: true
+      generate-graphql: true
+      onepassword-vault: "my-project"
+      onepassword-item: "dev-env"
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+```
+
+---
+
+### 🗄️ `backend-cd.yml` - Backend Continuous Deployment
+
+Generic backend deployment workflow supporting database migrations and backend services.
+
+**Location**: `.github/workflows/backend-cd.yml`
+
+**Key Features:**
+
+- 🗄️ Database migration support
+- 🎯 Platform abstraction (currently Supabase)
+- 🔐 Environment-aware deployment
+- 📊 Migration execution logging
+
+**Essential Inputs:**
+
+- `platform` (default: `supabase`) - Backend platform
+- `environment` (default: `preview`) - Target environment
+- `run-migrations` (default: `true`) - Execute database migrations
+
+**Supabase Support:**
+
+- Automatic environment detection (main → production, others → staging)
+- Database URL selection based on branch
+- Supabase CLI integration
+
+**Example Usage:**
+
+```yaml
+jobs:
+  backend-deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-cd.yml@main
+    with:
+      platform: "supabase"
+      environment: "production"
+      run-migrations: true
+    secrets:
+      DB_URL_PRODUCTION: ${{ secrets.DB_URL_PRODUCTION }}
+      DB_URL_STAGING: ${{ secrets.DB_URL_STAGING }}
+```
+
+---
+
+### ✅ `check-pr.yml` - PR Validation and Branch Naming
+
+Branch naming enforcement and pull request validation workflow ensuring proper Git workflow adherence.
+
+**Location**: `.github/workflows/check-pr.yml`
+
+**Key Features:**
+
+- 🌳 Branch naming pattern enforcement
+- 🔀 Merge rule validation
+- 📋 Git workflow compliance
+- ⚡ Fast validation execution
+
+**Allowed Branch Patterns:**
+
+- `main` - Main production branch
+- `develop` - Development integration branch
+- `feature/*` - Feature development branches
+- `hotfix/*` - Hotfix branches
+- `dependabot/*` - Dependency update branches
+
+**Merge Rules:**
+
+- `feature/*` → `develop`
+- `dependabot/*` → `develop`
+- `hotfix/*` → `main`
+- `develop` → `main`
+- `develop` → `acceptance`
+- `main` → `develop`
+
+**Example Usage:**
+
+```yaml
+jobs:
+  check-pr:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/check-pr.yml@main
+    with:
+      head-ref: ${{ github.head_ref }}
+      base-ref: ${{ github.base_ref }}
+```
+
+---
+
+## Usage Examples
 
 ### Enterprise Next.js Application
 
+Complete CI/CD pipeline for a production Next.js application with GraphQL, 1Password secrets, and multi-environment deployment.
+
 ```yaml
 name: Enterprise CI/CD
-on: 
+on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main]
 
 jobs:
+  # Quality gates and validation
   quality-gates:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       node-version: "22.x"
-      
+
       # Code generation
       codegen: true
       generate-types: true
       generate-graphql: true
-      
+
       # Quality checks
       run-test: true
       run-lint: true
       run-typecheck: true
-      
+
       # Custom commands
       test-command: "test:coverage"
       build-command: "build:prod"
-      
+
       # Security
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: ${{ github.ref == 'refs/heads/main' && 'production-env' || 'staging-env' }}
-        
+
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
+  # Deploy to appropriate environment
   deploy:
     needs: quality-gates
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
@@ -243,60 +722,86 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
 
+---
+
 ### Monorepo with Multiple Services
+
+Multi-service monorepo with frontend, backend API, and shared components.
 
 ```yaml
 name: Monorepo CI/CD
 on: [push, pull_request]
 
 jobs:
+  # Frontend application
   frontend:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
-      working_directory: "apps/web"
+      working-directory: "apps/web"
       codegen: true
       codegen_command: "pnpm --filter web generate"
-      
+
+  # Backend API service
   backend-api:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "node"
-      working_directory: "apps/api"
+      working-directory: "apps/api"
       build-command: "build:api"
       test-command: "test:integration"
-      
+
+  # Shared component library
   shared-components:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "library"
-      working_directory: "packages/ui"
+      working-directory: "packages/ui"
       build-command: "build:components"
 
+  # Deploy frontend to production
   deploy-frontend:
     needs: frontend
     if: github.ref == 'refs/heads/main'
     uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
     with:
-      working_directory: "apps/web"
+      working-directory: "apps/web"
       environment: "production"
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # Deploy backend services
+  deploy-backend:
+    needs: backend-api
+    if: github.ref == 'refs/heads/main'
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-cd.yml@main
+    with:
+      platform: "supabase"
+      working-directory: "apps/api"
+      environment: "production"
+    secrets:
+      DB_URL_PRODUCTION: ${{ secrets.DB_URL_PRODUCTION }}
+      DB_URL_STAGING: ${{ secrets.DB_URL_STAGING }}
 ```
 
-### TypeScript Library with Custom Build
+---
+
+### TypeScript Library with NPM Publishing
+
+CI/CD for a TypeScript library with automated testing and NPM publishing on version tags.
 
 ```yaml
-name: Library CI
+name: Library CI/CD
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
 
 jobs:
+  # Test and validate library
   ci:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
     with:
@@ -304,7 +809,8 @@ jobs:
       build-command: "build:lib"
       test-command: "test:coverage"
       lint-command: "lint:strict"
-      
+
+  # Publish to NPM on version tags
   publish:
     needs: ci
     if: startsWith(github.ref, 'refs/tags/v')
@@ -312,28 +818,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+      - uses: Pursuit-Amsterdam/workflows/.github/actions/set-version@main
+        with:
+          version: ${{ github.ref_name }}
       - run: pnpm publish --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
-## 🔧 Advanced Configuration
+---
 
-### Code Generation Pipeline
+### Automated Code Generation Pipeline
+
+Dedicated code generation pipeline with automatic PR creation and scheduled updates.
 
 ```yaml
-# .github/workflows/codegen.yml
 name: Code Generation
 on:
   pull_request:
     paths:
-      - 'src/schema/**'
-      - 'graphql/**'
-      - 'payload.config.ts'
+      - "src/schema/**"
+      - "graphql/**"
+      - "payload.config.ts"
+      - "package.json"
+  schedule:
+    - cron: "0 2 * * *" # Daily at 2 AM UTC
   workflow_dispatch:
     inputs:
       auto-commit:
-        description: 'Auto-commit changes'
+        description: "Auto-commit changes"
         type: boolean
         default: false
 
@@ -346,31 +859,73 @@ jobs:
       generate-payload: true
       onepassword-vault: "my-project-dev"
       onepassword-item: "development-env"
-      auto-commit: ${{ inputs.auto-commit || false }}
+      auto-commit: ${{ inputs.auto-commit || github.event_name == 'schedule' }}
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
 
-### Environment-Specific Deployments
+---
+
+### Multi-Environment Deployment Strategy
+
+Advanced deployment strategy with different environments and approval gates.
 
 ```yaml
-# Production deployment
-name: Production Deploy
+name: Multi-Environment Deploy
 on:
   push:
-    branches: [main]
+    branches: [main, develop, staging]
 
 jobs:
-  deploy:
+  # Always run quality checks
+  quality-gates:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
+    with:
+      framework: "next"
+      codegen: true
+      generate-graphql: true
+
+  # Development environment (auto-deploy from develop)
+  deploy-dev:
+    needs: quality-gates
+    if: github.ref == 'refs/heads/develop'
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "development"
+      onepassword_vault: "my-project"
+      onepassword_item: "dev-env"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  # Staging environment (auto-deploy from staging branch)
+  deploy-staging:
+    needs: quality-gates
+    if: github.ref == 'refs/heads/staging'
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "staging"
+      onepassword_vault: "my-project"
+      onepassword_item: "staging-env"
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  # Production environment (manual approval required)
+  deploy-production:
+    needs: quality-gates
+    if: github.ref == 'refs/heads/main'
+    environment: production # Requires manual approval
     uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
     with:
       environment: "production"
-      run-test: true
-      run-typecheck: true
-      codegen: true
-      onepassword_enabled: true
-      onepassword_vault: "production-vault"
-      onepassword_item: "app-secrets"
+      build-mode: "github"
+      onepassword_vault: "my-project"
+      onepassword_item: "production-env"
     secrets:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -378,46 +933,118 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
 
-## 🔐 Security Best Practices
+---
 
-### 1Password Integration
-Store sensitive environment variables in 1Password vaults and reference them in your workflows:
+### Custom Build Pipeline with Matrix Strategy
+
+Advanced pipeline using GitHub's matrix strategy for testing across multiple Node.js versions.
 
 ```yaml
-# 1Password vault structure
-production-env:
-  DATABASE_URL: "postgresql://..."
-  API_SECRET_KEY: "..."
-  STRIPE_SECRET_KEY: "..."
-  
-staging-env:
-  DATABASE_URL: "postgresql://staging..."
-  API_SECRET_KEY: "..."
-  STRIPE_SECRET_KEY: "..."
+name: Matrix Testing and Deployment
+on: [push, pull_request]
+
+jobs:
+  # Test across multiple Node.js versions
+  test-matrix:
+    strategy:
+      matrix:
+        node-version: ["18.x", "20.x", "22.x"]
+        include:
+          - node-version: "22.x"
+            deploy: true
+
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
+    with:
+      framework: "next"
+      node-version: ${{ matrix.node-version }}
+      run-build: ${{ matrix.deploy || false }}
+
+  # Deploy only after all matrix jobs pass
+  deploy:
+    needs: test-matrix
+    if: github.ref == 'refs/heads/main'
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "production"
+      node-version: "22.x" # Use latest for deployment
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 ```
 
-### GitHub Secrets Configuration
-Configure these organization or repository secrets:
+---
 
-**Required for Vercel:**
-- `VERCEL_TOKEN`: Vercel authentication token
-- `VERCEL_ORG_ID`: Your Vercel organization ID
-- `VERCEL_PROJECT_ID`: Your Vercel project ID
+### Security-First Pipeline with Branch Protection
 
-**Required for 1Password:**
-- `OP_SERVICE_ACCOUNT_TOKEN`: 1Password service account token
-
-## 📊 Monitoring & Debugging
-
-### Verbose Logging
-Enable detailed logging for troubleshooting:
+Enterprise-grade pipeline with comprehensive security checks and branch protection rules.
 
 ```yaml
-- name: Debug Environment
-  run: |
-    echo "Node version: $(node --version)"
-    echo "PNPM version: $(pnpm --version)"
-    echo "Working directory: $(pwd)"
-    echo "Environment: ${{ inputs.environment }}"
-    ls -la
+name: Security-First Pipeline
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Validate PR branch naming and merge rules
+  branch-validation:
+    if: github.event_name == 'pull_request'
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/check-pr.yml@main
+    with:
+      head-ref: ${{ github.head_ref }}
+      base-ref: ${{ github.base_ref }}
+
+  # Comprehensive quality and security checks
+  security-checks:
+    needs: branch-validation
+    if: always() && (needs.branch-validation.result == 'success' || github.event_name == 'push')
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
+    with:
+      framework: "next"
+
+      # Enhanced quality checks
+      run-test: true
+      run-lint: true
+      run-typecheck: true
+      test-command: "test:security"
+      lint-command: "lint:security"
+
+      # Code generation with validation
+      codegen: true
+      generate-types: true
+
+      # Security secrets management
+      onepassword_enabled: true
+      onepassword_vault: "security-vault"
+      onepassword_item: "app-secrets"
+
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  # Secure deployment with approval gates
+  secure-deploy:
+    needs: security-checks
+    if: github.ref == 'refs/heads/main'
+    environment: production # Requires manual approval and environment protection
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vercel-deploy.yml@main
+    with:
+      environment: "production"
+      build-mode: "github"
+
+      # Additional security validation
+      run-test: true
+      test-command: "test:security"
+
+      # Secure secret management
+      onepassword_enabled: true
+      onepassword_vault: "production-vault"
+      onepassword_item: "production-secrets"
+
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```

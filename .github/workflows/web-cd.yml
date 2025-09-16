@@ -1,0 +1,191 @@
+name: "Web CD (generic)"
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: "Target deployment platform (vercel, azure, aws, ...)."
+        required: true
+        type: string
+        default: "vercel"
+      node-version:
+        description: "Node.js version"
+        required: false
+        type: string
+        default: "22.x"
+      pnpm-version:
+        description: "PNPM version"
+        required: false
+        type: string
+        default: "latest"
+      working-directory:
+        description: "Working directory for the project"
+        required: false
+        type: string
+        default: "."
+      environment:
+        description: "Deployment environment (production, preview, staging)"
+        required: false
+        type: string
+        default: "preview"
+
+      # Code generation options
+      codegen:
+        description: "Enable code generation"
+        required: false
+        type: boolean
+        default: false
+      codegen_command:
+        description: "Custom codegen command to run"
+        required: false
+        type: string
+        default: ""
+
+      # Build and test options
+      run-test:
+        description: "Run tests before deployment"
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: "Run linting before deployment"
+        required: false
+        type: boolean
+        default: true
+      run-typecheck:
+        description: "Run type checking before deployment"
+        required: false
+        type: boolean
+        default: true
+      test-command:
+        description: "Custom test command"
+        required: false
+        type: string
+        default: "test"
+      lint-command:
+        description: "Custom lint command"
+        required: false
+        type: string
+        default: "lint"
+      typecheck-command:
+        description: "Custom typecheck command"
+        required: false
+        type: string
+        default: "typecheck"
+      build-mode:
+        description: 'Build mode: "github" (build in GitHub Actions) or "vercel" (build on Vercel)'
+        required: false
+        type: string
+        default: "github"
+      prepare-package:
+        description: "Prepare package.json for Vercel runtime"
+        required: false
+        type: boolean
+        default: false
+
+      # Vercel-specific options
+      vercel-build-command:
+        description: 'Custom build command for Vercel (when build-mode is "vercel")'
+        required: false
+        type: string
+        default: ""
+      vercel-output-directory:
+        description: "Output directory for Vercel builds"
+        required: false
+        type: string
+        default: ""
+
+      # 1Password secrets
+      onepassword_enabled:
+        description: "Enable 1Password secrets loading"
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        description: "1Password vault name"
+        required: false
+        type: string
+        default: ""
+      onepassword_item:
+        description: "1Password item name"
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      # Vercel secrets (only required when platform == 'vercel')
+      VERCEL_TOKEN:
+        required: false
+      VERCEL_ORG_ID:
+        required: false
+      VERCEL_PROJECT_ID:
+        required: false
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+
+jobs:
+  deploy-vercel:
+    if: ${{ inputs.platform == 'vercel' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and PNPM
+        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          pnpm-version: ${{ inputs.pnpm-version }}
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: Pursuit-Amsterdam/workflows/.github/actions/onepassword-secrets@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-for-vercel: true
+
+      - name: Run Code Generation
+        if: inputs.codegen
+        run: ${{ inputs.codegen_command }}
+
+      - name: Run Quality Checks
+        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/build-test@main
+        with:
+          run-build: ${{ inputs.build-mode == 'github' }}
+          run-test: ${{ inputs.run-test }}
+          run-lint: ${{ inputs.run-lint }}
+          run-typecheck: ${{ inputs.run-typecheck }}
+          test-command: ${{ inputs.test-command }}
+          lint-command: ${{ inputs.lint-command }}
+          typecheck-command: ${{ inputs.typecheck-command }}
+
+      - name: Deploy to Vercel
+        uses: Pursuit-Amsterdam/workflows/.github/actions/vercel-deploy@main
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          environment: ${{ inputs.environment }}
+          build-mode: ${{ inputs.build-mode }}
+          prepare-package: ${{ inputs.prepare-package }}
+          build-command: ${{ inputs.vercel-build-command }}
+
+  unsupported-platform:
+    if: ${{ inputs.platform != 'vercel' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail for unsupported platform
+        run: |
+          echo "Platform '${{ inputs.platform }}' is not supported by this workflow yet."
+          echo "Supported platforms: vercel"
+          exit 1
