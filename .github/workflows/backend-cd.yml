@@ -71,13 +71,12 @@ jobs:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
-          export-for-vercel: true
 
       - name: Run Supabase Migrations
         if: ${{ inputs.run-migrations }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/supabase-migrate@main
         with:
-          db-url: ${{ secrets[inputs.db-url-variable] }}
+          db-url: ${{ env[inputs.db-url-variable] }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'supabase' }}
