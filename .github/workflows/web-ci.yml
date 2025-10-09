@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: '.'
+      environment:
+        description: "Deployment environment (production, preview, staging)"
+        required: false
+        type: string
+        default: "preview"
       
       # Code generation options
       codegen:
@@ -119,6 +124,7 @@ on:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
