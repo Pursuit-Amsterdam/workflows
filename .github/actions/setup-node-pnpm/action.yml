@@ -5,10 +5,6 @@ inputs:
     description: 'Node.js version to use'
     required: false
     default: '22.x'
-  pnpm-version:
-    description: 'PNPM version to use'
-    required: false
-    default: 'latest'
   cache:
     description: 'Enable dependency caching'
     required: false
@@ -23,8 +19,6 @@ runs:
   steps:
     - name: Install PNPM
       uses: pnpm/action-setup@v4
-      with:
-        version: ${{ inputs.pnpm-version }}
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
