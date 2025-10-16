@@ -1,0 +1,135 @@
+name: 'Setup Supabase Local'
+description: 'Sets up a local Supabase instance for testing using supabase start'
+inputs:
+  supabase-cli-version:
+    description: 'Supabase CLI version to install'
+    required: false
+    default: 'latest'
+  wait-timeout:
+    description: 'Timeout in seconds to wait for Supabase services to be ready'
+    required: false
+    default: '300'
+  project-id:
+    description: 'Supabase project ID (optional, for specific project configuration)'
+    required: false
+    default: ''
+  seed:
+    description: 'Whether to seed the database after starting (true/false)'
+    required: false
+    default: 'false'
+
+outputs:
+  api-url:
+    description: 'Local Supabase API URL'
+    value: ${{ steps.start-supabase.outputs.api-url }}
+  db-url:
+    description: 'Local PostgreSQL database URL'
+    value: ${{ steps.start-supabase.outputs.db-url }}
+  anon-key:
+    description: 'Anonymous key for Supabase client'
+    value: ${{ steps.start-supabase.outputs.anon-key }}
+  service-role-key:
+    description: 'Service role key for Supabase client'
+    value: ${{ steps.start-supabase.outputs.service-role-key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Install Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: ${{ inputs.supabase-cli-version }}
+
+    - name: Initialize Supabase project
+      shell: bash
+      run: |
+        echo "🚀 Initializing Supabase project..."
+        
+        # Check if supabase config exists, if not initialize
+        if [ ! -f "supabase/config.toml" ]; then
+          echo "📝 No Supabase config found, initializing new project..."
+          pnpx supabase init
+        else
+          echo "✅ Supabase config already exists"
+        fi
+
+    - name: Start Supabase local services
+      id: start-supabase
+      shell: bash
+      run: |
+        echo "🏁 Starting Supabase local services..."
+
+        # Delete supabase/seed.sql if seed is false and the file exists
+        if [ "${{ inputs.seed }}" != "true" ] && [ -f "supabase/seed.sql" ]; then
+          echo "🗑️ Removing existing seed file as seeding is disabled"
+          rm supabase/seed.sql
+        fi
+
+        # Start Supabase with timeout
+        timeout ${{ inputs.wait-timeout }}s pnpx supabase start || {
+          echo "❌ Failed to start Supabase services within ${{ inputs.wait-timeout }} seconds"
+          exit 1
+        }
+                       
+        echo "✅ Supabase services started successfully"
+        
+        # Get the status and extract URLs and keys
+        echo "📊 Getting Supabase status..."
+        STATUS_OUTPUT=$(pnpx supabase status)
+        echo "$STATUS_OUTPUT"
+        
+        # Extract connection details
+        API_URL=$(echo "$STATUS_OUTPUT" | grep "API URL" | awk '{print $3}')
+        DB_URL=$(echo "$STATUS_OUTPUT" | grep "DB URL" | awk '{print $3}')
+        ANON_KEY=$(echo "$STATUS_OUTPUT" | grep "anon key" | awk '{print $3}')
+        SERVICE_ROLE_KEY=$(echo "$STATUS_OUTPUT" | grep "service_role key" | awk '{print $3}')
+        
+        # Set outputs
+        echo "api-url=$API_URL" >> $GITHUB_OUTPUT
+        echo "db-url=$DB_URL" >> $GITHUB_OUTPUT
+        echo "anon-key=$ANON_KEY" >> $GITHUB_OUTPUT
+        echo "service-role-key=$SERVICE_ROLE_KEY" >> $GITHUB_OUTPUT
+        
+        # Set environment variables for subsequent steps
+        echo "SUPABASE_URL=$API_URL" >> $GITHUB_ENV
+        echo "SUPABASE_ANON_KEY=$ANON_KEY" >> $GITHUB_ENV
+        echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> $GITHUB_ENV
+        echo "DATABASE_URL=$DB_URL" >> $GITHUB_ENV
+        
+        echo "🎉 Supabase local setup completed!"
+        echo "📍 API URL: $API_URL"
+        echo "🗄️ Database URL: $DB_URL"
+
+    - name: Wait for services to be healthy
+      shell: bash
+      run: |
+        echo "🔍 Waiting for Supabase services to be healthy..."
+        
+        # Wait for API to respond
+        API_URL=$(echo "${{ steps.start-supabase.outputs.api-url }}")
+        
+        RETRY_COUNT=0
+        MAX_RETRIES=30
+        
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if curl -s -f "$API_URL/health" > /dev/null 2>&1; then
+            echo "✅ Supabase API is healthy"
+            break
+          fi
+          
+          echo "⏳ Waiting for API to be ready... (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+          sleep 5
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+        done
+        
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+          echo "❌ API health check failed after $MAX_RETRIES attempts"
+          echo "🔍 Checking Supabase status..."
+          pnpx supabase status
+          exit 1
+        fi
+        
+        echo "🎯 All Supabase services are ready for testing!"

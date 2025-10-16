@@ -1,4 +1,4 @@
-name: "Backend CD (generic)"
+name: "Backend CI (generic)"
 
 on:
   workflow_call:
@@ -18,26 +18,6 @@ on:
         required: false
         type: string
         default: "."
-      environment:
-        description: "Deployment environment (production, staging, preview)"
-        required: false
-        type: string
-        default: "preview"
-      run-migrations:
-        description: "Whether to run DB migrations"
-        required: false
-        type: boolean
-        default: true
-      db-url-variable:
-        description: "Name of the secret containing the database URL (e.g., DB_URL_PRODUCTION)"
-        required: false
-        type: string
-        default: "DB_CONNECTION_STRING"
-      db-password-variable:
-        description: "Name of the secret containing the database password (e.g., DB_PASSWORD_PRODUCTION)"
-        required: false
-        type: string
-        default: "DB_PASSWORD"
 
       # 1Password secrets
       onepassword_enabled:
@@ -64,7 +44,7 @@ jobs:
   deploy-supabase:
     if: ${{ inputs.platform == 'supabase' }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: 'integration'
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -73,6 +53,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js and PNPM
+        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          pnpm-version: ${{ inputs.pnpm-version }}
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup docker
+        uses: docker/setup-buildx-action@v2
+
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
@@ -80,13 +71,23 @@ jobs:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
+          export-for-vercel: true
 
-      - name: Run Supabase Migrations
-        if: ${{ inputs.run-migrations }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-supabase@main
+      - name: Setup local supabase environment
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@main
         with:
-          db-url: ${{ env[inputs.db-url-variable] }}
-          db-password: ${{ secrets[inputs.db-password-variable] }}
+          supabase-cli-version: "3.x"
+          seed: false
+
+      - name: Run build and tests
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-build-test@main
+        with:
+          run-lint: false
+          run-typecheck: false
+          run-build: false
+          run-test: true
+          rest-command: "supabase:test"
+
 
   unsupported-platform:
     if: ${{ inputs.platform != 'supabase' }}
