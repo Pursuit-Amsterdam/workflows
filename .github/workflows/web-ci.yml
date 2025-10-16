@@ -119,7 +119,7 @@ on:
 jobs:
   pipeline:
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    environment: ${{ inputs.environment }}
+    environment: 'integration'
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
