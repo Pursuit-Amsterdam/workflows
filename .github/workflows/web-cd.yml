@@ -124,7 +124,7 @@ on:
         required: false
 
 jobs:
-  deploy-vercel:
+  vercel-deploy:
     if: ${{ inputs.platform == 'vercel' }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}

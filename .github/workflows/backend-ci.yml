@@ -41,7 +41,7 @@ on:
         required: false
 
 jobs:
-  deploy-supabase:
+  supabase-ci:
     if: ${{ inputs.platform == 'supabase' }}
     runs-on: ubuntu-latest
     environment: 'integration'
