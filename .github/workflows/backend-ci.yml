@@ -76,7 +76,6 @@ jobs:
       - name: Setup local supabase environment
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@main
         with:
-          supabase-cli-version: "3.x"
           seed: false
 
       - name: Run build and tests
