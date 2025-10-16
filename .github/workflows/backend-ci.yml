@@ -54,11 +54,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js and PNPM
-        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          pnpm-version: ${{ inputs.pnpm-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup docker

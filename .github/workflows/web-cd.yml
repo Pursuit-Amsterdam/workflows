@@ -141,7 +141,6 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          pnpm-version: ${{ inputs.pnpm-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
