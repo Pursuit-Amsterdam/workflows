@@ -76,5 +76,5 @@ runs:
       shell: bash
       run: |
         echo "🧪 Running tests against local Supabase services..."
-        supabase test
+        supabase test db
         echo "✅ Tests completed"
