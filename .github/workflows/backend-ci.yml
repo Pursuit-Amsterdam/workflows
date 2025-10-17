@@ -71,20 +71,10 @@ jobs:
           item-name: ${{ inputs.onepassword_item }}
           export-for-vercel: true
 
-      - name: Setup local supabase environment
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@main
+      - name: Setup local Supabase environment and test
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
         with:
           seed: false
-
-      - name: Run build and tests
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-build-test@main
-        with:
-          run-lint: false
-          run-typecheck: false
-          run-build: false
-          run-test: true
-          rest-command: "supabase:test"
-
 
   unsupported-platform:
     if: ${{ inputs.platform != 'supabase' }}

@@ -1,0 +1,80 @@
+name: 'Setup Supabase Local'
+description: 'Sets up a local Supabase instance for testing using supabase start'
+inputs:
+  supabase-cli-version:
+    description: 'Supabase CLI version to install'
+    required: false
+    default: 'latest'
+  wait-timeout:
+    description: 'Timeout in seconds to wait for Supabase services to be ready'
+    required: false
+    default: '300'
+  project-id:
+    description: 'Supabase project ID (optional, for specific project configuration)'
+    required: false
+    default: ''
+  seed:
+    description: 'Whether to seed the database after starting (true/false)'
+    required: false
+    default: 'false'
+
+outputs:
+  api-url:
+    description: 'Local Supabase API URL'
+    value: ${{ steps.start-supabase.outputs.api-url }}
+  db-url:
+    description: 'Local PostgreSQL database URL'
+    value: ${{ steps.start-supabase.outputs.db-url }}
+  anon-key:
+    description: 'Anonymous key for Supabase client'
+    value: ${{ steps.start-supabase.outputs.anon-key }}
+  service-role-key:
+    description: 'Service role key for Supabase client'
+    value: ${{ steps.start-supabase.outputs.service-role-key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: ${{ inputs.supabase-cli-version }}
+
+    - name: Initialize Supabase project
+      shell: bash
+      run: |
+        echo "🚀 Initializing Supabase project..."
+        
+        # Check if supabase config exists, if not initialize
+        if [ ! -f "supabase/config.toml" ]; then
+          echo "📝 No Supabase config found, initializing new project..."
+          supabase init
+        else
+          echo "✅ Supabase config already exists"
+        fi
+
+    - name: Start Supabase local services
+      shell: bash
+      run: |
+        echo "🏁 Starting Supabase local services..."
+
+        # Delete supabase/seed.sql if seed is false and the file exists
+        if [ "${{ inputs.seed }}" != "true" ] && [ -f "supabase/seed.sql" ]; then
+          echo "🗑️ Removing existing seed file as seeding is disabled"
+          rm supabase/seed.sql
+        fi
+
+        # Start Supabase with timeout
+        timeout ${{ inputs.wait-timeout }}s supabase start || {
+          echo "❌ Failed to start Supabase services within ${{ inputs.wait-timeout }} seconds"
+          exit 1
+        }
+                       
+        echo "✅ Supabase services started successfully"
+
+    - name: Run Supabase tests against local services
+      shell: bash
+      run: |
+        echo "🧪 Running tests against local Supabase services..."
+        supabase test
+        echo "✅ Tests completed"
