@@ -53,15 +53,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and PNPM
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
-        with:
-          node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup docker
-        uses: docker/setup-buildx-action@v2
-
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
