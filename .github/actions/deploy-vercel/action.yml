@@ -122,6 +122,12 @@ runs:
           deploy_args+=("${ENV_ARGS[@]}")
         fi
 
+        # Add version variable from setup-version action if available
+        if [[ -n "${VERSION_VAR_NAME:-}" && -n "${VERSION_VALUE:-}" ]]; then
+          echo "📝 Adding version variable ${VERSION_VAR_NAME}=${VERSION_VALUE}"
+          deploy_args+=("--env" "${VERSION_VAR_NAME}=${VERSION_VALUE}")
+        fi
+
         # Deploy (Vercel will build automatically)
         vercel deploy "${deploy_args[@]}"
         echo "✅ Deployment completed successfully!"

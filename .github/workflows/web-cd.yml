@@ -152,6 +152,15 @@ jobs:
           item-name: ${{ inputs.onepassword_item }}
           export-for-vercel: true
 
+      - name: Set version variable
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
+        id: set-version
+        with:
+        # Get latest tag
+          version: $(git describe --tags --abbrev=0 --always)
+          framework: "nextjs"
+          environment: ${{ inputs.environment }}
+
       - name: Run Code Generation
         if: inputs.codegen
         run: ${{ inputs.codegen_command }}
