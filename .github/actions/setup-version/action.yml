@@ -53,12 +53,14 @@ runs:
           version="v$version"
         fi
 
-        # Normalize environment and decide whether to append dev suffix
+        # Normalize environment and decide whether to append dev suffix or staging suffix
         env_lc="$(echo "$environment_input" | tr '[:upper:]' '[:lower:]')"
         if [[ "$env_lc" == "dev" || "$env_lc" == "development" ]]; then
           version_value="${version}-dev-${short_sha}"
+        elif [[ "$env_lc" == "staging" ]]; then
+          version_value="${version}-staging-${short_sha}"
         else
-          version_value="$version"
+          version_value="${version}"
         fi
 
         # Compute variable name based on framework
