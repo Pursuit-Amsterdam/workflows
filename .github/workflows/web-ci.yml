@@ -155,7 +155,7 @@ jobs:
           generate-graphql: ${{ inputs.generate-graphql }}
 
       - name: Build and Test
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-build-test@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.run-build }}
           run-test: ${{ inputs.run-test }}

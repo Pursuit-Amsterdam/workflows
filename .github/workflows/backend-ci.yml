@@ -43,7 +43,7 @@ on:
 jobs:
   supabase-ci:
     if: ${{ inputs.platform == 'supabase' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: 'integration'
     defaults:
       run:
@@ -60,7 +60,6 @@ jobs:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
-          export-for-vercel: true
 
       - name: Setup local Supabase environment and test
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
@@ -69,7 +68,7 @@ jobs:
 
   unsupported-platform:
     if: ${{ inputs.platform != 'supabase' }}
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail for unsupported platform
         run: |

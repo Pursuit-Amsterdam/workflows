@@ -11,13 +11,22 @@ inputs:
     description: '1Password item name'
     required: true
   export-for-vercel:
-    description: 'Export secrets in Vercel deployment format'
+    description: 'Export secrets in Vercel CLI deployment format'
     required: false
     default: 'false'
   vercel-env-file:
     description: 'Path to save Vercel environment arguments'
     required: false
     default: 'vercel_env_args.bin'
+  export-for-azure:
+    description: 'Export secrets for Azure CLI app settings format'
+    required: false
+    default: 'false'
+
+outputs:
+  settings_json:
+    description: 'Space-separated key=value pairs for Azure CLI app settings (when export-for-azure is true)'
+    value: ${{ steps.export-secrets.outputs.settings_json }}
 
 runs:
   using: 'composite'
@@ -31,12 +40,14 @@ runs:
         service-account-token: ${{ inputs.service-account-token }}
 
     - name: Load secrets from 1Password
+      id: export-secrets
       shell: bash
       env:
         OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.service-account-token }}
         OP_VAULT_NAME: ${{ inputs.vault-name }}
         OP_ITEM_NAME: ${{ inputs.item-name }}
         EXPORT_FOR_VERCEL: ${{ inputs.export-for-vercel }}
+        EXPORT_FOR_AZURE: ${{ inputs.export-for-azure }}
         VERCEL_ENV_FILE: ${{ inputs.vercel-env-file }}
       run: |
         set -euo pipefail
@@ -56,6 +67,11 @@ runs:
           : > "${VERCEL_ENV_FILE}"
         fi
 
+        # Prepare settings array for Azure CLI if export-for-azure is enabled
+        if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
+          settings_array=()
+        fi
+
         echo "Exporting ${#kvs[@]} secrets to environment variables..."
         for kv in "${kvs[@]}"; do
           name="${kv%%=*}"
@@ -71,8 +87,15 @@ runs:
             echo "__OP_EOF__"
           } >> "$GITHUB_ENV"
 
-          # Append to NUL-safe args for deploy
-          printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
+          # Append to Vercel args if needed
+          if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
+            printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
+          fi
+
+          # Collect settings for Azure CLI if needed
+          if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
+            settings_array+=("${name}=${value}")
+          fi
         done
 
         echo "✅ Successfully exported secrets."
@@ -80,4 +103,12 @@ runs:
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           echo "VERCEL_ENV_ARGS_BIN=$PWD/${VERCEL_ENV_FILE}" >> "$GITHUB_ENV"
           echo "📦 Vercel environment file prepared: ${VERCEL_ENV_FILE}"
+        fi
+
+        if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
+          # Join array elements with spaces for Azure CLI
+          settings_json="${settings_array[*]}"
+          # Output for subsequent steps
+          echo "settings_json=${settings_json}" >> "$GITHUB_OUTPUT"
+          echo "📤 Exported ${#settings_array[@]} settings for Azure CLI"
         fi

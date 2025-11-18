@@ -1,0 +1,84 @@
+name: "Deploy to Azure App Service"
+description: "Deploys application to Azure App Service with Docker container"
+inputs:
+  azure-client-id:
+    description: "Azure client ID"
+    required: true
+  azure-tenant-id:
+    description: "Azure tenant ID"
+    required: true
+  azure-subscription-id:
+    description: "Azure subscription ID"
+    required: true
+  environment:
+    description: "Deployment environment (staging, production)"
+    required: false
+    default: "staging"
+
+  resource-group:
+    description: "Azure Resource Group name"
+    required: true
+  app-name:
+    description: "Azure Web App name"
+    required: true
+  slot-name:
+    description: "Azure Web App slot name"
+    required: false
+    default: "Production"
+
+  image-name:
+    description: "Docker image name in GitHub Container Registry"
+    required: false
+    default: "ghcr.io/data-dialogue/datadialogue-frontend"
+  image-tag:
+    description: "Docker image tag"
+    required: false
+    default: "${{ github.sha }}"
+
+  app-settings:
+    description: "App settings to configure (space-separated key=value pairs)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Login to Azure
+      uses: azure/login@v2
+      with:
+          client-id: ${{ inputs.azure-client-id }}
+          tenant-id: ${{ inputs.azure-tenant-id }}
+          subscription-id: ${{ inputs.azure-subscription-id }}
+    
+    - name: Deploy to Azure Web App
+      id: deploy-to-webapp
+      uses: azure/webapps-deploy@v3
+      with:
+          app-name: ${{ inputs.app-name }}
+          slot-name: ${{ inputs.slot-name }}
+          images: '${{ inputs.image-name }}:${{ inputs.image-tag }}'
+    
+    - name: Configure App Settings
+      if: inputs.app-settings != ''
+      shell: bash
+      env:
+        RESOURCE_GROUP: ${{ inputs.resource-group }}
+        APP_NAME: ${{ inputs.app-name }}
+        SLOT_NAME: ${{ inputs.slot-name }}
+        SETTINGS: ${{ inputs.app-settings }}
+      run: |
+        echo "⚙️  Configuring app settings in Azure App Service..."
+        
+        # Apply settings to Azure App Service
+        az webapp config appsettings set \
+          --resource-group "$RESOURCE_GROUP" \
+          --name "$APP_NAME" \
+          --slot "$SLOT_NAME" \
+          --settings $SETTINGS
+        
+        echo "✅ App settings configured successfully"
+    
+    - name: logout
+      shell: bash
+      run: |
+          az logout
