@@ -145,6 +145,14 @@ on:
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
 
+      # Azure secrets (only required when platform == 'azure-asp')
+      AZURE_DEPLOY_CLIENT_ID:
+        required: false
+      AZURE_DEPLOY_TENANT_ID:
+        required: false
+      AZURE_DEPLOY_SUBSCRIPTION_ID:
+        required: false
+
 jobs:
   vercel-deploy:
     if: ${{ inputs.platform == 'vercel' }}
