@@ -42,9 +42,9 @@ runs:
       shell: bash
       run: |
         if pnpm run --silent ${{ inputs.typecheck-command }} 2>/dev/null; then
-          echo "✅ Type checking passed"
+          echo "Type checking passed"
         else
-          echo "⚠️ Type checking script not found or failed, skipping"
+          echo "Type checking script not found or failed, skipping"
         fi
 
     - name: Run Linting
@@ -52,25 +52,25 @@ runs:
       shell: bash
       run: |
         if pnpm run --silent ${{ inputs.lint-command }} 2>/dev/null; then
-          echo "✅ Linting passed"
+          echo "Linting passed"
         else
-          echo "⚠️ Linting script not found or failed, skipping"
+          echo "Linting script not found or failed, skipping"
         fi
 
     - name: Run Build
       if: inputs.run-build == 'true'
       shell: bash
       run: |
-        echo "🔨 Building application..."
+        echo "Building application..."
         pnpm run ${{ inputs.build-command }}
-        echo "✅ Build completed successfully"
+        echo "Build completed successfully"
 
     - name: Run Tests
       if: inputs.run-test == 'true'
       shell: bash
       run: |
         if pnpm run --silent ${{ inputs.test-command }} 2>/dev/null; then
-          echo "✅ Tests passed"
+          echo "Tests passed"
         else
-          echo "⚠️ Test script not found or failed, skipping"
+          echo "Test script not found or failed, skipping"
         fi

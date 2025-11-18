@@ -94,6 +94,28 @@ on:
         required: false
         type: string
         default: ""
+      
+      # Azure App Service options
+      azure-asp-resource-group:
+        description: "Azure Resource Group name"
+        required: false
+        type: string
+        default: ""
+      azure-asp-app-name:
+        description: "Azure App Service name"
+        required: false
+        type: string
+        default: ""
+      azure-asp-slot-name:
+        description: "Azure App Service slot name"
+        required: false
+        type: string
+        default: "Production"
+      azure-asp-image-name:
+        description: "Docker image name for Azure App Service"
+        required: false
+        type: string
+        default: ""
 
       # 1Password secrets
       onepassword_enabled:
@@ -156,7 +178,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         id: set-version
         with:
-        # Get latest tag
+          # Get latest tag
           version: $(git describe --tags --abbrev=0 --always)
           framework: "nextjs"
           environment: ${{ inputs.environment }}
@@ -167,7 +189,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-build-test@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
@@ -188,12 +210,82 @@ jobs:
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
 
+  azure-asp-deploy:
+    if: ${{ inputs.platform == 'azure-asp' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js and PNPM
+        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        id: onepassword
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-for-azure: true
+
+      - name: Set version variable
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
+        id: set-version
+        with:
+          # Get latest tag
+          version: $(git describe --tags --abbrev=0 --always)
+          framework: "nextjs"
+          environment: ${{ inputs.environment }}
+
+      - name: Run Code Generation
+        if: inputs.codegen
+        run: ${{ inputs.codegen_command }}
+
+      - name: Run Quality Checks
+        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
+        with:
+          run-build: ${{ inputs.build-mode == 'github' }}
+          run-test: ${{ inputs.run-test }}
+          run-lint: ${{ inputs.run-lint }}
+          run-typecheck: ${{ inputs.run-typecheck }}
+          test-command: ${{ inputs.test-command }}
+          lint-command: ${{ inputs.lint-command }}
+          typecheck-command: ${{ inputs.typecheck-command }}
+      
+      - name: Build docker image for Azure App Service
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+        with:
+          image-name: ${{ inputs.azure-asp-image-name }}
+          image-tag: '${{ steps.set-version.outputs.version }}'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Deploy to Azure App Service
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
+        with:
+          azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+          azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+          azure-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+          azure-resource-group: ${{ inputs.azure-asp-resource-group }}
+          app-name: ${{ inputs.azure-asp-app-name }}
+          slot-name: ${{ inputs.azure-asp-slot-name }}
+          image-name: ${{ inputs.azure-asp-image-name }}
+          image-tag: '${{ steps.set-version.outputs.version }}'
+          app-settings: ${{ inputs.onepassword_enabled && steps.onepassword.outputs.settings_json || '' }}
+
   unsupported-platform:
-    if: ${{ inputs.platform != 'vercel' }}
-    runs-on: ubuntu-latest
+    if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Fail for unsupported platform
         run: |
           echo "Platform '${{ inputs.platform }}' is not supported by this workflow yet."
-          echo "Supported platforms: vercel"
+          echo "Supported platforms: vercel, azure-asp"
           exit 1

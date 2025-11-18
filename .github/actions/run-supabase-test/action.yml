@@ -43,38 +43,38 @@ runs:
     - name: Initialize Supabase project
       shell: bash
       run: |
-        echo "🚀 Initializing Supabase project..."
+        echo "Initializing Supabase project..."
         
         # Check if supabase config exists, if not initialize
         if [ ! -f "supabase/config.toml" ]; then
-          echo "📝 No Supabase config found, initializing new project..."
+          echo "No Supabase config found, initializing new project..."
           supabase init
         else
-          echo "✅ Supabase config already exists"
+          echo "Supabase config already exists"
         fi
 
     - name: Start Supabase local services
       shell: bash
       run: |
-        echo "🏁 Starting Supabase local services..."
+        echo "Starting Supabase local services..."
 
         # Delete supabase/seed.sql if seed is false and the file exists
         if [ "${{ inputs.seed }}" != "true" ] && [ -f "supabase/seed.sql" ]; then
-          echo "🗑️ Removing existing seed file as seeding is disabled"
+          echo "Removing existing seed file as seeding is disabled"
           rm supabase/seed.sql
         fi
 
         # Start Supabase with timeout
         timeout ${{ inputs.wait-timeout }}s supabase start || {
-          echo "❌ Failed to start Supabase services within ${{ inputs.wait-timeout }} seconds"
+          echo "Failed to start Supabase services within ${{ inputs.wait-timeout }} seconds"
           exit 1
         }
                        
-        echo "✅ Supabase services started successfully"
+        echo "Supabase services started successfully"
 
     - name: Run Supabase tests against local services
       shell: bash
       run: |
-        echo "🧪 Running tests against local Supabase services..."
+        echo "Running tests against local Supabase services..."
         supabase test db
-        echo "✅ Tests completed"
+        echo "Tests completed"
