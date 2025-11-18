@@ -55,14 +55,14 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        uses: Data-Dialouge/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
 
       - name: Setup local Supabase environment and test
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
+        uses: Data-Dialouge/workflows/.github/actions/run-supabase-test@main
         with:
           seed: false
 

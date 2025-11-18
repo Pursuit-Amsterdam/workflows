@@ -75,7 +75,7 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        uses: Data-Dialouge/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run Supabase Migrations
         if: ${{ inputs.run-migrations }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-supabase@main
+        uses: Data-Dialouge/workflows/.github/actions/deploy-supabase@main
         with:
           db-url: ${{ env[inputs.db-url-variable] }}
           db-password: ${{ secrets[inputs.db-password-variable] }}
