@@ -15,7 +15,7 @@ inputs:
     required: false
     default: "staging"
 
-  resource-group:
+  azure-resource-group:
     description: "Azure Resource Group name"
     required: true
   app-name:
@@ -62,12 +62,12 @@ runs:
       if: inputs.app-settings != ''
       shell: bash
       env:
-        RESOURCE_GROUP: ${{ inputs.resource-group }}
+        RESOURCE_GROUP: ${{ inputs.azure-resource-group }}
         APP_NAME: ${{ inputs.app-name }}
         SLOT_NAME: ${{ inputs.slot-name }}
         SETTINGS: ${{ inputs.app-settings }}
       run: |
-        echo "⚙️  Configuring app settings in Azure App Service..."
+        echo "Configuring app settings in Azure App Service..."
         
         # Apply settings to Azure App Service
         az webapp config appsettings set \
@@ -76,7 +76,7 @@ runs:
           --slot "$SLOT_NAME" \
           --settings $SETTINGS
         
-        echo "✅ App settings configured successfully"
+        echo "App settings configured successfully"
     
     - name: logout
       shell: bash

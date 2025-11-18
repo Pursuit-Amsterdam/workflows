@@ -92,11 +92,11 @@ jobs:
         run: |
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "changes=true" >> $GITHUB_OUTPUT
-            echo "📝 Generated code changes detected"
+            echo "Generated code changes detected"
             git status --porcelain
           else
             echo "changes=false" >> $GITHUB_OUTPUT
-            echo "✅ Generated code is up-to-date"
+            echo "Generated code is up-to-date"
           fi
 
       - name: Commit changes to PR branch
@@ -122,7 +122,7 @@ jobs:
           inputs.auto-commit != true &&
           github.event_name != 'schedule'
         run: |
-          echo "❌ Generated code is outdated. Please run code generation and commit the changes."
+          echo "Generated code is outdated. Please run code generation and commit the changes."
           echo ""
           echo "You can either:"
           echo "1. Run 'pnpm generate' locally and commit the changes"

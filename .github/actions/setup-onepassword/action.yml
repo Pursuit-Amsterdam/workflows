@@ -52,10 +52,10 @@ runs:
       run: |
         set -euo pipefail
 
-        echo "📡 Fetching secrets from 1Password..."
+        echo "Fetching secrets from 1Password..."
         item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
 
-        echo "🔐 Parsing and exporting secrets..."
+        echo "Parsing and exporting secrets..."
         mapfile -t kvs < <(jq -r '
           .fields[]
           | select(.value != null)
@@ -98,11 +98,11 @@ runs:
           fi
         done
 
-        echo "✅ Successfully exported secrets."
+        echo "Successfully exported secrets."
 
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           echo "VERCEL_ENV_ARGS_BIN=$PWD/${VERCEL_ENV_FILE}" >> "$GITHUB_ENV"
-          echo "📦 Vercel environment file prepared: ${VERCEL_ENV_FILE}"
+          echo "Vercel environment file prepared: ${VERCEL_ENV_FILE}"
         fi
 
         if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
@@ -110,5 +110,5 @@ runs:
           settings_json="${settings_array[*]}"
           # Output for subsequent steps
           echo "settings_json=${settings_json}" >> "$GITHUB_OUTPUT"
-          echo "📤 Exported ${#settings_array[@]} settings for Azure CLI"
+          echo "Exported ${#settings_array[@]} settings for Azure CLI"
         fi

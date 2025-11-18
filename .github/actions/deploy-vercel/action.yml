@@ -42,13 +42,13 @@ runs:
       if: inputs.prepare-package == 'true'
       shell: bash
       run: |
-        echo "📦 Preparing package.json for runtime..."
+        echo "Preparing package.json for runtime..."
         node -e "
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
           delete pkg.type;
           fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          console.log('✅ Removed type field from package.json');
+          console.log('Removed type field from package.json');
         "
 
     - name: Run custom build command
@@ -63,7 +63,7 @@ runs:
         VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
         VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
       run: |
-        echo "🔨 Building project for ${{ inputs.environment }} (GitHub build mode)..."
+        echo "Building project for ${{ inputs.environment }} (GitHub build mode)..."
 
         # Pull Vercel project settings
         target_flag=""
@@ -89,13 +89,13 @@ runs:
         fi
 
         if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
-          echo "📝 Loading environment variables from 1Password export..."
+          echo "Loading environment variables from 1Password export..."
           mapfile -d '' -t ENV_ARGS < "${VERCEL_ENV_ARGS_BIN}"
           deploy_args+=("${ENV_ARGS[@]}")
         fi
 
         vercel deploy "${deploy_args[@]}"
-        echo "✅ Deployment completed successfully!"
+        echo "Deployment completed successfully!"
 
     - name: Deploy with Vercel Build
       if: inputs.build-mode == 'vercel'
@@ -104,7 +104,7 @@ runs:
         VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
         VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
       run: |
-        echo "🚀 Deploying to Vercel with Vercel build (${{ inputs.environment }})..."
+        echo "Deploying to Vercel with Vercel build (${{ inputs.environment }})..."
 
         deploy_args=("--archive=tgz" "--token=${{ inputs.vercel-token }}")
 
@@ -117,17 +117,17 @@ runs:
 
         # Add environment variables from 1Password if available
         if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
-          echo "📝 Loading environment variables from 1Password export..."
+          echo "Loading environment variables from 1Password export..."
           mapfile -d '' -t ENV_ARGS < "${VERCEL_ENV_ARGS_BIN}"
           deploy_args+=("${ENV_ARGS[@]}")
         fi
 
         # Add version variable from setup-version action if available
         if [[ -n "${VERSION_VAR_NAME:-}" && -n "${VERSION_VALUE:-}" ]]; then
-          echo "📝 Adding version variable ${VERSION_VAR_NAME}=${VERSION_VALUE}"
+          echo "Adding version variable ${VERSION_VAR_NAME}=${VERSION_VALUE}"
           deploy_args+=("--env" "${VERSION_VAR_NAME}=${VERSION_VALUE}")
         fi
 
         # Deploy (Vercel will build automatically)
         vercel deploy "${deploy_args[@]}"
-        echo "✅ Deployment completed successfully!"
+        echo "Deployment completed successfully!"

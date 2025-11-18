@@ -33,18 +33,18 @@ runs:
       if: inputs.custom-command != ''
       shell: bash
       run: |
-        echo "🔄 Running custom command: ${{ inputs.custom-command }}"
+        echo "Running custom command: ${{ inputs.custom-command }}"
         ${{ inputs.custom-command }}
-        echo "✅ Custom command completed"
+        echo "Custom command completed"
 
     - name: Generate ImportMap
       if: inputs.custom-command == '' && inputs.generate-importmap == 'true'
       shell: bash
       run: |
         if pnpm run --silent generate:importmap 2>/dev/null; then
-          echo "✅ ImportMap generation completed"
+          echo "ImportMap generation completed"
         else
-          echo "⚠️ ImportMap generation script not found, skipping"
+          echo "ImportMap generation script not found, skipping"
         fi
 
     - name: Generate Types
@@ -52,9 +52,9 @@ runs:
       shell: bash
       run: |
         if pnpm run --silent generate:types 2>/dev/null; then
-          echo "✅ Type generation completed"
+          echo "Type generation completed"
         else
-          echo "⚠️ Type generation script not found, skipping"
+          echo "Type generation script not found, skipping"
         fi
 
     - name: Generate GraphQL
@@ -62,9 +62,9 @@ runs:
       shell: bash
       run: |
         if pnpm run --silent generate:graphql 2>/dev/null; then
-          echo "✅ GraphQL generation completed"
+          echo "GraphQL generation completed"
         else
-          echo "⚠️ GraphQL generation script not found, skipping"
+          echo "GraphQL generation script not found, skipping"
         fi
 
     - name: Generate PayloadCMS Types
@@ -72,9 +72,9 @@ runs:
       shell: bash
       run: |
         if pnpm run --silent generate:payload 2>/dev/null; then
-          echo "✅ PayloadCMS generation completed"
+          echo "PayloadCMS generation completed"
         else
-          echo "⚠️ PayloadCMS generation script not found, skipping"
+          echo "PayloadCMS generation script not found, skipping"
         fi
 
     - name: Run Custom Commands
@@ -85,8 +85,8 @@ runs:
         for cmd in "${COMMANDS[@]}"; do
           echo "Running: pnpm run $cmd"
           if pnpm run --silent "$cmd" 2>/dev/null; then
-            echo "✅ $cmd completed"
+            echo "$cmd completed"
           else
-            echo "⚠️ $cmd failed or not found"
+            echo "$cmd failed or not found"
           fi
         done

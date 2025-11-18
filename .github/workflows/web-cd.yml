@@ -273,7 +273,7 @@ jobs:
           azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
           azure-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
-          resource-group: ${{ inputs.azure-asp-resource-group }}
+          azure-resource-group: ${{ inputs.azure-asp-resource-group }}
           app-name: ${{ inputs.azure-asp-app-name }}
           slot-name: ${{ inputs.azure-asp-slot-name }}
           image-name: ${{ inputs.azure-asp-image-name }}
