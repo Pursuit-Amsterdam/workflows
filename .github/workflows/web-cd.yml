@@ -187,6 +187,7 @@ jobs:
           build-mode: ${{ inputs.build-mode }}
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
+          working-directory: ${{ inputs.working-directory }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' }}
