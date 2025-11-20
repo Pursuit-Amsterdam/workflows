@@ -242,6 +242,14 @@ jobs:
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
           export-for-azure: true
+      
+      - name: Extract public NEXT_PUBLIC_ variables
+        id: extract-public-vars
+        if: inputs.onepassword_enabled
+        run: |
+          SETTINGS_JSON=${{ steps.onepassword.outputs.settings_json }}
+          PUBLIC_VARS=$(echo $SETTINGS_JSON | jq -r 'to_entries[] | select(.key | startswith("NEXT_PUBLIC_")) | "\(.key)=\(.value)"' | paste -sd "," -)
+          echo "public_vars=$PUBLIC_VARS" >> $GITHUB_OUTPUT
 
       - name: Set version variable
         uses: Data-Dialogue/workflows/.github/actions/setup-version@main
@@ -274,6 +282,7 @@ jobs:
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          build-args: ${{ steps.extract-public-vars.outputs.public_vars }}
       
       - name: Deploy to Azure App Service
         uses: Data-Dialogue/workflows/.github/actions/deploy-azure@main
