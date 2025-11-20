@@ -168,14 +168,14 @@ jobs:
 
       - name: Setup Node.js and PNPM
         if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
-        uses: Data-Dialouge/workflows/.github/actions/setup-node-pnpm@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Data-Dialouge/workflows/.github/actions/setup-onepassword@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -183,7 +183,7 @@ jobs:
           export-for-vercel: true
 
       - name: Set version variable
-        uses: Data-Dialouge/workflows/.github/actions/setup-version@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-version@main
         id: set-version
         with:
           # Get latest tag
@@ -197,7 +197,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Data-Dialouge/workflows/.github/actions/run-pnpm-build-test@main
+        uses: Data-Dialogue/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
@@ -208,7 +208,7 @@ jobs:
           typecheck-command: ${{ inputs.typecheck-command }}
 
       - name: Deploy to Vercel
-        uses: Data-Dialouge/workflows/.github/actions/deploy-vercel@main
+        uses: Data-Dialogue/workflows/.github/actions/deploy-vercel@main
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -228,7 +228,7 @@ jobs:
 
       - name: Setup Node.js and PNPM
         if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
-        uses: Data-Dialouge/workflows/.github/actions/setup-node-pnpm@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
@@ -236,7 +236,7 @@ jobs:
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         id: onepassword
-        uses: Data-Dialouge/workflows/.github/actions/setup-onepassword@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -244,7 +244,7 @@ jobs:
           export-for-azure: true
 
       - name: Set version variable
-        uses: Data-Dialouge/workflows/.github/actions/setup-version@main
+        uses: Data-Dialogue/workflows/.github/actions/setup-version@main
         id: set-version
         with:
           # Get latest tag
@@ -258,7 +258,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Data-Dialouge/workflows/.github/actions/run-pnpm-build-test@main
+        uses: Data-Dialogue/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
@@ -269,14 +269,14 @@ jobs:
           typecheck-command: ${{ inputs.typecheck-command }}
       
       - name: Build docker image for Azure App Service
-        uses: Data-Dialouge/workflows/.github/actions/run-docker-build-push@main
+        uses: Data-Dialogue/workflows/.github/actions/run-docker-build-push@main
         with:
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
           github-token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Deploy to Azure App Service
-        uses: Data-Dialouge/workflows/.github/actions/deploy-azure@main
+        uses: Data-Dialogue/workflows/.github/actions/deploy-azure@main
         with:
           azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}

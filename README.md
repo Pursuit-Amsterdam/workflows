@@ -57,7 +57,7 @@ on: [push, pull_request]
 
 jobs:
   web:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       run-test: true
@@ -77,7 +77,7 @@ on:
 
 jobs:
   codegen:
-    uses: Data-Dialouge/workflows/.github/workflows/codegen.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -95,7 +95,7 @@ on:
 
 jobs:
   deploy:
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "production"
@@ -152,7 +152,7 @@ Sets up a Node.js environment with PNPM package manager, dependency caching, and
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/setup-node-pnpm@main
+- uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
   with:
     node-version: "20.x"
     pnpm-version: "8.15.0"
@@ -188,7 +188,7 @@ Comprehensive build, test, lint, and type-checking action with graceful error ha
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/run-build-test@main
+- uses: Data-Dialogue/workflows/.github/actions/run-build-test@main
   with:
     run-test: true
     run-lint: true
@@ -225,7 +225,7 @@ Advanced code generation pipeline supporting multiple generation types and custo
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/run-codegen@main
+- uses: Data-Dialogue/workflows/.github/actions/run-codegen@main
   with:
     generate-types: true
     generate-graphql: true
@@ -259,7 +259,7 @@ Secure environment variable management using 1Password vaults with optional Verc
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/setup-onepassword@main
+- uses: Data-Dialogue/workflows/.github/actions/setup-onepassword@main
   with:
     service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     vault-name: "my-project"
@@ -294,7 +294,7 @@ Sophisticated Vercel deployment action with multiple build modes and environment
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/deploy-vercel@main
+- uses: Data-Dialogue/workflows/.github/actions/deploy-vercel@main
   with:
     vercel-token: ${{ secrets.VERCEL_TOKEN }}
     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -332,7 +332,7 @@ Version management action that computes version strings and exports them as envi
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/setup-version@main
+- uses: Data-Dialogue/workflows/.github/actions/setup-version@main
   with:
     version: "1.2.3"
     framework: "nextjs"
@@ -362,7 +362,7 @@ Supabase database migration action that applies migrations using the Supabase CL
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/deploy-supabase@main
+- uses: Data-Dialogue/workflows/.github/actions/deploy-supabase@main
   with:
     db-url: ${{ secrets.DB_URL_PRODUCTION }}
     db-password: ${{ secrets.DB_PASSWORD_PRODUCTION }}
@@ -400,7 +400,7 @@ Local Supabase development environment setup action that initializes and starts 
 **Example Usage:**
 
 ```yaml
-- uses: Data-Dialouge/workflows/.github/actions/setup-supabase@main
+- uses: Data-Dialogue/workflows/.github/actions/setup-supabase@main
   with:
     supabase-cli-version: "1.x"
     wait-timeout: "300"
@@ -455,7 +455,7 @@ Comprehensive CI pipeline for modern web applications with framework detection, 
 ```yaml
 jobs:
   ci:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       codegen: true
@@ -503,7 +503,7 @@ Generic web deployment workflow with platform abstraction (currently supports Ve
 ```yaml
 jobs:
   deploy:
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "production"
@@ -557,7 +557,7 @@ Specialized workflow for automated code generation with intelligent change detec
 ```yaml
 jobs:
   codegen:
-    uses: Data-Dialouge/workflows/.github/workflows/codegen.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -605,7 +605,7 @@ Generic backend CI pipeline for testing and validating backend services, particu
 ```yaml
 jobs:
   backend-ci:
-    uses: Data-Dialouge/workflows/.github/workflows/backend-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/backend-ci.yml@main
     with:
       platform: "supabase"
       onepassword_enabled: true
@@ -660,7 +660,7 @@ Generic backend deployment workflow supporting database migrations and backend s
 ```yaml
 jobs:
   backend-deploy:
-    uses: Data-Dialouge/workflows/.github/workflows/backend-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/backend-cd.yml@main
     with:
       platform: "supabase"
       environment: "production"
@@ -709,7 +709,7 @@ Branch naming enforcement and pull request validation workflow ensuring proper G
 ```yaml
 jobs:
   check-pr:
-    uses: Data-Dialouge/workflows/.github/workflows/check-pr.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/check-pr.yml@main
     with:
       head-ref: ${{ github.head_ref }}
       base-ref: ${{ github.base_ref }}
@@ -734,7 +734,7 @@ on:
 jobs:
   # Quality gates and validation
   quality-gates:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       node-version: "22.x"
@@ -765,7 +765,7 @@ jobs:
   deploy:
     needs: quality-gates
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
@@ -793,7 +793,7 @@ on: [push, pull_request]
 jobs:
   # Frontend application
   frontend:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       working-directory: "apps/web"
@@ -802,7 +802,7 @@ jobs:
 
   # Backend API service
   backend-api:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "node"
       working-directory: "apps/api"
@@ -811,7 +811,7 @@ jobs:
 
   # Shared component library
   shared-components:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "library"
       working-directory: "packages/ui"
@@ -821,7 +821,7 @@ jobs:
   deploy-frontend:
     needs: frontend
     if: github.ref == 'refs/heads/main'
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       working-directory: "apps/web"
@@ -835,7 +835,7 @@ jobs:
   deploy-backend:
     needs: backend-api
     if: github.ref == 'refs/heads/main'
-    uses: Data-Dialouge/workflows/.github/workflows/backend-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/backend-cd.yml@main
     with:
       platform: "supabase"
       working-directory: "apps/api"
@@ -862,7 +862,7 @@ on:
 jobs:
   # Test and validate library
   ci:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "library"
       build-command: "build:lib"
@@ -876,8 +876,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Data-Dialouge/workflows/.github/actions/setup-node-pnpm@main
-      - uses: Data-Dialouge/workflows/.github/actions/setup-version@main
+      - uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
+      - uses: Data-Dialogue/workflows/.github/actions/setup-version@main
         with:
           version: ${{ github.ref_name }}
       - run: pnpm publish --access public
@@ -911,7 +911,7 @@ on:
 
 jobs:
   codegen:
-    uses: Data-Dialouge/workflows/.github/workflows/codegen.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/codegen.yml@main
     with:
       generate-types: true
       generate-graphql: true
@@ -938,7 +938,7 @@ on:
 jobs:
   # Always run quality checks
   quality-gates:
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       codegen: true
@@ -948,7 +948,7 @@ jobs:
   deploy-dev:
     needs: quality-gates
     if: github.ref == 'refs/heads/develop'
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "development"
@@ -965,7 +965,7 @@ jobs:
   deploy-staging:
     needs: quality-gates
     if: github.ref == 'refs/heads/staging'
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "staging"
@@ -983,7 +983,7 @@ jobs:
     needs: quality-gates
     if: github.ref == 'refs/heads/main'
     environment: production # Requires manual approval
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "production"
@@ -1018,7 +1018,7 @@ jobs:
           - node-version: "22.x"
             deploy: true
 
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
       node-version: ${{ matrix.node-version }}
@@ -1028,7 +1028,7 @@ jobs:
   deploy:
     needs: test-matrix
     if: github.ref == 'refs/heads/main'
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "production"
@@ -1057,7 +1057,7 @@ jobs:
   # Validate PR branch naming and merge rules
   branch-validation:
     if: github.event_name == 'pull_request'
-    uses: Data-Dialouge/workflows/.github/workflows/check-pr.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/check-pr.yml@main
     with:
       head-ref: ${{ github.head_ref }}
       base-ref: ${{ github.base_ref }}
@@ -1066,7 +1066,7 @@ jobs:
   security-checks:
     needs: branch-validation
     if: always() && (needs.branch-validation.result == 'success' || github.event_name == 'push')
-    uses: Data-Dialouge/workflows/.github/workflows/web-ci.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-ci.yml@main
     with:
       framework: "next"
 
@@ -1094,7 +1094,7 @@ jobs:
     needs: security-checks
     if: github.ref == 'refs/heads/main'
     environment: production # Requires manual approval and environment protection
-    uses: Data-Dialouge/workflows/.github/workflows/web-cd.yml@main
+    uses: Data-Dialogue/workflows/.github/workflows/web-cd.yml@main
     with:
       platform: "vercel"
       environment: "production"
