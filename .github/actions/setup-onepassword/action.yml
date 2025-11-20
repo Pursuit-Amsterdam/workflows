@@ -1,44 +1,3 @@
-name: 'Load 1Password Secrets'
-description: 'Fetches secrets from 1Password and exports them to environment'
-inputs:
-  service-account-token:
-    description: '1Password Service Account Token'
-    required: true
-  vault-name:
-    description: '1Password vault name'
-    required: true
-  item-name:
-    description: '1Password item name'
-    required: true
-  export-for-vercel:
-    description: 'Export secrets in Vercel CLI deployment format'
-    required: false
-    default: 'false'
-  vercel-env-file:
-    description: 'Path to save Vercel environment arguments'
-    required: false
-    default: 'vercel_env_args.bin'
-  export-for-azure:
-    description: 'Export secrets for Azure CLI app settings format'
-    required: false
-    default: 'false'
-
-outputs:
-  settings_json:
-    description: 'Space-separated key=value pairs for Azure CLI app settings (when export-for-azure is true)'
-    value: ${{ steps.export-secrets.outputs.settings_json }}
-
-runs:
-  using: 'composite'
-  steps:
-    - name: Install 1Password CLI
-      uses: 1password/install-cli-action@v2
-
-    - name: Configure 1Password
-      uses: 1password/load-secrets-action/configure@v2
-      with:
-        service-account-token: ${{ inputs.service-account-token }}
-
     - name: Load secrets from 1Password
       id: export-secrets
       shell: bash
@@ -56,45 +15,55 @@ runs:
         item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
 
         echo "Parsing and exporting secrets..."
+        # Capture label, value, and field type
         mapfile -t kvs < <(jq -r '
           .fields[]
           | select(.value != null)
           | select((.label // "") != "notesPlain")
-          | "\(.label)=\(.value)"
+          | "\(.label)=\(.value)|\(.type)"
         ' <<<"$item_json")
-        
+
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           : > "${VERCEL_ENV_FILE}"
         fi
 
-        # Prepare settings array for Azure CLI if export-for-azure is enabled
         if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
           settings_array=()
+          settings_public_array=()
         fi
 
         echo "Exporting ${#kvs[@]} secrets to environment variables..."
-        for kv in "${kvs[@]}"; do
+        for entry in "${kvs[@]}"; do
+          # entry = "KEY=value|TYPE"
+          kv="${entry%%|*}"
+          ftype="${entry#*|}"
+
           name="${kv%%=*}"
           value="${kv#*=}"
 
           # Mask values in logs
           echo "::add-mask::$value"
 
-          # Export to runner env for build (supports multiline)
+          # Export to GitHub env (supports multiline)
           {
             echo "${name}<<__OP_EOF__"
             echo "${value}"
             echo "__OP_EOF__"
           } >> "$GITHUB_ENV"
 
-          # Append to Vercel args if needed
+          # Vercel export
           if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
             printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
           fi
 
-          # Collect settings for Azure CLI if needed
           if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
+            # Full list (unchanged)
             settings_array+=("${name}=${value}")
+
+            # Public-only list (exclude passwords)
+            if [[ "$ftype" != "CONCEALED" ]]; then
+              settings_public_array+=("${name}=${value}")
+            fi
           fi
         done
 
@@ -106,9 +75,8 @@ runs:
         fi
 
         if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-          # Join array elements with spaces for Azure CLI
-          settings_json="${settings_array[*]}"
-          # Output for subsequent steps
-          echo "settings_json=${settings_json}" >> "$GITHUB_OUTPUT"
-          echo "Exported ${#settings_array[@]} settings for Azure CLI"
+          echo "azure_settings=${settings_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "azure_settings_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "Exported ${#settings_array[@]} settings (full)"
+          echo "Exported ${#settings_public_array[@]} public settings (no passwords)"
         fi

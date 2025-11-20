@@ -247,27 +247,6 @@ jobs:
           item-name: ${{ inputs.onepassword_item }}
           export-for-azure: true
 
-      - name: Extract public vars
-        id: extract-public-vars
-        run: |
-          SETTINGS_JSON='${{ steps.onepassword.outputs.settings_json }}'
-
-          PUBLIC_VARS=""
-          for pair in $SETTINGS_JSON; do
-            key="${pair%%=*}"
-            val="${pair#*=}"
-
-            if [[ "$key" == NEXT_PUBLIC_* ]]; then
-              PUBLIC_VARS="$PUBLIC_VARS$key=$val"$'\n'
-            fi
-          done
-
-          {
-            echo "public_vars<<EOF"
-            printf "%s" "$PUBLIC_VARS"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
       - name: Set version variable
         uses: Data-Dialogue/workflows/.github/actions/setup-version@main
         id: set-version
@@ -299,7 +278,7 @@ jobs:
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          build-args: ${{ steps.extract-public-vars.outputs.public_vars }}
+          build-args: ${{ steps.onepassword.outputs.azure_settings_public_only }}
       
       - name: Deploy to Azure App Service
         uses: Data-Dialogue/workflows/.github/actions/deploy-azure@main
@@ -312,7 +291,7 @@ jobs:
           slot-name: ${{ inputs.azure-asp-slot-name }}
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
-          app-settings: ${{ inputs.onepassword_enabled && steps.onepassword.outputs.settings_json || '' }}
+          app-settings: ${{ inputs.onepassword_enabled && steps.onepassword.outputs.azure_settings || '' }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
