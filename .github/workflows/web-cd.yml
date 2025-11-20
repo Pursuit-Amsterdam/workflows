@@ -248,20 +248,23 @@ jobs:
           export-for-azure: true
 
       - name: Extract public vars
-        id: env
+        id: extract-public-vars
         run: |
           SETTINGS_JSON='${{ steps.onepassword.outputs.settings_json }}'
 
-          PUBLIC_VARS=$(printf '%s' "$SETTINGS_JSON" \
-            | jq -r '
-                to_entries[]
-                | select(.key | startswith("NEXT_PUBLIC_"))
-                | "\\(.key)=\\(.value)"
-              ')
+          PUBLIC_VARS=""
+          for pair in $SETTINGS_JSON; do
+            key="${pair%%=*}"
+            val="${pair#*=}"
+
+            if [[ "$key" == NEXT_PUBLIC_* ]]; then
+              PUBLIC_VARS="$PUBLIC_VARS$key=$val"$'\n'
+            fi
+          done
 
           {
             echo "public_vars<<EOF"
-            echo "$PUBLIC_VARS"
+            printf "%s" "$PUBLIC_VARS"
             echo "EOF"
           } >> $GITHUB_OUTPUT
 
