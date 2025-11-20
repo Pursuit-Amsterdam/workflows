@@ -246,14 +246,24 @@ jobs:
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
           export-for-azure: true
-      
-      - name: Extract public NEXT_PUBLIC_ variables
-        id: extract-public-vars
-        if: inputs.onepassword_enabled
+
+      - name: Extract public vars
+        id: env
         run: |
-          SETTINGS_JSON=${{ steps.onepassword.outputs.settings_json }}
-          PUBLIC_VARS=$(echo $SETTINGS_JSON | jq -r 'to_entries[] | select(.key | startswith("NEXT_PUBLIC_")) | "\(.key)=\(.value)"' | paste -sd "," -)
-          echo "public_vars=$PUBLIC_VARS" >> $GITHUB_OUTPUT
+          SETTINGS_JSON='${{ steps.onepassword.outputs.settings_json }}'
+
+          PUBLIC_VARS=$(printf '%s' "$SETTINGS_JSON" \
+            | jq -r '
+                to_entries[]
+                | select(.key | startswith("NEXT_PUBLIC_"))
+                | "\\(.key)=\\(.value)"
+              ')
+
+          {
+            echo "public_vars<<EOF"
+            echo "$PUBLIC_VARS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Set version variable
         uses: Data-Dialogue/workflows/.github/actions/setup-version@main
