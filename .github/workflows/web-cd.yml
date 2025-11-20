@@ -221,6 +221,9 @@ jobs:
   azure-asp-deploy:
     if: ${{ inputs.platform == 'azure-asp' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
 
     steps:
       - name: Checkout code
