@@ -1,3 +1,44 @@
+name: 'Load 1Password Secrets'
+description: 'Fetches secrets from 1Password and exports them to environment'
+inputs:
+  service-account-token:
+    description: '1Password Service Account Token'
+    required: true
+  vault-name:
+    description: '1Password vault name'
+    required: true
+  item-name:
+    description: '1Password item name'
+    required: true
+  export-for-vercel:
+    description: 'Export secrets in Vercel CLI deployment format'
+    required: false
+    default: 'false'
+  vercel-env-file:
+    description: 'Path to save Vercel environment arguments'
+    required: false
+    default: 'vercel_env_args.bin'
+  export-for-azure:
+    description: 'Export secrets for Azure CLI app settings format'
+    required: false
+    default: 'false'
+
+outputs:
+  settings_json:
+    description: 'Space-separated key=value pairs for Azure CLI app settings (when export-for-azure is true)'
+    value: ${{ steps.export-secrets.outputs.settings_json }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install 1Password CLI
+      uses: 1password/install-cli-action@v2
+
+    - name: Configure 1Password
+      uses: 1password/load-secrets-action/configure@v2
+      with:
+        service-account-token: ${{ inputs.service-account-token }}
+
     - name: Load secrets from 1Password
       id: export-secrets
       shell: bash
@@ -75,8 +116,8 @@
         fi
 
         if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-          echo "azure_settings=${settings_array[*]}" >> "$GITHUB_OUTPUT"
-          echo "azure_settings_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "settings_json=${settings_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "settings_json_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
           echo "Exported ${#settings_array[@]} settings (full)"
           echo "Exported ${#settings_public_array[@]} public settings (no passwords)"
         fi
