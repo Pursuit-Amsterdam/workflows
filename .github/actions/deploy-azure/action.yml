@@ -73,16 +73,23 @@ runs:
         SLOT_NAME: ${{ inputs.slot-name }}
         SETTINGS: ${{ inputs.app-settings }}
       run: |
-        echo "Configuring app settings in Azure App Service..."
+        echo "Configuring app settings..."
         
-        # Apply settings to Azure App Service
-        az webapp config appsettings set \
-          --resource-group "$RESOURCE_GROUP" \
-          --name "$APP_NAME" \
-          --slot "$SLOT_NAME" \
-          --settings $SETTINGS
-        
-        echo "App settings configured successfully"
+        if [[ "$SLOT_NAME" == "Production" ]]; then
+          # Do NOT pass --slot
+          az webapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --settings $SETTINGS
+        else
+          az webapp config appsettings set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$APP_NAME" \
+            --slot "$SLOT_NAME" \
+            --settings $SETTINGS
+        fi
+
+        echo "App settings configured."
     
     - name: logout
       shell: bash
