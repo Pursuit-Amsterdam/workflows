@@ -116,8 +116,8 @@ runs:
         fi
 
         if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-          echo "settings_json=${settings_array[*]}" >> "$GITHUB_OUTPUT"
-          echo "settings_json_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "azure_settings_public_only=${settings_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "azure_settings_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
           echo "Exported ${#settings_array[@]} settings (full)"
           echo "Exported ${#settings_public_array[@]} public settings (no passwords)"
         fi
