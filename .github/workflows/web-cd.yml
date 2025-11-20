@@ -225,7 +225,11 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
-
+    permissions:
+        contents: read
+        packages: read
+        packages: write
+        id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
