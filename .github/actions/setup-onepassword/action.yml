@@ -24,9 +24,12 @@ inputs:
     default: 'false'
 
 outputs:
-  settings_json:
-    description: 'Space-separated key=value pairs for Azure CLI app settings (when export-for-azure is true)'
-    value: ${{ steps.export-secrets.outputs.settings_json }}
+  azure_settings_full:
+    description: 'All exported settings for Azure App Service deployment'
+    value: ${{ steps.export-secrets.outputs.azure_settings_full }}
+  azure_settings_public_only:
+    description: 'Public-only exported settings (no concealed fields) for Azure App Service deployment'
+    value: ${{ steps.export-secrets.outputs.azure_settings_public_only }}
 
 runs:
   using: 'composite'
