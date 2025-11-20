@@ -58,6 +58,12 @@ runs:
           slot-name: ${{ inputs.slot-name }}
           images: '${{ inputs.image-name }}:${{ inputs.image-tag }}'
     
+    - name: Log deployment details
+      shell: bash
+      run: |
+        echo "Deployed image '${{ inputs.image-name }}:${{ inputs.image-tag }}' to Azure Web App '${{ inputs.app-name }}' (slot: '${{ inputs.slot-name }}')"
+        echo "Setting app settings: ${{ inputs.app-settings }}"
+    
     - name: Configure App Settings
       if: inputs.app-settings != ''
       shell: bash
