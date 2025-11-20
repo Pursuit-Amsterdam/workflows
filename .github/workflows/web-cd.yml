@@ -233,13 +233,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and PNPM
-        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
-        uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
-        with:
-          node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         id: load_onepassword_secrets
@@ -259,22 +252,6 @@ jobs:
           framework: "nextjs"
           environment: ${{ inputs.environment }}
 
-      - name: Run Code Generation
-        if: inputs.codegen
-        run: ${{ inputs.codegen_command }}
-
-      - name: Run Quality Checks
-        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Data-Dialogue/workflows/.github/actions/run-pnpm-build-test@main
-        with:
-          run-build: ${{ inputs.build-mode == 'github' }}
-          run-test: ${{ inputs.run-test }}
-          run-lint: ${{ inputs.run-lint }}
-          run-typecheck: ${{ inputs.run-typecheck }}
-          test-command: ${{ inputs.test-command }}
-          lint-command: ${{ inputs.lint-command }}
-          typecheck-command: ${{ inputs.typecheck-command }}
-      
       - name: Build docker image for Azure App Service
         uses: Data-Dialogue/workflows/.github/actions/run-docker-build-push@main
         with:
