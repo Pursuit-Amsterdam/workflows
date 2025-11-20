@@ -294,7 +294,7 @@ jobs:
           slot-name: ${{ inputs.azure-asp-slot-name }}
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
-          app-settings: ${{ inputs.onepassword_enabled && steps.onepassword.outputs.azure_settings || '' }}
+          app-settings: ${{ inputs.onepassword_enabled && steps.onepassword.outputs.azure_settings_full || '' }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
