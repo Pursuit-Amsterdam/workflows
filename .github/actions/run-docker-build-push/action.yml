@@ -36,6 +36,19 @@ runs:
           username: ${{ github.actor }}
           password: ${{ inputs.github-token }}
 
+    - name: Prepare Docker build args
+      id: prepare_build_args
+      shell: bash
+      run: |
+        # Convert space-separated to newline-separated
+        args="${{ inputs.build-args }}"
+        build_args=$(echo "$args" | tr ' ' '\n')
+        {
+          echo "build_args<<EOF"
+          echo "$build_args"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Build and push container image to registry
       uses: docker/build-push-action@v5
       with:
@@ -46,4 +59,4 @@ runs:
           platforms: ${{ inputs.image-platform }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: ${{ inputs.build-args }}
+          build-args: ${{ prepare_build_args.build_args }}
