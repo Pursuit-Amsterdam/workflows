@@ -59,4 +59,4 @@ runs:
           platforms: ${{ inputs.image-platform }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: ${{ prepare_build_args.build_args }}
+          build-args: ${{ steps.prepare_build_args.build_args }}
