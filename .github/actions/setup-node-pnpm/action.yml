@@ -27,11 +27,16 @@ runs:
         cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
 
     - name: Configure npm auth for GitHub Packages
-      if: inputs.node-auth-token != ''
       shell: bash
       run: |
-        printf "@pursuit-amsterdam:registry=https://npm.pkg.github.com\nalways-auth=true\n" > .npmrc
-        printf "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}\n" >> .npmrc
+        if [ -n "${NODE_AUTH_TOKEN}" ]; then
+          echo "Configuring GitHub Packages authentication..."
+          printf "@pursuit-amsterdam:registry=https://npm.pkg.github.com\nalways-auth=true\n" > .npmrc
+          printf "//npm.pkg.github.com/:_authToken=%s\n" "${NODE_AUTH_TOKEN}" >> .npmrc
+          echo "✓ Authentication configured"
+        else
+          echo "⚠ No auth token provided, skipping GitHub Packages authentication"
+        fi
       env:
         NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
 
