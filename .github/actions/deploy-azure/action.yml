@@ -29,7 +29,7 @@ inputs:
   image-name:
     description: "Docker image name in GitHub Container Registry"
     required: false
-    default: "ghcr.io/data-dialogue/datadialogue-frontend"
+    default: "ghcr.io/Pursuit-Amsterdam/datadialogue-frontend"
   image-tag:
     description: "Docker image tag"
     required: false

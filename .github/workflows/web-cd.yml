@@ -168,14 +168,14 @@ jobs:
 
       - name: Setup Node.js and PNPM
         if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
-        uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Data-Dialogue/workflows/.github/actions/setup-onepassword@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -183,7 +183,7 @@ jobs:
           export-for-vercel: true
 
       - name: Set version variable
-        uses: Data-Dialogue/workflows/.github/actions/setup-version@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         id: set-version
         with:
           # Get latest tag
@@ -197,7 +197,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Data-Dialogue/workflows/.github/actions/run-pnpm-build-test@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
@@ -208,7 +208,7 @@ jobs:
           typecheck-command: ${{ inputs.typecheck-command }}
 
       - name: Deploy to Vercel
-        uses: Data-Dialogue/workflows/.github/actions/deploy-vercel@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@main
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -236,7 +236,7 @@ jobs:
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         id: load_onepassword_secrets
-        uses: Data-Dialogue/workflows/.github/actions/setup-onepassword@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -244,7 +244,7 @@ jobs:
           export-for-azure: true
 
       - name: Set version variable
-        uses: Data-Dialogue/workflows/.github/actions/setup-version@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         id: set-version
         with:
           # Get latest tag
@@ -253,7 +253,7 @@ jobs:
           environment: ${{ inputs.environment }}
 
       - name: Build docker image for Azure App Service
-        uses: Data-Dialogue/workflows/.github/actions/run-docker-build-push@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
         with:
           image-name: ${{ inputs.azure-asp-image-name }}
           image-tag: '${{ steps.set-version.outputs.version }}'
@@ -261,7 +261,7 @@ jobs:
           build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
       
       - name: Deploy to Azure App Service
-        uses: Data-Dialogue/workflows/.github/actions/deploy-azure@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
         with:
           azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
           azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
