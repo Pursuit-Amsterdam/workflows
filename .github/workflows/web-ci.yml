@@ -140,7 +140,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ inputs.use-custom-token && secrets.PURSUIT_AMSTERDAM_TOKEN || secrets.GITHUB_TOKEN }}
+          node-auth-token: ${{ (inputs.use-custom-token && secrets.PURSUIT_AMSTERDAM_TOKEN != '' && secrets.PURSUIT_AMSTERDAM_TOKEN) || secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
