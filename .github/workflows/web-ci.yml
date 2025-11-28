@@ -1,129 +1,137 @@
-name: 'Web Application CI'
+name: "Web Application CI"
 
 on:
   workflow_call:
     inputs:
       framework:
-        description: 'Framework type (next, vue, react, etc.)'
+        description: "Framework type (next, vue, react, etc.)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: false
         type: string
-        default: '22.x'
+        default: "22.x"
       working-directory:
-        description: 'Working directory for the project'
+        description: "Working directory for the project"
         required: false
         type: string
-        default: '.'
+        default: "."
       environment:
         description: "Deployment environment (production, preview, staging)"
         required: false
         type: string
         default: "preview"
-      
+      use-custom-token:
+        description: "Use custom GitHub token for authentication"
+        required: false
+        type: boolean
+        default: false
+
       # Code generation options
       codegen:
-        description: 'Enable code generation'
+        description: "Enable code generation"
         required: false
         type: boolean
         default: false
       codegen_command:
-        description: 'Custom codegen command to run'
+        description: "Custom codegen command to run"
         required: false
         type: string
-        default: ''
+        default: ""
       generate-importmap:
-        description: 'Generate import maps'
+        description: "Generate import maps"
         required: false
         type: boolean
         default: true
       generate-types:
-        description: 'Generate types'
+        description: "Generate types"
         required: false
         type: boolean
         default: true
       generate-graphql:
-        description: 'Generate GraphQL code'
+        description: "Generate GraphQL code"
         required: false
         type: boolean
         default: false
-      
+
       # Build and test options
       run-build:
-        description: 'Run build step'
+        description: "Run build step"
         required: false
         type: boolean
         default: true
       run-test:
-        description: 'Run tests'
+        description: "Run tests"
         required: false
         type: boolean
         default: true
       run-lint:
-        description: 'Run linting'
+        description: "Run linting"
         required: false
         type: boolean
         default: true
       run-typecheck:
-        description: 'Run type checking'
+        description: "Run type checking"
         required: false
         type: boolean
         default: true
-      
+
       # Custom commands
       build-command:
-        description: 'Custom build command'
+        description: "Custom build command"
         required: false
         type: string
-        default: 'build'
+        default: "build"
       test-command:
-        description: 'Custom test command'
+        description: "Custom test command"
         required: false
         type: string
-        default: 'test'
+        default: "test"
       lint-command:
-        description: 'Custom lint command'
+        description: "Custom lint command"
         required: false
         type: string
-        default: 'lint'
+        default: "lint"
       typecheck-command:
-        description: 'Custom typecheck command'
+        description: "Custom typecheck command"
         required: false
         type: string
-        default: 'typecheck'
-      
+        default: "typecheck"
+
       # 1Password secrets
       onepassword_enabled:
-        description: 'Enable 1Password secrets loading'
+        description: "Enable 1Password secrets loading"
         required: false
         type: boolean
         default: false
       onepassword_vault:
-        description: '1Password vault name'
+        description: "1Password vault name"
         required: false
         type: string
-        default: ''
+        default: ""
       onepassword_item:
-        description: '1Password item name'
+        description: "1Password item name"
         required: false
         type: string
-        default: ''
+        default: ""
 
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN:
-        description: '1Password service account token'
+        description: "1Password service account token"
+        required: false
+      PURSUIT_AMSTERDAM_TOKEN:
+        description: "Custom Node.js registry token"
         required: false
 
 jobs:
   pipeline:
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    environment: 'integration'
+    environment: "integration"
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -132,7 +140,7 @@ jobs:
         uses: Data-Dialogue/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.PURSUIT_AMSTERDAM_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
