@@ -136,11 +136,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and PNPM
+      - name: Setup Node.js and PNPM (with custom token)
+        if: inputs.use-custom-token
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ (inputs.use-custom-token && secrets.PURSUIT_AMSTERDAM_TOKEN != '' && secrets.PURSUIT_AMSTERDAM_TOKEN) || secrets.GITHUB_TOKEN }}
+          node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+
+      - name: Setup Node.js and PNPM (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
