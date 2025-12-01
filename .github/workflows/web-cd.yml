@@ -28,6 +28,11 @@ on:
         required: false
         type: string
         default: "preview"
+      use-custom-token:
+        description: "Use custom Node.js auth token for private npm packages during Docker build"
+        required: false
+        type: boolean
+        default: false
 
       # Code generation options
       codegen:
@@ -265,6 +270,15 @@ jobs:
           image-tag: '${{ steps.set-version.outputs.version }}'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+          build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
+
+      - name: Build docker image for Azure App Service (default token)
+        if: !inputs.use-custom-token
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+        with:
+          image-name: ${{ inputs.azure-asp-image-name }}
+          image-tag: '${{ steps.set-version.outputs.version }}'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
       
       - name: Deploy to Azure App Service
