@@ -273,7 +273,7 @@ jobs:
           build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
 
       - name: Build docker image for Azure App Service (default token)
-        if: !inputs.use-custom-token
+        if: ${{ !inputs.use-custom-token }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
         with:
           image-name: ${{ inputs.azure-asp-image-name }}
