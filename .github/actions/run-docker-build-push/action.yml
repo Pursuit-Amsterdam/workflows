@@ -22,6 +22,10 @@ inputs:
   github-token:
     description: 'GitHub token for registry authentication'
     required: true
+  node-auth-token:
+    description: 'Node.js authentication token for private npm packages during build'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -60,3 +64,5 @@ runs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: ${{ steps.prepare_build_args.outputs.build_args }}
+          secrets: |
+            NODE_AUTH_TOKEN=${{ inputs.node-auth-token }}
