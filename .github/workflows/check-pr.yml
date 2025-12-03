@@ -12,10 +12,13 @@ on:
         required: true
         type: string
 
-# valid patterns: main, develop, feature/*, hotfix/*, dependabot/*
-# feature/* can be merged into develop
+# valid patterns: main, develop, feature/*, hotfix/*, dependabot/*, release/*, module/*, module/*/*
 # dependabot/* can be merged into develop
+# feature/* can be merged into develop
+# module/* can be merged into develop
+# module/*/* can be merged into module/* where first segment matches
 # hotfix/* can be merged into main
+# release/* can be merged into main
 # main can be merged into develop
 # develop can be merged into main
 # develop can be merged into acceptance
@@ -29,27 +32,79 @@ jobs:
 
       - name: Check if merge is allowed
         run: |
-          if [[ ${{ inputs.head-ref }} != 'main' && ${{ inputs.head-ref }} != 'develop' && ${{ inputs.head-ref }} != 'feature/'* && ${{ inputs.head-ref }} != 'hotfix/'* && ${{ inputs.head-ref }} != 'dependabot/'* ]]; then
+          if [[ 
+            ${{ inputs.head-ref }} != 'main' &&
+            ${{ inputs.head-ref }} != 'develop' &&
+            ${{ inputs.head-ref }} != 'acceptance' &&
+            ${{ inputs.head-ref }} != 'release/'* &&
+            ${{ inputs.head-ref }} != 'module/'* &&
+            ${{ inputs.head-ref }} != 'feature/'* &&
+            ${{ inputs.head-ref }} != 'hotfix/'* &&
+            ${{ inputs.head-ref }} != 'dependabot/'*
+          ]]; then
               echo "Branch name ${{ inputs.head-ref }} not allowed."
               exit 1
             fi
-
+          
+          # hotfix/*, release/*, develop -> main
           if [[ ${{ inputs.base-ref }} == 'main' ]]; then
-              if [[ ${{ inputs.head-ref }} == 'hotfix/'* || ${{ inputs.head-ref }} == 'develop' ]]; then
+              if [[
+                ${{ inputs.head-ref }} == 'hotfix/'* ||
+                ${{ inputs.head-ref }} == 'release/'* ||
+                ${{ inputs.head-ref }} == 'develop'
+              ]]; then
                   echo "Merge ${{ inputs.head-ref }} into main allowed."
                   exit 0
               else
                   echo "Merge ${{ inputs.head-ref }} into main not allowed."
                   exit 1
               fi
+          
+          # feature/*, dependabot/*, module/*, main -> develop
           elif [[ ${{ inputs.base-ref }} == 'develop' ]]; then
-              if [[ ${{ inputs.head-ref }} == 'feature/'* || ${{ inputs.head-ref }} == 'dependabot/'* || ${{ inputs.base-ref }} == 'main' ]]; then
+              if [[
+                ${{ inputs.head-ref }} == 'feature/'* ||
+                ${{ inputs.head-ref }} == 'dependabot/'* ||
+                ${{ inputs.head-ref }} == 'module/'* ||
+                ${{ inputs.head-ref }} == 'main'
+              ]]; then
                   echo "Merge ${{ inputs.head-ref }} into develop allowed."
                   exit 0
               else
                   echo "Merge ${{ inputs.head-ref }} into develop not allowed."
                   exit 1
               fi
+          
+          # module/*/* -> module/* and module/* -> develop
+          elif [[ ${{ inputs.base-ref }} == module/* ]]; then
+              if [[ ${{ inputs.head-ref }} == module/* ]]; then
+                  base_segment=$(echo "${{ inputs.base-ref }}" | cut -d'/' -f2)
+                  head_segment=$(echo "${{ inputs.head-ref }}" | cut -d'/' -f2)
+                  if [[ "$base_segment" == "$head_segment" ]]; then
+                      echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} allowed."
+                      exit 0
+                  else
+                      echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} not allowed."
+                      exit 1
+                  fi
+              elif [[ ${{ inputs.head-ref }} == 'develop' ]]; then
+                  echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} allowed."
+                  exit 0
+              else
+                  echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} not allowed."
+                  exit 1
+              fi
+          
+          # develop -> release/*
+          elif [[ ${{ inputs.base-ref }} == release/* ]]; then
+              if [[ ${{ inputs.head-ref }} == 'develop' ]]; then
+                  echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} allowed."
+                  exit 0
+              else
+                  echo "Merge ${{ inputs.head-ref }} into ${{ inputs.base-ref }} not allowed."
+                  exit 1
+              fi
+
           elif [[ ${{ inputs.base-ref }} == 'acceptance' ]]; then
               if [[ ${{ inputs.head-ref }} == 'develop' ]]; then
                   echo "Merge ${{ inputs.head-ref }} into acceptance allowed."
