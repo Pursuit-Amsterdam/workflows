@@ -12,11 +12,11 @@ on:
         required: true
         type: string
 
-# valid patterns: main, develop, feature/*, hotfix/*, dependabot/*, release/*, module-*, module-*/*
+# valid patterns: main, develop, feature/*, hotfix/*, dependabot/*, release/*, module.*, module.*/*
 # dependabot/* can be merged into develop
 # feature/* can be merged into develop
-# module-* can be merged into develop
-# module-*/* can be merged into module-* where first segment matches
+# module.* can be merged into develop
+# module.*/* can be merged into module.* where first segment matches
 # hotfix/* can be merged into main
 # release/* can be merged into main
 # main can be merged into develop
@@ -37,7 +37,7 @@ jobs:
             ${{ inputs.head-ref }} != 'develop' &&
             ${{ inputs.head-ref }} != 'acceptance' &&
             ${{ inputs.head-ref }} != 'release/'* &&
-            ${{ inputs.head-ref }} != 'module-'* &&
+            ${{ inputs.head-ref }} != 'module.'* &&
             ${{ inputs.head-ref }} != 'feature/'* &&
             ${{ inputs.head-ref }} != 'hotfix/'* &&
             ${{ inputs.head-ref }} != 'dependabot/'*
@@ -60,12 +60,12 @@ jobs:
                   exit 1
               fi
           
-          # feature/*, dependabot/*, module-*, main -> develop
+          # feature/*, dependabot/*, module.*, main -> develop
           elif [[ ${{ inputs.base-ref }} == 'develop' ]]; then
               if [[
                 ${{ inputs.head-ref }} == 'feature/'* ||
                 ${{ inputs.head-ref }} == 'dependabot/'* ||
-                ${{ inputs.head-ref }} == 'module-'* ||
+                ${{ inputs.head-ref }} == 'module.'* ||
                 ${{ inputs.head-ref }} == 'main'
               ]]; then
                   echo "Merge ${{ inputs.head-ref }} into develop allowed."
@@ -75,9 +75,9 @@ jobs:
                   exit 1
               fi
           
-          # module-*/* -> module-* and module-* -> develop
-          elif [[ ${{ inputs.base-ref }} == module-* ]]; then
-              if [[ ${{ inputs.head-ref }} == module-* ]]; then
+          # module.*/* -> module.* and module.* -> develop
+          elif [[ ${{ inputs.base-ref }} == module.* ]]; then
+              if [[ ${{ inputs.head-ref }} == module.* ]]; then
                   base_segment=$(echo "${{ inputs.base-ref }}" | cut -d'/' -f2)
                   head_segment=$(echo "${{ inputs.head-ref }}" | cut -d'/' -f2)
                   if [[ "$base_segment" == "$head_segment" ]]; then
