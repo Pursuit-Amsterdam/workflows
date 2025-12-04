@@ -37,8 +37,8 @@ jobs:
             "$HEAD" != feature/* &&
             "$HEAD" != release/* &&
             "$HEAD" != dependabot/* &&
-            "$HEAD" != module/*/develop &&
-            "$HEAD" != module/*/feature/*
+            "$HEAD" != module-develop/* &&
+            "$HEAD" != module-feature/* 
           ]]; then
               echo "❌ Branch name '$HEAD' is not allowed."
               exit 1
@@ -57,12 +57,12 @@ jobs:
             fi
           fi
 
-          # feature/*, dependabot/*, module/*/develop, main → develop
+          # feature/*, dependabot/*, module-develop/*, main → develop
           if [[ "$BASE" == "develop" ]]; then
             if [[ 
               "$HEAD" == feature/* ||
               "$HEAD" == dependabot/* ||
-              "$HEAD" == module/*/develop ||
+              "$HEAD" == module-develop/* ||
               "$HEAD" == "main"
             ]]; then
               echo "✅ Merge allowed: $HEAD → develop"
@@ -73,20 +73,15 @@ jobs:
             fi
           fi
 
-          # module/*/feature/* → module/*/develop
-          if [[ "$BASE" == module/*/develop ]]; then
-            if [[ "$HEAD" == module/*/feature/* ]]; then
-              base_segment=$(echo "$BASE" | cut -d'/' -f2)
-              head_segment=$(echo "$HEAD" | cut -d'/' -f2)
-
-              if [[ "$base_segment" == "$head_segment" ]]; then
-                echo "✅ Merge allowed: $HEAD → $BASE"
-                exit 0
-              fi
+          # module-feature/* → module-develop/*
+          if [[ "$BASE" == module-develop/* ]]; then
+            if [[ "$HEAD" == module-feature/* ]]; then
+              echo "✅ Merge allowed: $HEAD → $BASE"
+              exit 0
+            else
+              echo "❌ Merge not allowed: $HEAD → $BASE"
+              exit 1
             fi
-
-            echo "❌ Merge not allowed: $HEAD → $BASE"
-            exit 1
           fi
 
           # develop → release/*
