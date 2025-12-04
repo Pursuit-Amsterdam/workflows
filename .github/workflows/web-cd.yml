@@ -176,8 +176,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and PNPM
-        if: inputs.build-mode == 'github' || inputs.codegen || inputs.run-test || inputs.run-lint || inputs.run-typecheck
+      - name: Setup Node.js and PNPM (with custom token)
+        if: inputs.use-custom-token
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+
+      - name: Setup Node.js and PNPM (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
