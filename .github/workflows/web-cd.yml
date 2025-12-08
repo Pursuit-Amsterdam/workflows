@@ -140,6 +140,8 @@ on:
         default: ""
 
     secrets:
+      GITHUB_TOKEN:
+        required: true
       PURSUIT_AMSTERDAM_TOKEN:
         required: false
       OP_SERVICE_ACCOUNT_TOKEN:
