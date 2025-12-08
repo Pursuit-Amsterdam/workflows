@@ -235,71 +235,71 @@ jobs:
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
 
-  azure-asp-deploy:
-    if: ${{ inputs.platform == 'azure-asp' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # azure-asp-deploy:
+  #   if: ${{ inputs.platform == 'azure-asp' }}
+  #   runs-on: blacksmith-4vcpu-ubuntu-2404
+  #   environment: ${{ inputs.environment }}
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #     id-token: write
+  #   defaults:
+  #     run:
+  #       working-directory: ${{ inputs.working-directory }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Load 1Password Secrets
-        if: inputs.onepassword_enabled
-        id: load_onepassword_secrets
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
-        with:
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          vault-name: ${{ inputs.onepassword_vault }}
-          item-name: ${{ inputs.onepassword_item }}
-          export-for-azure: true
+  #     - name: Load 1Password Secrets
+  #       if: inputs.onepassword_enabled
+  #       id: load_onepassword_secrets
+  #       uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+  #       with:
+  #         service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+  #         vault-name: ${{ inputs.onepassword_vault }}
+  #         item-name: ${{ inputs.onepassword_item }}
+  #         export-for-azure: true
 
-      - name: Set version variable
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
-        id: set-version
-        with:
-          # Get latest tag
-          version: $(git describe --tags --abbrev=0 --always)
-          framework: "nextjs"
-          environment: ${{ inputs.environment }}
+  #     - name: Set version variable
+  #       uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
+  #       id: set-version
+  #       with:
+  #         # Get latest tag
+  #         version: $(git describe --tags --abbrev=0 --always)
+  #         framework: "nextjs"
+  #         environment: ${{ inputs.environment }}
 
-      - name: Build docker image for Azure App Service (custom token)
-        if: inputs.use-custom-token
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
-        with:
-          image-name: ${{ inputs.azure-asp-image-name }}
-          image-tag: '${{ steps.set-version.outputs.version }}'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
-          build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
+  #     - name: Build docker image for Azure App Service (custom token)
+  #       if: inputs.use-custom-token
+  #       uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+  #       with:
+  #         image-name: ${{ inputs.azure-asp-image-name }}
+  #         image-tag: '${{ steps.set-version.outputs.version }}'
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+  #         build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
 
-      - name: Build docker image for Azure App Service (default token)
-        if: ${{ !inputs.use-custom-token }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
-        with:
-          image-name: ${{ inputs.azure-asp-image-name }}
-          image-tag: '${{ steps.set-version.outputs.version }}'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
+  #     - name: Build docker image for Azure App Service (default token)
+  #       if: ${{ !inputs.use-custom-token }}
+  #       uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+  #       with:
+  #         image-name: ${{ inputs.azure-asp-image-name }}
+  #         image-tag: '${{ steps.set-version.outputs.version }}'
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
       
-      - name: Deploy to Azure App Service
-        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
-        with:
-          azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
-          azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
-          azure-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
-          azure-resource-group: ${{ inputs.azure-asp-resource-group }}
-          app-name: ${{ inputs.azure-asp-app-name }}
-          slot-name: ${{ inputs.azure-asp-slot-name }}
-          image-name: ${{ inputs.azure-asp-image-name }}
-          image-tag: '${{ steps.set-version.outputs.version }}'
-          app-settings: ${{ steps.load_onepassword_secrets.outputs.azure_settings_full }}
+  #     - name: Deploy to Azure App Service
+  #       uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
+  #       with:
+  #         azure-client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
+  #         azure-tenant-id: ${{ secrets.AZURE_DEPLOY_TENANT_ID }}
+  #         azure-subscription-id: ${{ secrets.AZURE_DEPLOY_SUBSCRIPTION_ID }}
+  #         azure-resource-group: ${{ inputs.azure-asp-resource-group }}
+  #         app-name: ${{ inputs.azure-asp-app-name }}
+  #         slot-name: ${{ inputs.azure-asp-slot-name }}
+  #         image-name: ${{ inputs.azure-asp-image-name }}
+  #         image-tag: '${{ steps.set-version.outputs.version }}'
+  #         app-settings: ${{ steps.load_onepassword_secrets.outputs.azure_settings_full }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
