@@ -164,7 +164,8 @@ on:
 jobs:
   vercel-deploy:
     if: ${{ inputs.platform == 'vercel' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
