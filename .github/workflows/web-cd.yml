@@ -140,6 +140,8 @@ on:
         default: ""
 
     secrets:
+      GITHUB_TOKEN:
+        required: false
       PURSUIT_AMSTERDAM_TOKEN:
         required: false
       OP_SERVICE_ACCOUNT_TOKEN:
@@ -164,8 +166,7 @@ on:
 jobs:
   vercel-deploy:
     if: ${{ inputs.platform == 'vercel' }}
-    # runs-on: blacksmith-4vcpu-ubuntu-2404
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
