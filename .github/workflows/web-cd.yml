@@ -161,13 +161,14 @@ on:
       AZURE_DEPLOY_SUBSCRIPTION_ID:
         required: false
 
+permissions:
+  contents: read
+
 jobs:
   vercel-deploy:
     if: ${{ inputs.platform == 'vercel' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
-    permissions:
-      contents: read
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -304,8 +305,6 @@ jobs:
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    permissions:
-      contents: read
     steps:
       - name: Fail for unsupported platform
         run: |
