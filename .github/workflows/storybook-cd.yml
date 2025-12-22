@@ -4,9 +4,10 @@ on:
   workflow_call:
     inputs:
       node-version:
-        description: 'Node.js version to use'
+        description: "Node.js version"
         required: false
-        default: 'lts/*'
+        type: string
+        default: "22.x"
       use-custom-token:
         description: 'Whether to use a custom token for authentication'
         required: false
