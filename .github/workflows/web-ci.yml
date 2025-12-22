@@ -120,7 +120,7 @@ on:
       OP_SERVICE_ACCOUNT_TOKEN:
         description: "1Password service account token"
         required: false
-      PURSUIT_AMSTERDAM_TOKEN:
+      CUSTOM_GITHUB_TOKEN:
         description: "Custom Node.js registry token"
         required: false
 
@@ -141,7 +141,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+          node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Node.js and PNPM (with GitHub token)
         if: ${{ !inputs.use-custom-token }}

@@ -140,7 +140,7 @@ on:
         default: ""
 
     secrets:
-      PURSUIT_AMSTERDAM_TOKEN:
+      CUSTOM_GITHUB_TOKEN:
         required: false
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
@@ -182,7 +182,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
-          node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+          node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Node.js and PNPM (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
@@ -277,7 +277,7 @@ jobs:
   #         image-name: ${{ inputs.azure-asp-image-name }}
   #         image-tag: '${{ steps.set-version.outputs.version }}'
   #         github-token: ${{ secrets.GITHUB_TOKEN }}
-  #         node-auth-token: ${{ secrets.PURSUIT_AMSTERDAM_TOKEN }}
+  #         node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
   #         build-args: ${{ steps.load_onepassword_secrets.outputs.azure_settings_public_only }}
 
   #     - name: Build docker image for Azure App Service (default token)
