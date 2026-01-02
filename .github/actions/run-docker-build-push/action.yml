@@ -26,6 +26,10 @@ inputs:
     description: 'Node.js authentication token for private npm packages during build'
     required: false
     default: ''
+  python-auth-token:
+    description: 'GitHub token for private Python packages during build'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -66,3 +70,4 @@ runs:
           build-args: ${{ steps.prepare_build_args.outputs.build_args }}
           secrets: |
             NODE_AUTH_TOKEN=${{ inputs.node-auth-token }}
+            GITHUB_TOKEN=${{ inputs.python-auth-token }}
