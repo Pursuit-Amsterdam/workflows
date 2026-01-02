@@ -20,19 +20,22 @@ This repository is structured to provide maximum reusability and modularity:
 ```
 .github/
 ├── actions/                     # Reusable composite actions
+│   ├── deploy-azure/           # Azure App Service deployment
 │   ├── deploy-supabase/        # Supabase database migrations and deployment
 │   ├── deploy-vercel/          # Vercel deployment with multiple build modes
-│   ├── run-build-test/         # Build, test, lint, and typecheck
 │   ├── run-codegen/            # Code generation (GraphQL, types, etc.)
+│   ├── run-docker-build-push/  # Docker image build and push to GHCR
+│   ├── run-pnpm-build-test/    # Build, test, lint, and typecheck with PNPM
+│   ├── run-supabase-test/      # Local Supabase environment setup and testing
 │   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
 │   ├── setup-onepassword/     # Secure secret management with 1Password
-│   ├── setup-supabase/        # Supabase CLI setup
 │   └── setup-version/         # Version management and environment variables
 └── workflows/                   # Reusable workflows
     ├── backend-cd.yml          # Backend continuous deployment (Supabase)
     ├── backend-ci.yml          # Backend continuous integration (Supabase)
     ├── check-pr.yml            # PR validation and branch naming enforcement
     ├── codegen.yml             # Automated code generation pipeline
+    ├── storybook-cd.yml        # Storybook deployment to GitHub Pages
     ├── web-cd.yml              # Generic web continuous deployment
     └── web-ci.yml              # Web application continuous integration
 ```
@@ -161,11 +164,11 @@ Sets up a Node.js environment with PNPM package manager, dependency caching, and
 
 ---
 
-### 🔨 `run-build-test`
+### 🔨 `run-pnpm-build-test`
 
 Comprehensive build, test, lint, and type-checking action with graceful error handling and customizable commands.
 
-**Location**: `.github/actions/run-build-test`
+**Location**: `.github/actions/run-pnpm-build-test`
 
 **Inputs:**
 
@@ -182,13 +185,13 @@ Comprehensive build, test, lint, and type-checking action with graceful error ha
 
 - ✅ Graceful handling of missing scripts (warns instead of failing)
 - 🔄 Customizable command names for different project setups
-- 📊 Clear success/failure reporting with emojis
+- 📦 Built with PNPM package manager
 - ⚡ Conditional execution based on inputs
 
 **Example Usage:**
 
 ```yaml
-- uses: Pursuit-Amsterdam/workflows/.github/actions/run-build-test@main
+- uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
   with:
     run-test: true
     run-lint: true
@@ -236,7 +239,7 @@ Advanced code generation pipeline supporting multiple generation types and custo
 
 ### 🔐 `setup-onepassword`
 
-Secure environment variable management using 1Password vaults with optional Vercel deployment integration.
+Secure environment variable management using 1Password vaults with optional Vercel and Azure deployment integration.
 
 **Location**: `.github/actions/setup-onepassword`
 
@@ -247,14 +250,22 @@ Secure environment variable management using 1Password vaults with optional Verc
 - `item-name` (**required**) - 1Password item name containing secrets
 - `export-for-vercel` (default: `false`) - Export secrets for Vercel deployment
 - `vercel-env-file` (default: `vercel_env_args.bin`) - File path for Vercel env args
+- `export-for-azure` (default: `false`) - Export secrets for Azure CLI app settings format
+
+**Outputs:**
+
+- `azure_settings_full` - All exported settings for Azure App Service deployment
+- `azure_settings_public_only` - Public-only exported settings (no concealed fields) for Azure App Service deployment
 
 **Features:**
 
 - 🔒 Secure secret loading from 1Password vaults
 - 🎭 Automatic secret masking in GitHub Actions logs
 - 🚀 Direct Vercel deployment integration
+- ☁️ Azure App Service configuration support
 - 📁 Support for multi-line environment variables
 - 🛡️ Service account authentication
+- 🔑 Distinguishes between concealed and public fields
 
 **Example Usage:**
 
@@ -341,6 +352,134 @@ Version management action that computes version strings and exports them as envi
 
 ---
 
+### 🐳 `run-docker-build-push`
+
+Docker image build and push action for GitHub Container Registry with multi-platform support.
+
+**Location**: `.github/actions/run-docker-build-push`
+
+**Inputs:**
+
+- `docker-file` (default: `./Dockerfile`) - Path to the Dockerfile
+- `image-name` (**required**) - Name of the Docker image to build and push
+- `image-tag` (**required**) - Tag for the Docker image
+- `image-platform` (default: `linux/amd64`) - Target platform for the Docker image
+- `build-args` - Build arguments for Docker build (space-separated)
+- `github-token` (**required**) - GitHub token for registry authentication
+- `node-auth-token` - Node.js authentication token for private npm packages during build
+- `python-auth-token` - GitHub token for private Python packages during build
+
+**Features:**
+
+- 🐳 Docker Buildx support for advanced builds
+- 📦 Automatic GitHub Container Registry authentication
+- 🚀 Build cache optimization (GitHub Actions cache)
+- 🔐 Secure handling of private package registries
+- 🌍 Multi-platform build support
+- ⚡ Layer caching for faster builds
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+  with:
+    image-name: "ghcr.io/my-org/my-app"
+    image-tag: ${{ github.sha }}
+    build-args: "NODE_ENV=production APP_VERSION=1.0.0"
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+---
+
+### ☁️ `deploy-azure`
+
+Azure App Service deployment action with Docker container support and app settings configuration.
+
+**Location**: `.github/actions/deploy-azure`
+
+**Inputs:**
+
+- `azure-client-id` (**required**) - Azure client ID
+- `azure-tenant-id` (**required**) - Azure tenant ID
+- `azure-subscription-id` (**required**) - Azure subscription ID
+- `environment` (default: `staging`) - Deployment environment
+- `azure-resource-group` (**required**) - Azure Resource Group name
+- `app-name` (**required**) - Azure Web App name
+- `slot-name` (default: `Production`) - Azure Web App slot name
+- `image-name` (default: `ghcr.io/Pursuit-Amsterdam/datadialogue-frontend`) - Docker image name in GitHub Container Registry
+- `image-tag` (default: `${{ github.sha }}`) - Docker image tag
+- `app-settings` - App settings to configure (space-separated key=value pairs)
+
+**Features:**
+
+- ☁️ Azure App Service deployment
+- 🐳 Docker container deployment support
+- 🎯 Deployment slot support for staging/production
+- 🔐 Azure OIDC authentication
+- ⚙️ Dynamic app settings configuration
+- 📊 Detailed deployment logging
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
+  with:
+    azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+    azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+    azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    environment: "production"
+    azure-resource-group: "my-resource-group"
+    app-name: "my-web-app"
+    image-name: "ghcr.io/my-org/my-app"
+    image-tag: ${{ github.sha }}
+    app-settings: "NODE_ENV=production LOG_LEVEL=info"
+```
+
+---
+
+### 🧪 `run-supabase-test`
+
+Local Supabase development environment setup action for testing with database initialization and seeding support.
+
+**Location**: `.github/actions/run-supabase-test`
+
+**Inputs:**
+
+- `supabase-cli-version` (default: `latest`) - Supabase CLI version to install
+- `wait-timeout` (default: `300`) - Timeout in seconds to wait for services
+- `project-id` - Supabase project ID for specific configuration
+- `seed` (default: `false`) - Whether to seed the database after starting
+
+**Outputs:**
+
+- `api-url` - Local Supabase API URL
+- `db-url` - Local PostgreSQL database URL
+- `anon-key` - Anonymous key for Supabase client
+- `service-role-key` - Service role key for Supabase client
+
+**Features:**
+
+- 🐳 Docker-based local Supabase instance
+- ⚡ Automatic service health checking
+- 🔑 Automatic key and URL extraction
+- 📊 Environment variable setup for subsequent steps
+- 🚀 Project initialization if config doesn't exist
+- 🌱 Optional database seeding
+- 🧪 Automated database testing with `supabase test db`
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
+  with:
+    supabase-cli-version: "1.x"
+    wait-timeout: "300"
+    seed: true
+```
+
+---
+
 ### 🗄️ `deploy-supabase`
 
 Supabase database migration action that applies migrations using the Supabase CLI with environment-aware database URL selection.
@@ -366,44 +505,6 @@ Supabase database migration action that applies migrations using the Supabase CL
   with:
     db-url: ${{ secrets.DB_URL_PRODUCTION }}
     db-password: ${{ secrets.DB_PASSWORD_PRODUCTION }}
-```
-
----
-
-### 🏗️ `setup-supabase`
-
-Local Supabase development environment setup action that initializes and starts Supabase services for testing.
-
-**Location**: `.github/actions/setup-supabase`
-
-**Inputs:**
-
-- `supabase-cli-version` (default: `latest`) - Supabase CLI version to install
-- `wait-timeout` (default: `300`) - Timeout in seconds to wait for services
-- `project-id` (optional) - Supabase project ID for specific configuration
-
-**Outputs:**
-
-- `api-url` - Local Supabase API URL
-- `db-url` - Local PostgreSQL database URL
-- `anon-key` - Anonymous key for Supabase client
-- `service-role-key` - Service role key for Supabase client
-
-**Features:**
-
-- 🐳 Docker-based local Supabase instance
-- ⚡ Automatic service health checking
-- 🔑 Automatic key and URL extraction
-- 📊 Environment variable setup for subsequent steps
-- 🚀 Project initialization if config doesn't exist
-
-**Example Usage:**
-
-```yaml
-- uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@main
-  with:
-    supabase-cli-version: "1.x"
-    wait-timeout: "300"
 ```
 
 ---
@@ -714,6 +815,69 @@ jobs:
       head-ref: ${{ github.head_ref }}
       base-ref: ${{ github.base_ref }}
 ```
+
+---
+
+### 📖 `storybook-cd.yml` - Storybook Deployment
+
+Automated Storybook deployment workflow to GitHub Pages for component documentation and design systems.
+
+**Location**: `.github/workflows/storybook-cd.yml`
+
+**Key Features:**
+
+- 📖 Automated Storybook build and deployment
+- 📄 GitHub Pages integration
+- 🔐 Custom token support for private packages
+- ⚡ Optimized build process with PNPM
+- 🌐 Public component library hosting
+
+**Essential Inputs:**
+
+- `node-version` (default: `22.x`) - Node.js version
+- `use-custom-token` (default: `false`) - Whether to use a custom token for authentication
+
+**Permissions:**
+
+- `contents: read` - Read repository contents
+- `pages: write` - Write to GitHub Pages
+- `id-token: write` - Generate deployment tokens
+
+**Environment:**
+
+- Deploys to `github-pages` environment
+- Output URL available at `${{ steps.deploy.outputs.page_url }}`
+
+**Features:**
+
+- 🎨 Component documentation hosting
+- 📦 Private package support via custom tokens
+- 🔄 Automatic Pages artifact upload
+- 🚀 Concurrent deployment protection
+
+**Example Usage:**
+
+```yaml
+name: Deploy Storybook
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-storybook:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/storybook-cd.yml@main
+    with:
+      node-version: "22.x"
+      use-custom-token: true
+    secrets:
+      CUSTOM_GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+```
+
+**Prerequisites:**
+
+- Repository must have GitHub Pages enabled
+- `build-storybook` script must be defined in package.json
+- Storybook must output to `storybook-static` directory
 
 ---
 

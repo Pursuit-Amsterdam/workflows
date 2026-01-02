@@ -3,10 +3,6 @@ name: "Web Application CI"
 on:
   workflow_call:
     inputs:
-      framework:
-        description: "Framework type (next, vue, react, etc.)"
-        required: true
-        type: string
       node-version:
         description: "Node.js version"
         required: false
