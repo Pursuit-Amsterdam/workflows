@@ -13,6 +13,12 @@ on:
         required: false
         default: false
         type: boolean
+      working-directory:
+        description: "Working directory for Storybook build script and artifact (for monorepos or subdirectories)"
+        required: false
+        default: "."
+        type: string
+
 
 permissions:
   contents: read
