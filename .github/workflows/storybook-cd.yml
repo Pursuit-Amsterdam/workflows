@@ -37,8 +37,10 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Setup Node.js and PNPM (with custom token)
         if: inputs.use-custom-token
@@ -62,9 +64,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ${{ inputs.working-directory == '.' && 'storybook-static' || format('{0}/storybook-static', inputs.working-directory) }}
-          
+
       - id: deploy
-        name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4
-        with:
-          token: ${{ github.token }}
