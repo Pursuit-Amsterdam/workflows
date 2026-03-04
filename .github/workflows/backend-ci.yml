@@ -44,6 +44,7 @@ jobs:
   supabase-ci:
     if: ${{ inputs.platform == 'supabase' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
     environment: 'integration'
     defaults:
       run:
