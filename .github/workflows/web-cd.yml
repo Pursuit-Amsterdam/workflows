@@ -187,7 +187,6 @@ jobs:
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
-          run-build: ${{ inputs.build-mode == 'github' }}
           run-test: ${{ inputs.run-test }}
           run-lint: ${{ inputs.run-lint }}
           run-typecheck: ${{ inputs.run-typecheck }}
