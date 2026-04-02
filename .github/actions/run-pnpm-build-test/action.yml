@@ -64,13 +64,9 @@ runs:
         echo "Building application..."
         pnpm run ${{ inputs.build-command }}
         echo "Build completed successfully"
-
+    
     - name: Run Tests
       if: inputs.run-test == 'true'
       shell: bash
       run: |
-        if pnpm run --silent ${{ inputs.test-command }} 2>/dev/null; then
-          echo "Tests passed"
-        else
-          echo "Test script not found or failed, skipping"
-        fi
+        pnpm run --if-present ${{ inputs.test-command }}
