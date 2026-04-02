@@ -24,7 +24,7 @@ inputs:
   test-command:
     description: 'Custom test command'
     required: false
-    default: 'test'
+    default: 'test --passWithNoTests'
   lint-command:
     description: 'Custom lint command'
     required: false
@@ -69,4 +69,4 @@ runs:
       if: inputs.run-test == 'true'
       shell: bash
       run: |
-        pnpm run --if-present --passWithNoTests ${{ inputs.test-command }}
+        pnpm run --if-present ${{ inputs.test-command }}
