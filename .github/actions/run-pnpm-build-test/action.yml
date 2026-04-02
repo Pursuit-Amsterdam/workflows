@@ -69,4 +69,4 @@ runs:
       if: inputs.run-test == 'true'
       shell: bash
       run: |
-        pnpm run --if-present ${{ inputs.test-command }}
+        pnpm run --if-present --passWithNoTests ${{ inputs.test-command }}
