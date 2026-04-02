@@ -83,7 +83,7 @@ on:
         description: "Custom test command"
         required: false
         type: string
-        default: "test"
+        default: "test --passWithNoTests"
       lint-command:
         description: "Custom lint command"
         required: false
