@@ -29,7 +29,7 @@ jobs:
           echo "BASE: $BASE"
 
           # 1. Validate branch naming
-          if [[ 
+          if [[
             "$HEAD" != "main" &&
             "$HEAD" != "develop" &&
             "$HEAD" != "acceptance" &&
@@ -38,7 +38,16 @@ jobs:
             "$HEAD" != release/* &&
             "$HEAD" != dependabot/* &&
             "$HEAD" != module-develop/* &&
-            "$HEAD" != module-feature/* 
+            "$HEAD" != module-feature/* &&
+            "$HEAD" != revert-*-main &&
+            "$HEAD" != revert-*-develop &&
+            "$HEAD" != revert-*-acceptance &&
+            "$HEAD" != revert-*-hotfix/* &&
+            "$HEAD" != revert-*-feature/* &&
+            "$HEAD" != revert-*-release/* &&
+            "$HEAD" != revert-*-dependabot/* &&
+            "$HEAD" != revert-*-module-develop/* &&
+            "$HEAD" != revert-*-module-feature/*
           ]]; then
               echo "❌ Branch name '$HEAD' is not allowed."
               exit 1
@@ -48,7 +57,14 @@ jobs:
 
           # hotfix/*, release/*, develop → main
           if [[ "$BASE" == "main" ]]; then
-            if [[ "$HEAD" == hotfix/* || "$HEAD" == release/* || "$HEAD" == "develop" ]]; then
+            if [[
+              "$HEAD" == hotfix/* ||
+              "$HEAD" == release/* ||
+              "$HEAD" == "develop" ||
+              "$HEAD" == revert-*-hotfix/* ||
+              "$HEAD" == revert-*-release/* ||
+              "$HEAD" == revert-*-develop
+            ]]; then
               echo "✅ Merge allowed: $HEAD → main"
               exit 0
             else
@@ -59,11 +75,15 @@ jobs:
 
           # feature/*, dependabot/*, module-develop/*, main → develop
           if [[ "$BASE" == "develop" ]]; then
-            if [[ 
+            if [[
               "$HEAD" == feature/* ||
               "$HEAD" == dependabot/* ||
               "$HEAD" == module-develop/* ||
-              "$HEAD" == "main"
+              "$HEAD" == "main" ||
+              "$HEAD" == revert-*-feature/* ||
+              "$HEAD" == revert-*-dependabot/* ||
+              "$HEAD" == revert-*-module-develop/* ||
+              "$HEAD" == revert-*-main
             ]]; then
               echo "✅ Merge allowed: $HEAD → develop"
               exit 0
@@ -75,7 +95,7 @@ jobs:
 
           # module-feature/* → module-develop/*
           if [[ "$BASE" == module-develop/* ]]; then
-            if [[ "$HEAD" == module-feature/* ]]; then
+            if [[ "$HEAD" == module-feature/* || "$HEAD" == revert-*-module-feature/* ]]; then
               echo "✅ Merge allowed: $HEAD → $BASE"
               exit 0
             else
@@ -86,8 +106,8 @@ jobs:
 
           # develop → release/*
           if [[ "$BASE" == release/* ]]; then
-            if [[ "$HEAD" == "develop" ]]; then
-              echo "✅ Merge allowed: develop → $BASE"
+            if [[ "$HEAD" == "develop" || "$HEAD" == revert-*-develop ]]; then
+              echo "✅ Merge allowed: $HEAD → $BASE"
               exit 0
             else
               echo "❌ Merge not allowed: $HEAD → $BASE"
@@ -97,8 +117,8 @@ jobs:
 
           # develop → acceptance
           if [[ "$BASE" == "acceptance" ]]; then
-            if [[ "$HEAD" == "develop" ]]; then
-              echo "✅ Merge allowed: develop → acceptance"
+            if [[ "$HEAD" == "develop" || "$HEAD" == revert-*-develop ]]; then
+              echo "✅ Merge allowed: $HEAD → acceptance"
               exit 0
             else
               echo "❌ Merge not allowed: $HEAD → acceptance"
