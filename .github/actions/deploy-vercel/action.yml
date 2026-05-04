@@ -75,6 +75,34 @@ runs:
 
         vercel pull --yes --environment=${{ inputs.environment }} --token=${{ inputs.vercel-token }}
 
+        # Inject 1Password secrets into .vercel/.env.<env>.local so they are
+        # available both at build time and bundled into the prebuilt output
+        # for runtime serverless functions. --env on `vercel deploy --prebuilt`
+        # is largely a no-op, so the env file is the only reliable channel.
+        if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
+          echo "Injecting 1Password secrets into .vercel/.env.${{ inputs.environment }}.local..."
+          python3 -c '
+        import os
+        data = open(os.environ["VERCEL_ENV_ARGS_BIN"], "rb").read().split(b"\0")
+        out = []
+        i = 0
+        while i < len(data) - 1:
+            if data[i] == b"--env":
+                kv = data[i + 1].decode()
+                k, _, v = kv.partition("=")
+                # Double-quoted dotenv form. npm dotenv (what Vercel uses)
+                # does not expand $VAR, but does interpret \n, \r, \t and
+                # backslash-escapes inside double quotes, so we only need to
+                # escape backslashes and double quotes.
+                escaped = v.replace("\\", "\\\\").replace("\"", "\\\"")
+                out.append(f"{k}=\"{escaped}\"")
+                i += 2
+            else:
+                i += 1
+        print("\n".join(out))
+        ' >> .vercel/.env.${{ inputs.environment }}.local
+        fi
+
         # Build project artifacts
         vercel build $target_flag --token=${{ inputs.vercel-token }}
 
