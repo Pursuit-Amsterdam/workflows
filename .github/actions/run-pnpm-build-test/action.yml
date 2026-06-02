@@ -41,11 +41,17 @@ runs:
       if: inputs.run-typecheck == 'true'
       shell: bash
       run: |
-        if pnpm run --silent ${{ inputs.typecheck-command }} 2>/dev/null; then
-          echo "Type checking passed"
-        else
-          echo "Type checking script not found or failed, skipping"
+        TYPECHECK_SCRIPT="${{ inputs.typecheck-command }}"
+
+        # Skip only when the script is missing from package.json.
+        if ! pnpm run --json | grep -q "\"name\":\"${TYPECHECK_SCRIPT}\""; then
+          echo "Type checking script '${TYPECHECK_SCRIPT}' not found, skipping"
+          exit 0
         fi
+
+        echo "Running type checking via '${TYPECHECK_SCRIPT}'..."
+        pnpm run --silent "${TYPECHECK_SCRIPT}"
+        echo "Type checking passed"
 
     - name: Run Linting
       if: inputs.run-lint == 'true'
