@@ -44,7 +44,7 @@ runs:
         TYPECHECK_SCRIPT="${{ inputs.typecheck-command }}"
 
         # Skip only when the script is missing from package.json.
-        if ! pnpm run --json | grep -q "\"name\":\"${TYPECHECK_SCRIPT}\""; then
+        if ! node -e "const scripts = require('./package.json').scripts || {}; process.exit(scripts[process.argv[1]] ? 0 : 1);" "${TYPECHECK_SCRIPT}"; then
           echo "Type checking script '${TYPECHECK_SCRIPT}' not found, skipping"
           exit 0
         fi
