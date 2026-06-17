@@ -18,18 +18,15 @@ inputs:
     description: 'Path to save Vercel environment arguments'
     required: false
     default: 'vercel_env_args.bin'
-  export-for-azure:
-    description: 'Export secrets for Azure CLI app settings format'
+  export-build-args:
+    description: 'Emit a space-separated key=value list of the non-concealed fields, for use as Docker build args'
     required: false
     default: 'false'
 
 outputs:
-  azure_settings_full:
-    description: 'All exported settings for Azure App Service deployment'
-    value: ${{ steps.export-secrets.outputs.azure_settings_full }}
-  azure_settings_public_only:
-    description: 'Public-only exported settings (no concealed fields) for Azure App Service deployment'
-    value: ${{ steps.export-secrets.outputs.azure_settings_public_only }}
+  build_args:
+    description: 'Space-separated key=value list of non-concealed fields (e.g. NEXT_PUBLIC_*) for Docker build args'
+    value: ${{ steps.export-secrets.outputs.build_args }}
 
 runs:
   using: 'composite'
@@ -50,7 +47,7 @@ runs:
         OP_VAULT_NAME: ${{ inputs.vault-name }}
         OP_ITEM_NAME: ${{ inputs.item-name }}
         EXPORT_FOR_VERCEL: ${{ inputs.export-for-vercel }}
-        EXPORT_FOR_AZURE: ${{ inputs.export-for-azure }}
+        EXPORT_BUILD_ARGS: ${{ inputs.export-build-args }}
         VERCEL_ENV_FILE: ${{ inputs.vercel-env-file }}
       run: |
         set -euo pipefail
@@ -71,9 +68,8 @@ runs:
           : > "${VERCEL_ENV_FILE}"
         fi
 
-        if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-          settings_array=()
-          settings_public_array=()
+        if [[ "${EXPORT_BUILD_ARGS}" == "true" ]]; then
+          build_args_array=()
         fi
 
         echo "Exporting ${#kvs[@]} secrets to environment variables..."
@@ -100,14 +96,9 @@ runs:
             printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
           fi
 
-          if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-            # Full list (unchanged)
-            settings_array+=("${name}=${value}")
-
-            # Public-only list (exclude passwords)
-            if [[ "$ftype" != "CONCEALED" ]]; then
-              settings_public_array+=("${name}=${value}")
-            fi
+          # Build args: non-concealed fields only — never bake secrets into an image.
+          if [[ "${EXPORT_BUILD_ARGS}" == "true" && "$ftype" != "CONCEALED" ]]; then
+            build_args_array+=("${name}=${value}")
           fi
         done
 
@@ -118,9 +109,7 @@ runs:
           echo "Vercel environment file prepared: ${VERCEL_ENV_FILE}"
         fi
 
-        if [[ "${EXPORT_FOR_AZURE}" == "true" ]]; then
-          echo "azure_settings_full=${settings_array[*]}" >> "$GITHUB_OUTPUT"
-          echo "azure_settings_public_only=${settings_public_array[*]}" >> "$GITHUB_OUTPUT"
-          echo "Exported ${#settings_array[@]} settings (full)"
-          echo "Exported ${#settings_public_array[@]} public settings (no passwords)"
+        if [[ "${EXPORT_BUILD_ARGS}" == "true" ]]; then
+          echo "build_args=${build_args_array[*]}" >> "$GITHUB_OUTPUT"
+          echo "Exported ${#build_args_array[@]} build args (non-concealed only)"
         fi

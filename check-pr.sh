@@ -1,0 +1,96 @@
+HEAD="module-develop/datepick"
+BASE="develop"
+
+echo "HEAD: $HEAD"
+echo "BASE: $BASE"
+
+# 1. Validate branch naming
+if [[
+"$HEAD" != "main" &&
+"$HEAD" != "develop" &&
+"$HEAD" != "acceptance" &&
+"$HEAD" != hotfix/* &&
+"$HEAD" != feature/* &&
+"$HEAD" != release/* &&
+"$HEAD" != dependabot/* &&
+"$HEAD" != module-develop/* &&
+"$HEAD" != module-feature/* &&
+! "$HEAD" =~ ^revert-[0-9]+-(main|develop|acceptance)$ &&
+! "$HEAD" =~ ^revert-[0-9]+-(hotfix|feature|release|dependabot|module-develop|module-feature)/
+]]; then
+    echo "❌ Branch name '$HEAD' is not allowed."
+    exit 1
+fi
+
+# 2. Merge rules
+
+# hotfix/*, release/*, develop → main
+if [[ "$BASE" == "main" ]]; then
+if [[
+    "$HEAD" == hotfix/* ||
+    "$HEAD" == release/* ||
+    "$HEAD" == "develop" ||
+    "$HEAD" =~ ^revert-[0-9]+-(hotfix|release)/ ||
+    "$HEAD" =~ ^revert-[0-9]+-develop$
+]]; then
+    echo "✅ Merge allowed: $HEAD → main"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → main"
+    exit 1
+fi
+fi
+
+# feature/*, dependabot/*, module-develop/*, main → develop
+if [[ "$BASE" == "develop" ]]; then
+if [[
+    "$HEAD" == feature/* ||
+    "$HEAD" == dependabot/* ||
+    "$HEAD" == module-develop/* ||
+    "$HEAD" == "main" ||
+    "$HEAD" =~ ^revert-[0-9]+-(feature|dependabot|module-develop)/ ||
+    "$HEAD" =~ ^revert-[0-9]+-main$
+]]; then
+    echo "✅ Merge allowed: $HEAD → develop"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → develop"
+    exit 1
+fi
+fi
+
+# module-feature/* → module-develop/*
+if [[ "$BASE" == module-develop/* ]]; then
+if [[ "$HEAD" == module-feature/* || "$HEAD" =~ ^revert-[0-9]+-module-feature/ ]]; then
+    echo "✅ Merge allowed: $HEAD → $BASE"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → $BASE"
+    exit 1
+fi
+fi
+
+# develop → release/*
+if [[ "$BASE" == release/* ]]; then
+if [[ "$HEAD" == "develop" || "$HEAD" =~ ^revert-[0-9]+-develop$ ]]; then
+    echo "✅ Merge allowed: $HEAD → $BASE"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → $BASE"
+    exit 1
+fi
+fi
+
+# develop → acceptance
+if [[ "$BASE" == "acceptance" ]]; then
+if [[ "$HEAD" == "develop" || "$HEAD" =~ ^revert-[0-9]+-develop$ ]]; then
+    echo "✅ Merge allowed: $HEAD → acceptance"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → acceptance"
+    exit 1
+fi
+fi
+
+echo "❌ Merge not allowed: $HEAD → $BASE"
+exit 1
