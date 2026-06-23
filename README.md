@@ -26,13 +26,15 @@ This repository is structured to provide maximum reusability and modularity:
 │   ├── run-codegen/            # Code generation (GraphQL, types, etc.)
 │   ├── run-docker-build-push/  # Docker image build and push to GHCR
 │   ├── run-pnpm-build-test/    # Build, test, lint, and typecheck with PNPM
+│   ├── run-python-checks/      # Ruff lint, Ruff format check, and pytest via uv
 │   ├── run-supabase-test/      # Local Supabase environment setup and testing
 │   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
 │   ├── setup-onepassword/     # Secure secret management with 1Password
+│   ├── setup-python/          # Python (uv) environment setup
 │   └── setup-version/         # Version management and environment variables
 └── workflows/                   # Reusable workflows
     ├── backend-cd.yml          # Backend continuous deployment (Supabase)
-    ├── backend-ci.yml          # Backend continuous integration (Supabase)
+    ├── backend-ci.yml          # Backend CI: Python checks + optional Supabase test
     ├── check-pr.yml            # PR validation and branch naming enforcement
     ├── codegen.yml             # Automated code generation pipeline
     ├── storybook-cd.yml        # Storybook deployment to GitHub Pages
@@ -199,6 +201,46 @@ Comprehensive build, test, lint, and type-checking action with graceful error ha
     run-typecheck: true
     test-command: "test:coverage"
     build-command: "build:prod"
+```
+
+---
+
+### 🐍 `setup-python`
+
+Installs [uv](https://docs.astral.sh/uv/), a pinned Python version, and syncs project dependencies from `uv.lock` (default + dev groups, so Ruff/pytest are available).
+
+**Location**: `.github/actions/setup-python`
+
+**Inputs:**
+
+- `python-version` (default: `3.12`) - Python version to install
+- `cache` (default: `true`) - Enable uv dependency caching
+- `sync-args` (optional) - Extra args for `uv sync` (e.g. `--all-extras`)
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+  with:
+    python-version: "3.12"
+```
+
+---
+
+### 🧹 `run-python-checks`
+
+Runs Ruff lint, Ruff format check, and pytest via `uv run`. Each check is a hard failure (CI gate); pytest exit code 5 ("no tests collected") is treated as a pass.
+
+**Location**: `.github/actions/run-python-checks`
+
+**Inputs:**
+
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each check
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+  with:
+    run-test: true
+    test-command: "pytest -q"
 ```
 
 ---
@@ -626,34 +668,28 @@ jobs:
 
 ### 🏗️ `backend-ci.yml` - Backend Continuous Integration
 
-Generic backend CI pipeline for testing and validating backend services, particularly Supabase-based applications.
+CI pipeline for Python backends (FastAPI, arq workers, ...) using **uv**: Ruff lint, Ruff format check, and pytest, with an optional local Supabase DB test merged in.
 
 **Location**: `.github/workflows/backend-ci.yml`
 
 **Key Features:**
 
-- 🐳 Docker-based local testing environment
-- 🧪 Comprehensive backend service testing
+- 🐍 uv-based Python environment with dependency caching
+- 🧹 Ruff lint + format check, 🧪 pytest
+- 🗄️ Optional local Supabase instance + `supabase test db`
 - 🔐 1Password secrets integration for testing
-- 🏗️ Local Supabase environment setup
 
-**Essential Inputs:**
+**Inputs:**
 
-- `platform` (default: `supabase`) - Backend platform
-- `node-version` (default: `22.x`) - Node.js version for actions
+- `python-version` (default: `3.12`) - Python version
 - `working-directory` (default: `.`) - Project working directory
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
+- `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
+- `seed` (default: `false`) - Seed the Supabase DB before testing
+- `onepassword_enabled` / `onepassword_vault` / `onepassword_item` - 1Password integration
 
-**Testing Options:**
-
-- Automatic local Supabase instance setup
-- Database testing with `supabase:test` command
-- Docker environment configuration
-
-**1Password Integration:**
-
-- `onepassword_enabled` (default: `false`) - Enable 1Password secrets
-- `onepassword_vault` - Vault name for test secrets
-- `onepassword_item` - Item name for test secrets
+> **Migration note:** the old `platform: supabase` input is gone. To keep running the Supabase DB test, set `run-supabase-test: true` (Python checks now run by default).
 
 **Example Usage:**
 
@@ -662,13 +698,17 @@ jobs:
   backend-ci:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@main
     with:
-      platform: "supabase"
+      python-version: "3.12"
+      working-directory: "apps/api"
+      run-supabase-test: true   # optional, off by default
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: "test-env"
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
+
+The project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
 
 ---
 

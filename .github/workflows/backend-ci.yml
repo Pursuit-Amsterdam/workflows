@@ -1,23 +1,62 @@
-name: "Backend CI (generic)"
+name: "Backend CI (Python)"
 
 on:
   workflow_call:
     inputs:
-      platform:
-        description: "Target deployment platform (supabase, ...)."
-        required: true
-        type: string
-        default: "supabase"
-      node-version:
-        description: "Node.js version (if needed by actions)"
+      python-version:
+        description: "Python version"
         required: false
         type: string
-        default: "22.x"
+        default: "3.12"
       working-directory:
         description: "Working directory for the project"
         required: false
         type: string
         default: "."
+
+      # Python quality checks
+      run-lint:
+        description: "Run Ruff lint"
+        required: false
+        type: boolean
+        default: true
+      run-format-check:
+        description: "Run Ruff format check"
+        required: false
+        type: boolean
+        default: true
+      run-test:
+        description: "Run pytest"
+        required: false
+        type: boolean
+        default: true
+      lint-command:
+        description: "Ruff lint command"
+        required: false
+        type: string
+        default: "ruff check ."
+      format-command:
+        description: "Ruff format check command"
+        required: false
+        type: string
+        default: "ruff format --check ."
+      test-command:
+        description: "pytest command"
+        required: false
+        type: string
+        default: "pytest"
+
+      # Supabase database testing (merged from the old platform gate)
+      run-supabase-test:
+        description: "Spin up a local Supabase instance and run `supabase test db`"
+        required: false
+        type: boolean
+        default: false
+      seed:
+        description: "Seed the local Supabase database before testing"
+        required: false
+        type: boolean
+        default: false
 
       # 1Password secrets
       onepassword_enabled:
@@ -41,11 +80,10 @@ on:
         required: false
 
 jobs:
-  supabase-ci:
-    if: ${{ inputs.platform == 'supabase' }}
+  pipeline:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
-    environment: 'integration'
+    environment: "integration"
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -62,17 +100,23 @@ jobs:
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
 
+      - name: Setup Python
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Run Python checks
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+        with:
+          run-lint: ${{ inputs.run-lint }}
+          run-format-check: ${{ inputs.run-format-check }}
+          run-test: ${{ inputs.run-test }}
+          lint-command: ${{ inputs.lint-command }}
+          format-command: ${{ inputs.format-command }}
+          test-command: ${{ inputs.test-command }}
+
       - name: Setup local Supabase environment and test
+        if: inputs.run-supabase-test
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
         with:
-          seed: false
-
-  unsupported-platform:
-    if: ${{ inputs.platform != 'supabase' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - name: Fail for unsupported platform
-        run: |
-          echo "Platform '${{ inputs.platform }}' is not supported by this workflow yet."
-          echo "Supported platforms: supabase"
-          exit 1
+          seed: ${{ inputs.seed }}
