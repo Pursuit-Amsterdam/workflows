@@ -147,6 +147,7 @@ jobs:
           image-name: ${{ matrix.image.name }}
           image-tag: ${{ steps.set-version.outputs.version }}
           docker-file: ${{ matrix.image.dockerfile || './Dockerfile' }}
+          build-context: ${{ matrix.image.context || '.' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
           python-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
