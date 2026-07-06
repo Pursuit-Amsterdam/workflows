@@ -55,6 +55,35 @@ on:
         type: string
         default: "pytest"
 
+      # Ephemeral Postgres for tests that need a real database
+      postgres-enabled:
+        description: >
+          Start an ephemeral Postgres container on localhost:5432 before the
+          checks, for test suites that run against a real database.
+        required: false
+        type: boolean
+        default: false
+      postgres-image:
+        description: "Postgres image for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres:18-alpine"
+      postgres-user:
+        description: "Postgres superuser name for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+      postgres-password:
+        description: "Postgres superuser password for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+      postgres-db:
+        description: "Initial database name for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+
       # Supabase database testing (merged from the old platform gate)
       run-supabase-test:
         description: "Spin up a local Supabase instance and run `supabase test db`"
@@ -103,6 +132,33 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Start Postgres (ephemeral test database)
+        if: inputs.postgres-enabled
+        env:
+          POSTGRES_IMAGE: ${{ inputs.postgres-image }}
+          POSTGRES_USER: ${{ inputs.postgres-user }}
+          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+          POSTGRES_DB: ${{ inputs.postgres-db }}
+        # -e VAR (no value) forwards from the step env, keeping the password off
+        # the command line. The readiness probe forces TCP (-h 127.0.0.1) so it
+        # can't report ready during initdb's temporary socket-only boot phase.
+        run: |
+          set -euo pipefail
+          docker run -d --name ci-postgres \
+            -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
+            -p 5432:5432 "$POSTGRES_IMAGE"
+          echo "Waiting for Postgres to accept TCP connections..."
+          for _ in $(seq 1 30); do
+            if docker exec ci-postgres pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+              echo "Postgres is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres failed to become ready in time." >&2
+          docker logs ci-postgres >&2 || true
+          exit 1
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
