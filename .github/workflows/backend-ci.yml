@@ -13,6 +13,15 @@ on:
         required: false
         type: string
         default: "."
+      use-custom-token:
+        description: >
+          Use CUSTOM_GITHUB_TOKEN (a PAT) instead of the built-in GITHUB_TOKEN to
+          clone private git dependencies during `uv sync`. Required when the project
+          depends on a private repo other than this one (the built-in token can't
+          read a different private repo).
+        required: false
+        type: boolean
+        default: false
 
       # Python quality checks
       run-lint:
@@ -78,6 +87,9 @@ on:
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
+      CUSTOM_GITHUB_TOKEN:
+        description: "PAT for cloning private git dependencies during uv sync (needs contents:read on those repos)"
+        required: false
 
 jobs:
   pipeline:
@@ -100,14 +112,26 @@ jobs:
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
 
-      - name: Setup Python
+      - name: Setup Python (with custom token)
+        if: inputs.use-custom-token
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@feature/docker-vps-deploy
         with:
           python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Setup Python (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@feature/docker-vps-deploy
+        with:
+          python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Python checks
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@feature/docker-vps-deploy
         with:
+          working-directory: ${{ inputs.working-directory }}
           run-lint: ${{ inputs.run-lint }}
           run-format-check: ${{ inputs.run-format-check }}
           run-test: ${{ inputs.run-test }}
