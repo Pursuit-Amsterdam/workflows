@@ -44,14 +44,14 @@ jobs:
 
       - name: Setup Node.js and PNPM (with custom token)
         if: inputs.use-custom-token
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Node.js and PNPM (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}

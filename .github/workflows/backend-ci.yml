@@ -94,19 +94,19 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
 
       - name: Setup Python
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@feature/docker-vps-deploy
         with:
           python-version: ${{ inputs.python-version }}
 
       - name: Run Python checks
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@feature/docker-vps-deploy
         with:
           run-lint: ${{ inputs.run-lint }}
           run-format-check: ${{ inputs.run-format-check }}
@@ -117,6 +117,6 @@ jobs:
 
       - name: Setup local Supabase environment and test
         if: inputs.run-supabase-test
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@feature/docker-vps-deploy
         with:
           seed: ${{ inputs.seed }}
