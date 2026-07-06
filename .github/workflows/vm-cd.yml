@@ -76,6 +76,15 @@ on:
         required: false
         type: string
         default: ""
+      migrate-env:
+        description: >
+          Space-separated env var names to forward (by name, values stay off the
+          command line) from the job env into the migration container — e.g.
+          'DATABASE_URL_SYNC ENCRYPTION_KEY1' for apps whose settings validate
+          more than the DB URL at import.
+        required: false
+        type: string
+        default: "DATABASE_URL"
       onepassword_enabled:
         description: "Load secrets from 1Password"
         required: false
@@ -198,3 +207,4 @@ jobs:
           converge-timeout: ${{ inputs.converge-timeout }}
           migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.set-version.outputs.version) || '' }}
           migrate-command: ${{ inputs.migrate-command }}
+          migrate-env: ${{ inputs.migrate-env }}
