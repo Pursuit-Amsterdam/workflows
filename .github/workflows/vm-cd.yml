@@ -21,14 +21,24 @@ on:
         description: "Name of the Swarm stack"
         required: true
         type: string
+      deploy-enabled:
+        description: >
+          Run the deploy job after building. Disable to only build and push the
+          images to the registry (e.g. while the target VM isn't provisioned yet) —
+          the ssh-* inputs and VM_SSH_PRIVATE_KEY are then not needed.
+        required: false
+        type: boolean
+        default: true
       ssh-host:
-        description: "Hostname or IP of the Swarm manager node"
-        required: true
+        description: "Hostname or IP of the Swarm manager node (required when deploy-enabled)"
+        required: false
         type: string
+        default: ""
       ssh-user:
-        description: "SSH user on the Swarm manager"
-        required: true
+        description: "SSH user on the Swarm manager (required when deploy-enabled)"
+        required: false
         type: string
+        default: ""
       ssh-port:
         description: "SSH port on the Swarm manager"
         required: false
@@ -85,7 +95,8 @@ on:
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
       VM_SSH_PRIVATE_KEY:
-        required: true
+        description: "SSH key for the Swarm manager (required when deploy-enabled)"
+        required: false
       VM_SSH_KNOWN_HOSTS:
         required: false
       CUSTOM_GITHUB_TOKEN:
@@ -108,6 +119,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Full history so `git describe --tags` (setup-version) can find the
+          # nearest ancestor tag; the default shallow clone has no tags at all.
+          fetch-depth: 0
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
@@ -138,6 +153,7 @@ jobs:
           build-args: ${{ matrix.image.build-args == 'public' && steps.load_onepassword_secrets.outputs.build_args || '' }}
 
   deploy:
+    if: inputs.deploy-enabled
     needs: build
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
@@ -147,6 +163,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Same full-history checkout as the build job so both derive the SAME
+          # version tag — the deploy must reference the images just pushed.
+          fetch-depth: 0
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
