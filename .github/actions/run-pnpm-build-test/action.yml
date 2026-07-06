@@ -40,22 +40,15 @@ runs:
     - name: Run Type Checking
       if: inputs.run-typecheck == 'true'
       shell: bash
-      run: |
-        if pnpm run --silent ${{ inputs.typecheck-command }} 2>/dev/null; then
-          echo "Type checking passed"
-        else
-          echo "Type checking script not found or failed, skipping"
-        fi
+      # --if-present: a missing script skips cleanly, but a script that exists
+      # and fails FAILS the job (the old if/else swallowed real failures and
+      # its 2>/dev/null hid their output).
+      run: pnpm run --if-present ${{ inputs.typecheck-command }}
 
     - name: Run Linting
       if: inputs.run-lint == 'true'
       shell: bash
-      run: |
-        if pnpm run --silent ${{ inputs.lint-command }} 2>/dev/null; then
-          echo "Linting passed"
-        else
-          echo "Linting script not found or failed, skipping"
-        fi
+      run: pnpm run --if-present ${{ inputs.lint-command }}
 
     - name: Run Build
       if: inputs.run-build == 'true'
