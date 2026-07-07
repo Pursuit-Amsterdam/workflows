@@ -32,8 +32,16 @@ inputs:
     description: "Image (incl. tag) to run once before deploying, e.g. DB migrations. Empty to skip."
     required: false
     default: ""
+  migrate-entrypoint:
+    description: >
+      Override the migration container's ENTRYPOINT. Set this when the image's
+      default entrypoint does more than the migration (e.g. an entrypoint.sh that
+      migrates AND then starts the server) — otherwise the migrate run falls
+      through to the server and fails. Empty = use the image's entrypoint.
+    required: false
+    default: ""
   migrate-command:
-    description: "Command override for the migration container (defaults to the image CMD)"
+    description: "Command (args) for the migration container. Appended to the entrypoint."
     required: false
     default: ""
   migrate-env:
@@ -97,6 +105,7 @@ runs:
       shell: bash
       env:
         MIGRATE_IMAGE: ${{ inputs.migrate-image }}
+        MIGRATE_ENTRYPOINT: ${{ inputs.migrate-entrypoint }}
         MIGRATE_COMMAND: ${{ inputs.migrate-command }}
         MIGRATE_ENV: ${{ inputs.migrate-env }}
       run: |
@@ -109,10 +118,18 @@ runs:
           env_args+=(--env "$v")
         done
 
+        # Override the entrypoint when asked — an image whose default entrypoint
+        # migrates AND starts the server would otherwise run the server here and
+        # fail (no stack network / no Redis). With an override, only the command runs.
+        entrypoint_args=()
+        if [[ -n "$MIGRATE_ENTRYPOINT" ]]; then
+          entrypoint_args+=(--entrypoint "$MIGRATE_ENTRYPOINT")
+        fi
+
         echo "Running migrations on ${DOCKER_HOST} using ${MIGRATE_IMAGE}..."
         # Runs to completion on the VM, against the managed DB. A non-zero exit
         # fails this step, so the stack deploy below never runs.
-        docker run --rm ${env_args[@]+"${env_args[@]}"} "$MIGRATE_IMAGE" $MIGRATE_COMMAND
+        docker run --rm ${entrypoint_args[@]+"${entrypoint_args[@]}"} ${env_args[@]+"${env_args[@]}"} "$MIGRATE_IMAGE" $MIGRATE_COMMAND
 
     - name: Deploy stack
       shell: bash

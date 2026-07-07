@@ -71,8 +71,16 @@ on:
         required: false
         type: string
         default: ""
+      migrate-entrypoint:
+        description: >
+          Override the migration container's ENTRYPOINT. Needed when the image's
+          default entrypoint migrates AND starts the server (else the migrate run
+          falls through to the server and fails). Empty = image default.
+        required: false
+        type: string
+        default: ""
       migrate-command:
-        description: "Command override for the migration container, e.g. 'alembic upgrade head'"
+        description: "Command (args) for the migration container, e.g. 'run --no-sync gp-map db-upgrade'"
         required: false
         type: string
         default: ""
@@ -206,5 +214,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           converge-timeout: ${{ inputs.converge-timeout }}
           migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.set-version.outputs.version) || '' }}
+          migrate-entrypoint: ${{ inputs.migrate-entrypoint }}
           migrate-command: ${{ inputs.migrate-command }}
           migrate-env: ${{ inputs.migrate-env }}
