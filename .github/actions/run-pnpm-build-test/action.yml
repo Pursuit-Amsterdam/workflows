@@ -56,12 +56,7 @@ runs:
     - name: Run Linting
       if: inputs.run-lint == 'true'
       shell: bash
-      run: |
-        if pnpm run --silent ${{ inputs.lint-command }} 2>/dev/null; then
-          echo "Linting passed"
-        else
-          echo "Linting script not found or failed, skipping"
-        fi
+      run: pnpm run --if-present ${{ inputs.lint-command }}
 
     - name: Run Build
       if: inputs.run-build == 'true'

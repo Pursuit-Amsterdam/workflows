@@ -20,22 +20,25 @@ This repository is structured to provide maximum reusability and modularity:
 ```
 .github/
 ├── actions/                     # Reusable composite actions
-│   ├── deploy-azure/           # Azure App Service deployment
 │   ├── deploy-supabase/        # Supabase database migrations and deployment
+│   ├── deploy-swarm/           # Docker Swarm stack deployment over SSH
 │   ├── deploy-vercel/          # Vercel deployment with multiple build modes
 │   ├── run-codegen/            # Code generation (GraphQL, types, etc.)
 │   ├── run-docker-build-push/  # Docker image build and push to GHCR
 │   ├── run-pnpm-build-test/    # Build, test, lint, and typecheck with PNPM
+│   ├── run-python-checks/      # Ruff lint, Ruff format check, and pytest via uv
 │   ├── run-supabase-test/      # Local Supabase environment setup and testing
 │   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
 │   ├── setup-onepassword/     # Secure secret management with 1Password
+│   ├── setup-python/          # Python (uv) environment setup
 │   └── setup-version/         # Version management and environment variables
 └── workflows/                   # Reusable workflows
     ├── backend-cd.yml          # Backend continuous deployment (Supabase)
-    ├── backend-ci.yml          # Backend continuous integration (Supabase)
+    ├── backend-ci.yml          # Backend CI: Python checks + optional Supabase test
     ├── check-pr.yml            # PR validation and branch naming enforcement
     ├── codegen.yml             # Automated code generation pipeline
     ├── storybook-cd.yml        # Storybook deployment to GitHub Pages
+    ├── vm-cd.yml               # VM deployment via Docker Swarm
     ├── web-cd.yml              # Generic web continuous deployment
     └── web-ci.yml              # Web application continuous integration
 ```
@@ -202,6 +205,46 @@ Comprehensive build, test, lint, and type-checking action with graceful error ha
 
 ---
 
+### 🐍 `setup-python`
+
+Installs [uv](https://docs.astral.sh/uv/), a pinned Python version, and syncs project dependencies from `uv.lock` (default + dev groups, so Ruff/pytest are available).
+
+**Location**: `.github/actions/setup-python`
+
+**Inputs:**
+
+- `python-version` (default: `3.12`) - Python version to install
+- `cache` (default: `true`) - Enable uv dependency caching
+- `sync-args` (optional) - Extra args for `uv sync` (e.g. `--all-extras`)
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+  with:
+    python-version: "3.12"
+```
+
+---
+
+### 🧹 `run-python-checks`
+
+Runs Ruff lint, Ruff format check, and pytest via `uv run`. Each check is a hard failure (CI gate); pytest exit code 5 ("no tests collected") is treated as a pass.
+
+**Location**: `.github/actions/run-python-checks`
+
+**Inputs:**
+
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each check
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+  with:
+    run-test: true
+    test-command: "pytest -q"
+```
+
+---
+
 ### 🔄 `run-codegen`
 
 Advanced code generation pipeline supporting multiple generation types and custom commands.
@@ -239,7 +282,7 @@ Advanced code generation pipeline supporting multiple generation types and custo
 
 ### 🔐 `setup-onepassword`
 
-Secure environment variable management using 1Password vaults with optional Vercel and Azure deployment integration.
+Secure environment variable management using 1Password vaults with optional Vercel and Docker build-arg integration.
 
 **Location**: `.github/actions/setup-onepassword`
 
@@ -250,19 +293,18 @@ Secure environment variable management using 1Password vaults with optional Verc
 - `item-name` (**required**) - 1Password item name containing secrets
 - `export-for-vercel` (default: `false`) - Export secrets for Vercel deployment
 - `vercel-env-file` (default: `vercel_env_args.bin`) - File path for Vercel env args
-- `export-for-azure` (default: `false`) - Export secrets for Azure CLI app settings format
+- `export-build-args` (default: `false`) - Emit a space-separated `key=value` list of the non-concealed fields for use as Docker build args
 
 **Outputs:**
 
-- `azure_settings_full` - All exported settings for Azure App Service deployment
-- `azure_settings_public_only` - Public-only exported settings (no concealed fields) for Azure App Service deployment
+- `build_args` - Space-separated `key=value` list of non-concealed fields (e.g. `NEXT_PUBLIC_*`), suitable for the `build-args` input of `run-docker-build-push`
 
 **Features:**
 
 - 🔒 Secure secret loading from 1Password vaults
 - 🎭 Automatic secret masking in GitHub Actions logs
 - 🚀 Direct Vercel deployment integration
-- ☁️ Azure App Service configuration support
+- 🐳 Docker build-arg export (non-concealed fields only)
 - 📁 Support for multi-line environment variables
 - 🛡️ Service account authentication
 - 🔑 Distinguishes between concealed and public fields
@@ -388,52 +430,6 @@ Docker image build and push action for GitHub Container Registry with multi-plat
     build-args: "NODE_ENV=production APP_VERSION=1.0.0"
     github-token: ${{ secrets.GITHUB_TOKEN }}
     node-auth-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
----
-
-### ☁️ `deploy-azure`
-
-Azure App Service deployment action with Docker container support and app settings configuration.
-
-**Location**: `.github/actions/deploy-azure`
-
-**Inputs:**
-
-- `azure-client-id` (**required**) - Azure client ID
-- `azure-tenant-id` (**required**) - Azure tenant ID
-- `azure-subscription-id` (**required**) - Azure subscription ID
-- `environment` (default: `staging`) - Deployment environment
-- `azure-resource-group` (**required**) - Azure Resource Group name
-- `app-name` (**required**) - Azure Web App name
-- `slot-name` (default: `Production`) - Azure Web App slot name
-- `image-name` (default: `ghcr.io/Pursuit-Amsterdam/datadialogue-frontend`) - Docker image name in GitHub Container Registry
-- `image-tag` (default: `${{ github.sha }}`) - Docker image tag
-- `app-settings` - App settings to configure (space-separated key=value pairs)
-
-**Features:**
-
-- ☁️ Azure App Service deployment
-- 🐳 Docker container deployment support
-- 🎯 Deployment slot support for staging/production
-- 🔐 Azure OIDC authentication
-- ⚙️ Dynamic app settings configuration
-- 📊 Detailed deployment logging
-
-**Example Usage:**
-
-```yaml
-- uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-azure@main
-  with:
-    azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
-    azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-    azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-    environment: "production"
-    azure-resource-group: "my-resource-group"
-    app-name: "my-web-app"
-    image-name: "ghcr.io/my-org/my-app"
-    image-tag: ${{ github.sha }}
-    app-settings: "NODE_ENV=production LOG_LEVEL=info"
 ```
 
 ---
@@ -672,34 +668,28 @@ jobs:
 
 ### 🏗️ `backend-ci.yml` - Backend Continuous Integration
 
-Generic backend CI pipeline for testing and validating backend services, particularly Supabase-based applications.
+CI pipeline for Python backends (FastAPI, arq workers, ...) using **uv**: Ruff lint, Ruff format check, and pytest, with an optional local Supabase DB test merged in.
 
 **Location**: `.github/workflows/backend-ci.yml`
 
 **Key Features:**
 
-- 🐳 Docker-based local testing environment
-- 🧪 Comprehensive backend service testing
+- 🐍 uv-based Python environment with dependency caching
+- 🧹 Ruff lint + format check, 🧪 pytest
+- 🗄️ Optional local Supabase instance + `supabase test db`
 - 🔐 1Password secrets integration for testing
-- 🏗️ Local Supabase environment setup
 
-**Essential Inputs:**
+**Inputs:**
 
-- `platform` (default: `supabase`) - Backend platform
-- `node-version` (default: `22.x`) - Node.js version for actions
+- `python-version` (default: `3.12`) - Python version
 - `working-directory` (default: `.`) - Project working directory
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
+- `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
+- `seed` (default: `false`) - Seed the Supabase DB before testing
+- `onepassword_enabled` / `onepassword_vault` / `onepassword_item` - 1Password integration
 
-**Testing Options:**
-
-- Automatic local Supabase instance setup
-- Database testing with `supabase:test` command
-- Docker environment configuration
-
-**1Password Integration:**
-
-- `onepassword_enabled` (default: `false`) - Enable 1Password secrets
-- `onepassword_vault` - Vault name for test secrets
-- `onepassword_item` - Item name for test secrets
+> **Migration note:** the old `platform: supabase` input is gone. To keep running the Supabase DB test, set `run-supabase-test: true` (Python checks now run by default).
 
 **Example Usage:**
 
@@ -708,13 +698,17 @@ jobs:
   backend-ci:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@main
     with:
-      platform: "supabase"
+      python-version: "3.12"
+      working-directory: "apps/api"
+      run-supabase-test: true   # optional, off by default
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: "test-env"
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
+
+The project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
 
 ---
 
@@ -878,6 +872,165 @@ jobs:
 - Repository must have GitHub Pages enabled
 - `build-storybook` script must be defined in package.json
 - Storybook must output to `storybook-static` directory
+
+---
+
+### 🖥️ `vm-cd.yml` - VM Deployment via Docker Swarm
+
+Zero-downtime deployment of a stateless docker stack (e.g. Next.js frontend, FastAPI backend, arq workers) to a Docker Swarm running on a VM. Images are built and pushed to GHCR, then the stack is deployed over Docker's native SSH transport with rolling updates and automatic rollback.
+
+**Location**: `.github/workflows/vm-cd.yml`
+
+**Architecture:**
+
+- The VM is a **Docker Swarm** manager (`docker swarm init`). All **stateless** services — plus a **Traefik** reverse proxy — live in one `docker-stack.yml` in your repo.
+- **Stateful** services (Postgres, Redis) are **not** in the stack; they run as managed Azure services and are reached via connection strings injected from 1Password at deploy time.
+- Zero-downtime and rollback come from the stack file's `deploy.update_config` (`order: start-first`, `failure_action: rollback`) plus per-service `healthcheck`. Traefik (native Swarm provider) shifts traffic to healthy tasks as they come up.
+
+**Key Inputs:**
+
+- `images` (**required**) - JSON array of images to build/push. Each entry: `{ "name": "ghcr.io/org/app-frontend", "dockerfile": "./apps/web/Dockerfile", "build-args": "public" }`. `"build-args": "public"` passes the non-concealed 1Password fields as build args (e.g. `NEXT_PUBLIC_*`).
+- `stack-name` (**required**) - Swarm stack name
+- `stack-file` (default `docker-stack.yml`) - Path to the stack file in your repo
+- `ssh-host`, `ssh-user` (**required**), `ssh-port` (default `22`) - Swarm manager connection
+- `environment` (default `production`) - Deployment environment
+- `use-custom-token` (default `false`) - Use `CUSTOM_GITHUB_TOKEN` for private packages during build
+- `converge-timeout` (default `180`) - Seconds to wait for services to reach their desired replica count
+- `migrate-image` (optional) - Image **name** (without tag) to run once before deploying, e.g. the backend image for DB migrations. The current `VERSION` tag is applied automatically; empty skips migrations.
+- `migrate-command` (optional) - Command override for the migration container, e.g. `alembic upgrade head`
+- `onepassword_enabled` / `onepassword_vault` / `onepassword_item` - 1Password integration
+
+**Secrets:**
+
+- `VM_SSH_PRIVATE_KEY` (**required**) - Private key for the Swarm manager
+- `VM_SSH_KNOWN_HOSTS` (optional) - `known_hosts` entry for the manager; if omitted the host is scanned with `ssh-keyscan`
+- `OP_SERVICE_ACCOUNT_TOKEN` - 1Password service account token
+- `CUSTOM_GITHUB_TOKEN` - Token for private npm/Python packages during build
+
+**Example Usage:**
+
+```yaml
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/vm-cd.yml@main
+    with:
+      stack-name: "myapp"
+      ssh-host: "vm.example.com"
+      ssh-user: "deploy"
+      environment: "production"
+      onepassword_enabled: true
+      onepassword_vault: "my-project"
+      onepassword_item: "production-env"
+      # Reuse the backend image to run migrations once before deploying:
+      migrate-image: "ghcr.io/pursuit-amsterdam/myapp-backend"
+      migrate-command: "alembic upgrade head"
+      images: |
+        [
+          {"name": "ghcr.io/pursuit-amsterdam/myapp-frontend", "dockerfile": "./apps/web/Dockerfile", "build-args": "public"},
+          {"name": "ghcr.io/pursuit-amsterdam/myapp-backend", "dockerfile": "./apps/api/Dockerfile"}
+        ]
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+      VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+      VM_SSH_KNOWN_HOSTS: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+```
+
+**Consumer `docker-stack.yml` template:**
+
+The workflow runs `docker stack deploy` on the runner against the remote Swarm; variables like `${VERSION}` (set by `setup-version`) and any 1Password fields (`${DATABASE_URL}`, `${REDIS_URL}`, ...) are interpolated from the runner environment into this file. The `workers` service reuses the backend image with a `command:` override.
+
+```yaml
+version: "3.9"
+
+services:
+  traefik:
+    image: traefik:v3
+    command:
+      - --providers.swarm=true
+      - --providers.swarm.exposedByDefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [web]
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  frontend:
+    image: ghcr.io/pursuit-amsterdam/myapp-frontend:${VERSION}
+    networks: [web]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 2
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.frontend.rule=Host(`app.example.com`)
+        - traefik.http.routers.frontend.entrypoints=websecure
+        - traefik.http.services.frontend.loadbalancer.server.port=3000
+
+  backend:
+    image: ghcr.io/pursuit-amsterdam/myapp-backend:${VERSION}
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    networks: [web]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 2
+      update_config:
+        order: start-first
+        failure_action: rollback
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.backend.rule=Host(`api.example.com`)
+        - traefik.http.routers.backend.entrypoints=websecure
+        - traefik.http.services.backend.loadbalancer.server.port=8000
+
+  workers:
+    image: ghcr.io/pursuit-amsterdam/myapp-backend:${VERSION}
+    command: ["arq", "myapp.worker.WorkerSettings"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    networks: [web]
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        failure_action: rollback
+
+networks:
+  web:
+    driver: overlay
+    attachable: true
+```
+
+> **Note:** Deploy-time interpolation stores secret values in the service spec on the manager (visible via `docker service inspect`). If that exposure matters, switch the connection strings to [Docker secrets](https://docs.docker.com/engine/swarm/secrets/) (`docker secret create` + a `secrets:` block) instead of `environment:`.
+
+**Database migrations:**
+
+Migrations are **not** a stack service (Swarm restarts completed containers and has no cross-service ordering). Instead, set `migrate-image` (+ optional `migrate-command`) and the workflow runs it as a one-off `docker run --rm` **on the VM, before the stack deploy**, against the managed DB. A non-zero exit aborts the deploy, leaving the running stack untouched. The named vars in the action's `migrate-env` (default `DATABASE_URL`) are forwarded into the container by name, so values stay off the command line. Keep migrations backward-compatible (expand/contract) since the old app keeps serving during the rolling update.
+
+**One-time VM setup:**
+
+- `docker swarm init` on the VM (manager node).
+- Ensure the SSH deploy user can reach the Docker socket (member of the `docker` group).
+- Point your DNS at the VM; for TLS, configure Traefik's ACME/Let's Encrypt resolver, or run HTTP-only if TLS terminates upstream (e.g. Cloudflare).
 
 ---
 

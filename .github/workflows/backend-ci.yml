@@ -1,23 +1,100 @@
-name: "Backend CI (generic)"
+name: "Backend CI (Python)"
 
 on:
   workflow_call:
     inputs:
-      platform:
-        description: "Target deployment platform (supabase, ...)."
-        required: true
-        type: string
-        default: "supabase"
-      node-version:
-        description: "Node.js version (if needed by actions)"
+      python-version:
+        description: "Python version"
         required: false
         type: string
-        default: "22.x"
+        default: "3.12"
       working-directory:
         description: "Working directory for the project"
         required: false
         type: string
         default: "."
+      use-custom-token:
+        description: >
+          Use CUSTOM_GITHUB_TOKEN (a PAT) instead of the built-in GITHUB_TOKEN to
+          clone private git dependencies during `uv sync`. Required when the project
+          depends on a private repo other than this one (the built-in token can't
+          read a different private repo).
+        required: false
+        type: boolean
+        default: false
+
+      # Python quality checks
+      run-lint:
+        description: "Run Ruff lint"
+        required: false
+        type: boolean
+        default: true
+      run-format-check:
+        description: "Run Ruff format check"
+        required: false
+        type: boolean
+        default: true
+      run-test:
+        description: "Run pytest"
+        required: false
+        type: boolean
+        default: true
+      lint-command:
+        description: "Ruff lint command"
+        required: false
+        type: string
+        default: "ruff check ."
+      format-command:
+        description: "Ruff format check command"
+        required: false
+        type: string
+        default: "ruff format --check ."
+      test-command:
+        description: "pytest command"
+        required: false
+        type: string
+        default: "pytest"
+
+      # Ephemeral Postgres for tests that need a real database
+      postgres-enabled:
+        description: >
+          Start an ephemeral Postgres container on localhost:5432 before the
+          checks, for test suites that run against a real database.
+        required: false
+        type: boolean
+        default: false
+      postgres-image:
+        description: "Postgres image for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres:18-alpine"
+      postgres-user:
+        description: "Postgres superuser name for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+      postgres-password:
+        description: "Postgres superuser password for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+      postgres-db:
+        description: "Initial database name for the ephemeral test database"
+        required: false
+        type: string
+        default: "postgres"
+
+      # Supabase database testing (merged from the old platform gate)
+      run-supabase-test:
+        description: "Spin up a local Supabase instance and run `supabase test db`"
+        required: false
+        type: boolean
+        default: false
+      seed:
+        description: "Seed the local Supabase database before testing"
+        required: false
+        type: boolean
+        default: false
 
       # 1Password secrets
       onepassword_enabled:
@@ -39,13 +116,15 @@ on:
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
+      CUSTOM_GITHUB_TOKEN:
+        description: "PAT for cloning private git dependencies during uv sync (needs contents:read on those repos)"
+        required: false
 
 jobs:
-  supabase-ci:
-    if: ${{ inputs.platform == 'supabase' }}
+  pipeline:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
-    environment: 'integration'
+    environment: "integration"
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
@@ -53,6 +132,33 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Start Postgres (ephemeral test database)
+        if: inputs.postgres-enabled
+        env:
+          POSTGRES_IMAGE: ${{ inputs.postgres-image }}
+          POSTGRES_USER: ${{ inputs.postgres-user }}
+          POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+          POSTGRES_DB: ${{ inputs.postgres-db }}
+        # -e VAR (no value) forwards from the step env, keeping the password off
+        # the command line. The readiness probe forces TCP (-h 127.0.0.1) so it
+        # can't report ready during initdb's temporary socket-only boot phase.
+        run: |
+          set -euo pipefail
+          docker run -d --name ci-postgres \
+            -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
+            -p 5432:5432 "$POSTGRES_IMAGE"
+          echo "Waiting for Postgres to accept TCP connections..."
+          for _ in $(seq 1 30); do
+            if docker exec ci-postgres pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+              echo "Postgres is ready."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres failed to become ready in time." >&2
+          docker logs ci-postgres >&2 || true
+          exit 1
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
@@ -62,17 +168,35 @@ jobs:
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
 
+      - name: Setup Python (with custom token)
+        if: inputs.use-custom-token
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Setup Python (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Python checks
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          run-lint: ${{ inputs.run-lint }}
+          run-format-check: ${{ inputs.run-format-check }}
+          run-test: ${{ inputs.run-test }}
+          lint-command: ${{ inputs.lint-command }}
+          format-command: ${{ inputs.format-command }}
+          test-command: ${{ inputs.test-command }}
+
       - name: Setup local Supabase environment and test
+        if: inputs.run-supabase-test
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
         with:
-          seed: false
-
-  unsupported-platform:
-    if: ${{ inputs.platform != 'supabase' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - name: Fail for unsupported platform
-        run: |
-          echo "Platform '${{ inputs.platform }}' is not supported by this workflow yet."
-          echo "Supported platforms: supabase"
-          exit 1
+          seed: ${{ inputs.seed }}

@@ -1,0 +1,219 @@
+name: "VM CD (Docker Swarm)"
+
+on:
+  workflow_call:
+    inputs:
+      images:
+        description: >
+          JSON array of images to build and push, e.g.
+          '[{"name":"ghcr.io/org/app-frontend","dockerfile":"./apps/web/Dockerfile","build-args":"public"},
+            {"name":"ghcr.io/org/app-backend","dockerfile":"./apps/api/Dockerfile"}]'.
+          Set "build-args":"public" to pass the non-concealed 1Password fields as build args
+          (e.g. NEXT_PUBLIC_* for the frontend).
+        required: true
+        type: string
+      stack-file:
+        description: "Path to the docker stack (compose) file in the consumer repo"
+        required: false
+        type: string
+        default: "docker-stack.yml"
+      stack-name:
+        description: "Name of the Swarm stack"
+        required: true
+        type: string
+      deploy-enabled:
+        description: >
+          Run the deploy job after building. Disable to only build and push the
+          images to the registry (e.g. while the target VM isn't provisioned yet) —
+          the ssh-* inputs and VM_SSH_PRIVATE_KEY are then not needed.
+        required: false
+        type: boolean
+        default: true
+      ssh-host:
+        description: "Hostname or IP of the Swarm manager node (required when deploy-enabled)"
+        required: false
+        type: string
+        default: ""
+      ssh-user:
+        description: "SSH user on the Swarm manager (required when deploy-enabled)"
+        required: false
+        type: string
+        default: ""
+      ssh-port:
+        description: "SSH port on the Swarm manager"
+        required: false
+        type: string
+        default: "22"
+      environment:
+        description: "Deployment environment (production, staging, ...)"
+        required: false
+        type: string
+        default: "production"
+      working-directory:
+        description: "Working directory for the project"
+        required: false
+        type: string
+        default: "."
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN for private npm/Python packages during build"
+        required: false
+        type: boolean
+        default: false
+      converge-timeout:
+        description: "Seconds to wait for services to reach their desired replica count"
+        required: false
+        type: string
+        default: "180"
+      migrate-image:
+        description: >
+          Image name (without tag) to run once before deploying, e.g. the backend image
+          for DB migrations. The current VERSION tag is applied automatically. Empty to skip.
+        required: false
+        type: string
+        default: ""
+      migrate-entrypoint:
+        description: >
+          Override the migration container's ENTRYPOINT. Needed when the image's
+          default entrypoint migrates AND starts the server (else the migrate run
+          falls through to the server and fails). Empty = image default.
+        required: false
+        type: string
+        default: ""
+      migrate-command:
+        description: "Command (args) for the migration container, e.g. 'run --no-sync gp-map db-upgrade'"
+        required: false
+        type: string
+        default: ""
+      migrate-env:
+        description: >
+          Space-separated env var names to forward (by name, values stay off the
+          command line) from the job env into the migration container — e.g.
+          'DATABASE_URL_SYNC ENCRYPTION_KEY1' for apps whose settings validate
+          more than the DB URL at import.
+        required: false
+        type: string
+        default: "DATABASE_URL"
+      onepassword_enabled:
+        description: "Load secrets from 1Password"
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        description: "1Password vault name"
+        required: false
+        type: string
+        default: ""
+      onepassword_item:
+        description: "1Password item name"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+      VM_SSH_PRIVATE_KEY:
+        description: "SSH key for the Swarm manager (required when deploy-enabled)"
+        required: false
+      VM_SSH_KNOWN_HOSTS:
+        required: false
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    strategy:
+      matrix:
+        image: ${{ fromJSON(inputs.images) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Full history so `git describe --tags` (setup-version) can find the
+          # nearest ancestor tag; the default shallow clone has no tags at all.
+          fetch-depth: 0
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        id: load_onepassword_secrets
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+          export-build-args: true
+
+      - name: Set version variable
+        id: set-version
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
+        with:
+          version: $(git describe --tags --abbrev=0 --always)
+          environment: ${{ inputs.environment }}
+
+      - name: Build and push image
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
+        with:
+          image-name: ${{ matrix.image.name }}
+          image-tag: ${{ steps.set-version.outputs.version }}
+          docker-file: ${{ matrix.image.dockerfile || './Dockerfile' }}
+          build-context: ${{ matrix.image.context || '.' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+          python-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+          build-args: ${{ matrix.image.build-args == 'public' && steps.load_onepassword_secrets.outputs.build_args || '' }}
+
+  deploy:
+    if: inputs.deploy-enabled
+    needs: build
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Same full-history checkout as the build job so both derive the SAME
+          # version tag — the deploy must reference the images just pushed.
+          fetch-depth: 0
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+
+      - name: Set version variable
+        id: set-version
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
+        with:
+          version: $(git describe --tags --abbrev=0 --always)
+          environment: ${{ inputs.environment }}
+
+      - name: Deploy stack to Swarm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-swarm@main
+        with:
+          ssh-host: ${{ inputs.ssh-host }}
+          ssh-user: ${{ inputs.ssh-user }}
+          ssh-port: ${{ inputs.ssh-port }}
+          ssh-private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          ssh-known-hosts: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+          stack-file: ${{ inputs.stack-file }}
+          stack-name: ${{ inputs.stack-name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          converge-timeout: ${{ inputs.converge-timeout }}
+          migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.set-version.outputs.version) || '' }}
+          migrate-entrypoint: ${{ inputs.migrate-entrypoint }}
+          migrate-command: ${{ inputs.migrate-command }}
+          migrate-env: ${{ inputs.migrate-env }}

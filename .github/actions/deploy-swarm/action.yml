@@ -1,0 +1,172 @@
+name: "Deploy Docker Swarm stack"
+description: "Deploys a docker stack to a remote Swarm manager over SSH with zero-downtime rolling updates"
+inputs:
+  ssh-host:
+    description: "Hostname or IP of the Swarm manager node"
+    required: true
+  ssh-user:
+    description: "SSH user on the Swarm manager"
+    required: true
+  ssh-port:
+    description: "SSH port on the Swarm manager"
+    required: false
+    default: "22"
+  ssh-private-key:
+    description: "Private SSH key for connecting to the Swarm manager"
+    required: true
+  ssh-known-hosts:
+    description: "known_hosts entries for the manager. If empty, the host is scanned with ssh-keyscan."
+    required: false
+    default: ""
+  stack-file:
+    description: "Path to the docker stack (compose) file to deploy"
+    required: false
+    default: "docker-stack.yml"
+  stack-name:
+    description: "Name of the Swarm stack"
+    required: true
+  github-token:
+    description: "GitHub token used to log in to GHCR so the Swarm can pull private images"
+    required: true
+  migrate-image:
+    description: "Image (incl. tag) to run once before deploying, e.g. DB migrations. Empty to skip."
+    required: false
+    default: ""
+  migrate-entrypoint:
+    description: >
+      Override the migration container's ENTRYPOINT. Set this when the image's
+      default entrypoint does more than the migration (e.g. an entrypoint.sh that
+      migrates AND then starts the server) — otherwise the migrate run falls
+      through to the server and fails. Empty = use the image's entrypoint.
+    required: false
+    default: ""
+  migrate-command:
+    description: "Command (args) for the migration container. Appended to the entrypoint."
+    required: false
+    default: ""
+  migrate-env:
+    description: "Space-separated env var names to forward from the job env into the migration container"
+    required: false
+    default: "DATABASE_URL"
+  converge-timeout:
+    description: "Seconds to wait for all services to reach their desired replica count"
+    required: false
+    default: "180"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure SSH access to the Swarm manager
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+      run: |
+        set -euo pipefail
+
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+        chmod 600 ~/.ssh/id_deploy
+
+        if [[ -n "$SSH_KNOWN_HOSTS" ]]; then
+          printf '%s\n' "$SSH_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+        else
+          echo "No known_hosts provided, scanning ${SSH_HOST}:${SSH_PORT}..."
+          ssh-keyscan -p "$SSH_PORT" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+        fi
+        chmod 644 ~/.ssh/known_hosts
+
+        # Host alias so Docker's ssh:// transport picks up the right key and port
+        {
+          echo "Host swarm-manager"
+          echo "  HostName ${SSH_HOST}"
+          echo "  Port ${SSH_PORT}"
+          echo "  IdentityFile ~/.ssh/id_deploy"
+          echo "  IdentitiesOnly yes"
+        } >> ~/.ssh/config
+        chmod 600 ~/.ssh/config
+
+        echo "DOCKER_HOST=ssh://${{ inputs.ssh-user }}@swarm-manager" >> "$GITHUB_ENV"
+
+    - name: Log in to GHCR
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+    - name: Run migrations
+      if: ${{ inputs.migrate-image != '' }}
+      shell: bash
+      env:
+        MIGRATE_IMAGE: ${{ inputs.migrate-image }}
+        MIGRATE_ENTRYPOINT: ${{ inputs.migrate-entrypoint }}
+        MIGRATE_COMMAND: ${{ inputs.migrate-command }}
+        MIGRATE_ENV: ${{ inputs.migrate-env }}
+      run: |
+        set -euo pipefail
+
+        # Forward named vars by name only (--env VAR) so secret values stay off the
+        # command line; they're read from this step's env, populated via $GITHUB_ENV.
+        env_args=()
+        for v in $MIGRATE_ENV; do
+          env_args+=(--env "$v")
+        done
+
+        # Override the entrypoint when asked — an image whose default entrypoint
+        # migrates AND starts the server would otherwise run the server here and
+        # fail (no stack network / no Redis). With an override, only the command runs.
+        entrypoint_args=()
+        if [[ -n "$MIGRATE_ENTRYPOINT" ]]; then
+          entrypoint_args+=(--entrypoint "$MIGRATE_ENTRYPOINT")
+        fi
+
+        echo "Running migrations on ${DOCKER_HOST} using ${MIGRATE_IMAGE}..."
+        # Runs to completion on the VM, against the managed DB. A non-zero exit
+        # fails this step, so the stack deploy below never runs.
+        docker run --rm ${entrypoint_args[@]+"${entrypoint_args[@]}"} ${env_args[@]+"${env_args[@]}"} "$MIGRATE_IMAGE" $MIGRATE_COMMAND
+
+    - name: Deploy stack
+      shell: bash
+      env:
+        STACK_FILE: ${{ inputs.stack-file }}
+        STACK_NAME: ${{ inputs.stack-name }}
+        CONVERGE_TIMEOUT: ${{ inputs.converge-timeout }}
+      run: |
+        set -euo pipefail
+
+        echo "Deploying stack '${STACK_NAME}' from ${STACK_FILE} to ${DOCKER_HOST}..."
+        # --with-registry-auth ships the runner's GHCR login to the manager so nodes can pull.
+        # --prune removes services no longer present in the stack file.
+        docker stack deploy -c "$STACK_FILE" --with-registry-auth --prune "$STACK_NAME"
+
+        echo "Waiting up to ${CONVERGE_TIMEOUT}s for services to converge..."
+        deadline=$(($(date +%s) + CONVERGE_TIMEOUT))
+        while true; do
+          # Each line: "<running>/<desired>" per service (may have trailing text,
+          # e.g. "2/2 (max 1 per node)"); +0 coerces the leading integer of each side.
+          pending=$(docker stack services "$STACK_NAME" --format '{{.Replicas}}' \
+            | awk -F/ '{ if (($1+0) != ($2+0)) c++ } END { print c+0 }')
+
+          if [[ "$pending" -eq 0 ]]; then
+            echo "✅ All services converged."
+            docker stack services "$STACK_NAME"
+            exit 0
+          fi
+
+          if [[ "$(date +%s)" -ge "$deadline" ]]; then
+            echo "❌ Timed out waiting for services to converge."
+            docker stack services "$STACK_NAME"
+            # Swarm rolls back automatically when the stack file sets
+            # deploy.update_config.failure_action: rollback.
+            docker stack ps "$STACK_NAME" --no-trunc || true
+            exit 1
+          fi
+
+          sleep 5
+        done

@@ -1,0 +1,64 @@
+name: "Python checks"
+description: "Runs Ruff lint, Ruff format check, and pytest via uv"
+inputs:
+  run-lint:
+    description: "Run Ruff lint"
+    required: false
+    default: "true"
+  run-format-check:
+    description: "Run Ruff format check"
+    required: false
+    default: "true"
+  run-test:
+    description: "Run pytest"
+    required: false
+    default: "true"
+  lint-command:
+    description: "Ruff lint command"
+    required: false
+    default: "ruff check ."
+  format-command:
+    description: "Ruff format check command"
+    required: false
+    default: "ruff format --check ."
+  test-command:
+    description: "pytest command"
+    required: false
+    default: "pytest"
+  working-directory:
+    description: >
+      Directory to run the checks in (the Python project root). Required when the
+      project is not at the repo root — a caller job's
+      `defaults.run.working-directory` does NOT reach inside a composite action.
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ruff lint
+      if: inputs.run-lint == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: uv run ${{ inputs.lint-command }}
+
+    - name: Ruff format check
+      if: inputs.run-format-check == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: uv run ${{ inputs.format-command }}
+
+    - name: Pytest
+      if: inputs.run-test == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set +e
+        uv run ${{ inputs.test-command }}
+        code=$?
+        # ponytail: pytest exit 5 = "no tests collected"; treat as pass (mirrors Node's --passWithNoTests)
+        if [ "$code" -eq 5 ]; then
+          echo "No tests collected, skipping."
+          exit 0
+        fi
+        exit "$code"

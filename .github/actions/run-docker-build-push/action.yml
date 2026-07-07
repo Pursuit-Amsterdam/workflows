@@ -5,6 +5,10 @@ inputs:
     description: 'Path to the Dockerfile'
     required: false
     default: './Dockerfile'
+  build-context:
+    description: 'Docker build context directory'
+    required: false
+    default: '.'
   image-name:
     description: 'Name of the Docker image to build and push'
     required: true
@@ -60,7 +64,7 @@ runs:
     - name: Build and push container image to registry
       uses: docker/build-push-action@v5
       with:
-          context: .
+          context: ${{ inputs.build-context }}
           push: true
           tags: ${{ inputs.image-name }}:${{ inputs.image-tag }}
           file: ${{ inputs.docker-file }}

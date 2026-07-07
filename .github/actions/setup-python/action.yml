@@ -1,0 +1,67 @@
+name: "Setup Python (uv)"
+description: "Installs uv, a pinned Python version, and syncs project dependencies from the lockfile"
+inputs:
+  python-version:
+    description: "Python version to install"
+    required: false
+    default: "3.12"
+  cache:
+    description: "Enable uv dependency caching"
+    required: false
+    default: "true"
+  sync-args:
+    description: "Extra args passed to `uv sync` (e.g. --all-extras)"
+    required: false
+    default: ""
+  github-token:
+    description: >
+      Token used to clone private GitHub git dependencies during `uv sync`
+      (e.g. a project depending on a private repo via `[tool.uv.sources]`).
+      Needs `contents: read` on those repos. Empty to skip git auth.
+    required: false
+    default: ""
+  working-directory:
+    description: >
+      Directory containing the Python project (pyproject.toml / uv.lock). Required
+      when the project is not at the repo root — a caller job's
+      `defaults.run.working-directory` does NOT reach inside a composite action.
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v8.3.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: ${{ inputs.cache }}
+        # v8: scopes uv commands + the cache key at the project dir (looks for
+        # pyproject.toml / uv.lock there). Lets a non-root project cache correctly.
+        working-directory: ${{ inputs.working-directory }}
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # uv sync installs the default + dev dependency groups (ruff, pytest, ...) from uv.lock.
+      # When a github-token is provided, authenticate git for the duration of the sync so
+      # private git+https dependencies can be cloned, then remove the credential so it isn't
+      # left behind on the runner. `tr -d` strips any stray whitespace from the token.
+      env:
+        GH_DEP_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+
+        if [ -n "${GH_DEP_TOKEN}" ]; then
+          echo "Configuring git auth for private dependencies..."
+          TOKEN="$(printf '%s' "${GH_DEP_TOKEN}" | tr -d '[:space:]')"
+          echo "::add-mask::${TOKEN}"
+          # Rewrite github.com https clones to inject the token. Scrub on exit even if
+          # `uv sync` fails, so the credential isn't left in the runner's gitconfig.
+          # Removing the whole `url."https://github.com/"` section avoids referencing
+          # the tokenized key by name (which would echo the token into the config).
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+          trap 'git config --global --remove-section url."https://x-access-token:${TOKEN}@github.com/" || true' EXIT
+        fi
+
+        uv sync ${{ inputs.sync-args }}
