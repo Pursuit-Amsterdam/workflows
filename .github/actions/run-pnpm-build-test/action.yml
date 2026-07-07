@@ -40,10 +40,18 @@ runs:
     - name: Run Type Checking
       if: inputs.run-typecheck == 'true'
       shell: bash
-      # --if-present: a missing script skips cleanly, but a script that exists
-      # and fails FAILS the job (the old if/else swallowed real failures and
-      # its 2>/dev/null hid their output).
-      run: pnpm run --if-present ${{ inputs.typecheck-command }}
+      run: |
+        TYPECHECK_SCRIPT="${{ inputs.typecheck-command }}"
+
+        # Skip only when the script is missing from package.json.
+        if ! node -e "const scripts = require('./package.json').scripts || {}; process.exit(scripts[process.argv[1]] ? 0 : 1);" "${TYPECHECK_SCRIPT}"; then
+          echo "Type checking script '${TYPECHECK_SCRIPT}' not found, skipping"
+          exit 0
+        fi
+
+        echo "Running type checking via '${TYPECHECK_SCRIPT}'..."
+        pnpm run --silent "${TYPECHECK_SCRIPT}"
+        echo "Type checking passed"
 
     - name: Run Linting
       if: inputs.run-lint == 'true'
