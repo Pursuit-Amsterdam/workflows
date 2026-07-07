@@ -144,7 +144,7 @@ jobs:
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         id: load_onepassword_secrets
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -153,13 +153,13 @@ jobs:
 
       - name: Set version variable
         id: set-version
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         with:
           version: $(git describe --tags --abbrev=0 --always)
           environment: ${{ inputs.environment }}
 
       - name: Build and push image
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-docker-build-push@main
         with:
           image-name: ${{ matrix.image.name }}
           image-tag: ${{ steps.set-version.outputs.version }}
@@ -188,7 +188,7 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -196,13 +196,13 @@ jobs:
 
       - name: Set version variable
         id: set-version
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         with:
           version: $(git describe --tags --abbrev=0 --always)
           environment: ${{ inputs.environment }}
 
       - name: Deploy stack to Swarm
-        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-swarm@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-swarm@main
         with:
           ssh-host: ${{ inputs.ssh-host }}
           ssh-user: ${{ inputs.ssh-user }}

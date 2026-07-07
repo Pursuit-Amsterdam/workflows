@@ -1,0 +1,193 @@
+name: "Fullstack CI (Node + Python)"
+
+# Tests a Node/pnpm frontend and a Python/uv backend in a SINGLE job, so a
+# monorepo with both toolchains is verified in one sweep (one runner, one status).
+# For a Node-only or Python-only repo, use web-ci.yml / backend-ci.yml instead.
+
+on:
+  workflow_call:
+    inputs:
+      # --- shared ---
+      use-custom-token:
+        description: >
+          Use CUSTOM_GITHUB_TOKEN (a PAT) for private registries/git deps instead
+          of the built-in GITHUB_TOKEN (needed for private @scope npm packages and
+          private git+https Python deps in a different repo).
+        required: false
+        type: boolean
+        default: false
+
+      # --- Node / pnpm side ---
+      node-version:
+        description: "Node.js version"
+        required: false
+        type: string
+        default: "22.x"
+      node-working-directory:
+        description: "Working directory for the pnpm workspace (usually repo root)"
+        required: false
+        type: string
+        default: "."
+      run-node-build:
+        required: false
+        type: boolean
+        default: true
+      run-node-test:
+        required: false
+        type: boolean
+        default: true
+      run-node-lint:
+        required: false
+        type: boolean
+        default: true
+      run-node-typecheck:
+        required: false
+        type: boolean
+        default: true
+      node-build-command:
+        required: false
+        type: string
+        default: "build"
+      node-test-command:
+        required: false
+        type: string
+        default: "test --passWithNoTests"
+      node-lint-command:
+        required: false
+        type: string
+        default: "lint"
+      node-typecheck-command:
+        required: false
+        type: string
+        default: "typecheck"
+
+      # --- Python / uv side ---
+      python-version:
+        description: "Python version"
+        required: false
+        type: string
+        default: "3.12"
+      python-working-directory:
+        description: "Working directory for the Python project"
+        required: false
+        type: string
+        default: "."
+      run-python-lint:
+        required: false
+        type: boolean
+        default: true
+      run-python-format-check:
+        required: false
+        type: boolean
+        default: true
+      run-python-test:
+        required: false
+        type: boolean
+        default: true
+      python-lint-command:
+        required: false
+        type: string
+        default: "ruff check ."
+      python-format-command:
+        required: false
+        type: string
+        default: "ruff format --check ."
+      python-test-command:
+        required: false
+        type: string
+        default: "pytest"
+
+      # --- 1Password secrets ---
+      onepassword_enabled:
+        required: false
+        type: boolean
+        default: false
+      onepassword_vault:
+        required: false
+        type: string
+        default: ""
+      onepassword_item:
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+      CUSTOM_GITHUB_TOKEN:
+        description: "PAT for private npm packages and private git deps"
+        required: false
+
+jobs:
+  pipeline:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    environment: "integration"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- Node / pnpm setup (runs in the workspace dir) ---
+      - name: Setup Node.js and PNPM (with custom token)
+        if: inputs.use-custom-token
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Setup Node.js and PNPM (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-auth-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Python / uv setup (runs in the Python project dir) ---
+      - name: Setup Python (with custom token)
+        if: inputs.use-custom-token
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
+      - name: Setup Python (with GitHub token)
+        if: ${{ !inputs.use-custom-token }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Load 1Password Secrets
+        if: inputs.onepassword_enabled
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+        with:
+          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          vault-name: ${{ inputs.onepassword_vault }}
+          item-name: ${{ inputs.onepassword_item }}
+
+      # --- Node checks ---
+      - name: Node build and test
+        working-directory: ${{ inputs.node-working-directory }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
+        with:
+          run-build: ${{ inputs.run-node-build }}
+          run-test: ${{ inputs.run-node-test }}
+          run-lint: ${{ inputs.run-node-lint }}
+          run-typecheck: ${{ inputs.run-node-typecheck }}
+          build-command: ${{ inputs.node-build-command }}
+          test-command: ${{ inputs.node-test-command }}
+          lint-command: ${{ inputs.node-lint-command }}
+          typecheck-command: ${{ inputs.node-typecheck-command }}
+
+      # --- Python checks ---
+      - name: Python checks
+        working-directory: ${{ inputs.python-working-directory }}
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
+        with:
+          run-lint: ${{ inputs.run-python-lint }}
+          run-format-check: ${{ inputs.run-python-format-check }}
+          run-test: ${{ inputs.run-python-test }}
+          lint-command: ${{ inputs.python-lint-command }}
+          format-command: ${{ inputs.python-format-command }}
+          test-command: ${{ inputs.python-test-command }}

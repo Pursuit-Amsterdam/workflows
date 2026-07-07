@@ -162,7 +162,7 @@ jobs:
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -170,7 +170,7 @@ jobs:
 
       - name: Setup Python (with custom token)
         if: inputs.use-custom-token
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
         with:
           python-version: ${{ inputs.python-version }}
           working-directory: ${{ inputs.working-directory }}
@@ -178,14 +178,14 @@ jobs:
 
       - name: Setup Python (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
         with:
           python-version: ${{ inputs.python-version }}
           working-directory: ${{ inputs.working-directory }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Python checks
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
         with:
           working-directory: ${{ inputs.working-directory }}
           run-lint: ${{ inputs.run-lint }}
@@ -197,6 +197,6 @@ jobs:
 
       - name: Setup local Supabase environment and test
         if: inputs.run-supabase-test
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-supabase-test@main
         with:
           seed: ${{ inputs.seed }}

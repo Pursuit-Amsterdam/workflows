@@ -134,21 +134,21 @@ jobs:
 
       - name: Setup Node.js and PNPM (with custom token)
         if: inputs.use-custom-token
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Node.js and PNPM (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -160,14 +160,14 @@ jobs:
 
       - name: Run Standard Code Generation
         if: inputs.codegen && inputs.codegen_command == ''
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@main
         with:
           generate-importmap: ${{ inputs.generate-importmap }}
           generate-types: ${{ inputs.generate-types }}
           generate-graphql: ${{ inputs.generate-graphql }}
 
       - name: Build and Test
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-build: ${{ inputs.run-build }}
           run-test: ${{ inputs.run-test }}

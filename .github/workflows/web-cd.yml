@@ -149,21 +149,21 @@ jobs:
 
       - name: Setup Node.js and PNPM (with custom token)
         if: inputs.use-custom-token
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Node.js and PNPM (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
         with:
           node-version: ${{ inputs.node-version }}
           node-auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
@@ -171,7 +171,7 @@ jobs:
           export-for-vercel: true
 
       - name: Set version variable
-        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         id: set-version
         with:
           # Get latest tag
@@ -185,7 +185,7 @@ jobs:
 
       - name: Run Quality Checks
         if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
           run-test: ${{ inputs.run-test }}
           run-lint: ${{ inputs.run-lint }}
@@ -195,7 +195,7 @@ jobs:
           typecheck-command: ${{ inputs.typecheck-command }}
 
       - name: Deploy to Vercel
-        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@feature/docker-vps-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@main
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
