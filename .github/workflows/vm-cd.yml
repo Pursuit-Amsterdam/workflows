@@ -12,6 +12,16 @@ on:
           (e.g. NEXT_PUBLIC_* for the frontend).
         required: true
         type: string
+      ref:
+        description: >
+          Git ref (branch, tag, or SHA) to check out for the build and deploy.
+          Empty = actions/checkout's default (github.sha). Callers triggered by
+          workflow_run MUST pass the validated commit explicitly — for those
+          events github.sha is the DEFAULT branch's HEAD, not the commit the
+          triggering CI ran on.
+        required: false
+        type: string
+        default: ""
       stack-file:
         description: "Path to the docker stack (compose) file in the consumer repo"
         required: false
@@ -137,6 +147,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           # Full history so `git describe --tags` (setup-version) can find the
           # nearest ancestor tag; the default shallow clone has no tags at all.
           fetch-depth: 0
@@ -182,6 +193,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           # Same full-history checkout as the build job so both derive the SAME
           # version tag — the deploy must reference the images just pushed.
           fetch-depth: 0
