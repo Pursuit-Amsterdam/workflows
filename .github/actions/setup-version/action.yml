@@ -39,8 +39,14 @@ runs:
         framework_input="${{ inputs.framework }}"
         environment_input="${{ inputs.environment }}"
 
-        # Resolve a commit short sha to append for dev builds
-        sha="${GITHUB_SHA:-}"
+        # Resolve a commit short sha to append for dev builds. Prefer the
+        # checked-out commit: GITHUB_SHA can differ from it (e.g. workflow_run
+        # events set it to the default branch's HEAD) and the tag must describe
+        # the code actually built.
+        sha="$(git rev-parse HEAD 2>/dev/null || true)"
+        if [ -z "$sha" ]; then
+          sha="${GITHUB_SHA:-}"
+        fi
         if [ -z "$sha" ]; then
           # Fallback to run id if no sha is available
           sha="${GITHUB_RUN_ID:-local}"
