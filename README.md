@@ -798,6 +798,9 @@ Branch naming enforcement and pull request validation workflow ensuring proper G
 - `develop` → `main`
 - `develop` → `acceptance`
 - `main` → `develop`
+- `feature/*` → `feature/*` (GitHub stacked PRs)
+- `hotfix/*` → `hotfix/*` (GitHub stacked PRs)
+- `module-feature/*` → `module-feature/*` (GitHub stacked PRs)
 
 **Example Usage:**
 
