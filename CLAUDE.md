@@ -26,7 +26,7 @@ Dependency direction: **workflows → composite actions → third-party actions*
 
 Allowed heads: `main`, `develop`, `acceptance`, `hotfix/*`, `feature/*`, `release/*`, `dependabot/*`, `module-develop/*`, `module-feature/*`, and matching `revert-<n>-*`.
 
-Merge rules: `feature/*` `dependabot/*` `module-develop/*` `main` → `develop`; `hotfix/*` `release/*` `develop` → `main`; `module-feature/*` → `module-develop/*`; `develop` → `release/*`; `develop` → `acceptance`. Branch from `main` here (default), name it accordingly, and PR per these rules.
+Merge rules: `feature/*` `dependabot/*` `module-develop/*` `main` → `develop`; `hotfix/*` `release/*` `develop` → `main`; `module-feature/*` → `module-develop/*`; `develop` → `release/*`; `develop` → `acceptance`. Stacked PRs (GitHub's stack feature targets the parent branch) are allowed same-prefix: `feature/*` → `feature/*`, `hotfix/*` → `hotfix/*`, `module-feature/*` → `module-feature/*`. Branch from `main` here (default), name it accordingly, and PR per these rules.
 
 ## Testing changes
 

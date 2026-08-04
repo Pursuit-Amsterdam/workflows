@@ -116,5 +116,42 @@ jobs:
             fi
           fi
 
+          # Stacked PRs (GitHub stacks target the parent branch, not an
+          # integration branch). The stack retargets the child to develop/main
+          # once the parent merges, and the rules above apply then.
+
+          # feature/* → feature/*
+          if [[ "$BASE" == feature/* ]]; then
+            if [[ "$HEAD" == feature/* || "$HEAD" =~ ^revert-[0-9]+-feature/ ]]; then
+              echo "✅ Merge allowed (stacked PR): $HEAD → $BASE"
+              exit 0
+            else
+              echo "❌ Merge not allowed: $HEAD → $BASE"
+              exit 1
+            fi
+          fi
+
+          # hotfix/* → hotfix/*
+          if [[ "$BASE" == hotfix/* ]]; then
+            if [[ "$HEAD" == hotfix/* || "$HEAD" =~ ^revert-[0-9]+-hotfix/ ]]; then
+              echo "✅ Merge allowed (stacked PR): $HEAD → $BASE"
+              exit 0
+            else
+              echo "❌ Merge not allowed: $HEAD → $BASE"
+              exit 1
+            fi
+          fi
+
+          # module-feature/* → module-feature/*
+          if [[ "$BASE" == module-feature/* ]]; then
+            if [[ "$HEAD" == module-feature/* || "$HEAD" =~ ^revert-[0-9]+-module-feature/ ]]; then
+              echo "✅ Merge allowed (stacked PR): $HEAD → $BASE"
+              exit 0
+            else
+              echo "❌ Merge not allowed: $HEAD → $BASE"
+              exit 1
+            fi
+          fi
+
           echo "❌ Merge not allowed: $HEAD → $BASE"
           exit 1
