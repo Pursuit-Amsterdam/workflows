@@ -446,6 +446,7 @@ Local Supabase development environment setup action for testing with database in
 - `wait-timeout` (default: `300`) - Timeout in seconds to wait for services
 - `project-id` - Supabase project ID for specific configuration
 - `seed` (default: `false`) - Whether to seed the database after starting
+- `skip-if-no-changes` (default: `true`) - Skip the tests when nothing under `supabase/` changed since the base commit. The comparison is taken from the event payload (`pull_request.base.sha`, or `event.before` on a push) and **fails towards running**: if no base commit is available, or it can't be fetched or diffed, the tests run. Set to `false` to always run them.
 
 **Outputs:**
 
