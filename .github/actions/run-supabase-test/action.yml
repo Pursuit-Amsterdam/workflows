@@ -42,21 +42,65 @@ runs:
     - name: Check for Supabase directory changes
       id: check_changes
       shell: bash
+      env:
+        SKIP_IF_NO_CHANGES: ${{ inputs.skip-if-no-changes }}
+        # Base commit to diff against, taken from the event payload rather than
+        # guessed from a branch name. On pull_request it is the tip of the target
+        # branch; on push it is the previous tip of the pushed branch. Empty on
+        # any other event (workflow_dispatch, schedule, ...).
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+      # This gate must fail towards RUNNING the tests. A skip that fires by mistake
+      # hides a broken migration behind a green check, so every uncertain path below
+      # (no base commit, unfetchable base, failed diff) runs the tests instead.
+      #
+      # Two-dot `git diff A B`, deliberately not three-dot `A...B`: three dots need
+      # the merge base, which needs history that actions/checkout's default
+      # fetch-depth: 1 does not have. That made the diff exit non-zero, and the old
+      # code read the resulting empty output as "no changes" and skipped -- on every
+      # run. Two dots need only the two commits, so fetching the single base commit
+      # at depth 1 is enough. It also reports supabase/ changes that landed on the
+      # base branch since this branch forked, which errs towards running.
+      #
+      # ':(top)supabase/' anchors the pathspec at the repo root (replacing the old
+      # `grep '^supabase/'`) so it cannot be re-rooted by the caller's cwd.
       run: |
-        if [ "${{ inputs.skip-if-no-changes }}" = "true" ]; then
-          BASE_REF="${{ github.base_ref || github.ref_name }}"
+        set -euo pipefail
 
-          git fetch origin "$BASE_REF" --depth=1
+        run_tests() {
+          echo "changes=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        }
 
-          if git diff --name-only origin/${BASE_REF}...HEAD | grep -q '^supabase/'; then
-            echo "changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in supabase directory, skipping tests"
-            echo "changes=false" >> $GITHUB_OUTPUT
-          fi
-        else
-          echo "changes=true" >> $GITHUB_OUTPUT
+        if [ "$SKIP_IF_NO_CHANGES" != "true" ]; then
+          echo "skip-if-no-changes is false: running tests unconditionally."
+          run_tests
         fi
+
+        # All-zeroes is what a push event sends for a newly created branch.
+        if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          echo "No base commit available for event '$EVENT_NAME'; cannot compare, so running tests."
+          run_tests
+        fi
+
+        if ! git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+          echo "Could not fetch base commit $BASE_SHA; cannot compare, so running tests."
+          run_tests
+        fi
+
+        if ! CHANGED="$(git diff --name-only "$BASE_SHA" HEAD -- ':(top)supabase/')"; then
+          echo "git diff against $BASE_SHA failed; cannot compare, so running tests."
+          run_tests
+        fi
+
+        if [ -n "$CHANGED" ]; then
+          echo "Changes detected under supabase/ since $BASE_SHA:"
+          echo "$CHANGED" | sed 's/^/  /'
+          run_tests
+        fi
+
+        echo "No changes under supabase/ since $BASE_SHA; skipping tests."
+        echo "changes=false" >> "$GITHUB_OUTPUT"
 
     - name: Install Supabase CLI
       if: steps.check_changes.outputs.changes == 'true'
