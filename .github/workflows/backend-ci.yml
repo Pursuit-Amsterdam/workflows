@@ -1,4 +1,10 @@
-name: "Backend CI (Python)"
+name: "Backend CI"
+
+# Backend CI for a Python project, a Supabase project, or both. The two halves are
+# independent boolean flags: `run-python-checks` (default true) gates the uv setup +
+# Ruff/pytest steps, `run-supabase-test` (default false) gates the local Supabase
+# `test db` run. A Supabase-only repo sets `run-python-checks: false` — otherwise
+# `uv sync` fails on the missing pyproject.toml / uv.lock.
 
 on:
   workflow_call:
@@ -24,6 +30,16 @@ on:
         default: false
 
       # Python quality checks
+      run-python-checks:
+        description: >
+          Master switch for the whole Python toolchain: uv/Python setup plus the
+          Ruff lint, Ruff format check and pytest steps. Set to false for a repo
+          with no Python project (e.g. Supabase-only) — the setup steps are then
+          skipped entirely, so `uv sync` never runs against a missing
+          pyproject.toml / uv.lock.
+        required: false
+        type: boolean
+        default: true
       run-lint:
         description: "Run Ruff lint"
         required: false
@@ -169,7 +185,7 @@ jobs:
           item-name: ${{ inputs.onepassword_item }}
 
       - name: Setup Python (with custom token)
-        if: inputs.use-custom-token
+        if: ${{ inputs.run-python-checks && inputs.use-custom-token }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
         with:
           python-version: ${{ inputs.python-version }}
@@ -177,7 +193,7 @@ jobs:
           github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
 
       - name: Setup Python (with GitHub token)
-        if: ${{ !inputs.use-custom-token }}
+        if: ${{ inputs.run-python-checks && !inputs.use-custom-token }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@main
         with:
           python-version: ${{ inputs.python-version }}
@@ -185,6 +201,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Python checks
+        if: inputs.run-python-checks
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
         with:
           working-directory: ${{ inputs.working-directory }}
