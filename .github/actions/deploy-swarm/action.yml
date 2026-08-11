@@ -19,7 +19,16 @@ inputs:
     required: false
     default: ""
   stack-file:
-    description: "Path to the docker stack (compose) file to deploy"
+    description: >
+      Path to the docker stack (compose) file to deploy. Accepts multiple
+      space-separated paths to layer a base file with per-environment
+      overlays, applied in the order given (later files win) — same merge
+      engine as `docker compose -f a -f b`. Merge rules vary per field (see
+      https://github.com/compose-spec/compose-spec/blob/master/13-merge.md):
+      map-like fields (`environment`, `labels`) merge key-by-key, but e.g.
+      `command` is replaced wholesale by the last file that sets it. Check
+      `docker compose -f ... config` before assuming a given field merges
+      the way you expect.
     required: false
     default: "docker-stack.yml"
   stack-name:
@@ -140,10 +149,18 @@ runs:
       run: |
         set -euo pipefail
 
+        # One -c per space-separated path, in order, so a base file can be
+        # layered with a per-environment overlay — see the stack-file input
+        # description above for merge semantics.
+        stack_file_args=()
+        for f in $STACK_FILE; do
+          stack_file_args+=(-c "$f")
+        done
+
         echo "Deploying stack '${STACK_NAME}' from ${STACK_FILE} to ${DOCKER_HOST}..."
         # --with-registry-auth ships the runner's GHCR login to the manager so nodes can pull.
         # --prune removes services no longer present in the stack file.
-        docker stack deploy -c "$STACK_FILE" --with-registry-auth --prune "$STACK_NAME"
+        docker stack deploy "${stack_file_args[@]}" --with-registry-auth --prune "$STACK_NAME"
 
         echo "Waiting up to ${CONVERGE_TIMEOUT}s for services to converge..."
         deadline=$(($(date +%s) + CONVERGE_TIMEOUT))
