@@ -34,7 +34,7 @@ This repository is structured to provide maximum reusability and modularity:
 │   └── setup-version/         # Version management and environment variables
 └── workflows/                   # Reusable workflows
     ├── backend-cd.yml          # Backend continuous deployment (Supabase)
-    ├── backend-ci.yml          # Backend CI: Python checks + optional Supabase test
+    ├── backend-ci.yml          # Backend CI: optional Python checks + optional Supabase test
     ├── check-pr.yml            # PR validation and branch naming enforcement
     ├── codegen.yml             # Automated code generation pipeline
     ├── storybook-cd.yml        # Storybook deployment to GitHub Pages
@@ -668,7 +668,10 @@ jobs:
 
 ### 🏗️ `backend-ci.yml` - Backend Continuous Integration
 
-CI pipeline for Python backends (FastAPI, arq workers, ...) using **uv**: Ruff lint, Ruff format check, and pytest, with an optional local Supabase DB test merged in.
+CI pipeline for a backend that is a Python project, a Supabase project, or both. Two independent flags select the halves:
+
+- `run-python-checks` (default `true`) — uv setup + Ruff lint, Ruff format check, pytest
+- `run-supabase-test` (default `false`) — local Supabase instance + `supabase test db`
 
 **Location**: `.github/workflows/backend-ci.yml`
 
@@ -677,26 +680,36 @@ CI pipeline for Python backends (FastAPI, arq workers, ...) using **uv**: Ruff l
 - 🐍 uv-based Python environment with dependency caching
 - 🧹 Ruff lint + format check, 🧪 pytest
 - 🗄️ Optional local Supabase instance + `supabase test db`
+- 🐘 Optional ephemeral Postgres container for tests needing a real database
 - 🔐 1Password secrets integration for testing
 
 **Inputs:**
 
+- `run-python-checks` (default: `true`) - Master switch for the Python toolchain (uv setup + all three checks). Set `false` for a repo with no `pyproject.toml` / `uv.lock`
 - `python-version` (default: `3.12`) - Python version
 - `working-directory` (default: `.`) - Project working directory
-- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check
+- `use-custom-token` (default: `false`) - Use `CUSTOM_GITHUB_TOKEN` instead of `GITHUB_TOKEN` for private git dependencies during `uv sync`
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check (requires `run-python-checks: true`)
 - `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
+- `postgres-enabled` (default: `false`) - Start an ephemeral Postgres on `localhost:5432`; `postgres-image` / `postgres-user` / `postgres-password` / `postgres-db` configure it
 - `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
 - `seed` (default: `false`) - Seed the Supabase DB before testing
 - `onepassword_enabled` / `onepassword_vault` / `onepassword_item` - 1Password integration
 
-> **Migration note:** the old `platform: supabase` input is gone. To keep running the Supabase DB test, set `run-supabase-test: true` (Python checks now run by default).
+> **Migration note:** the old `platform` and `node-version` inputs are gone — the boolean flags supersede `platform`, and no step in this workflow needs Node. A caller that used `platform: 'supabase'` becomes:
+>
+> ```yaml
+> with:
+>   run-python-checks: false   # no Python project in this repo
+>   run-supabase-test: true
+> ```
 
-**Example Usage:**
+**Example Usage** (Python project, with a Supabase DB test):
 
 ```yaml
 jobs:
   backend-ci:
-    uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@main
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@v1
     with:
       python-version: "3.12"
       working-directory: "apps/api"
@@ -708,7 +721,19 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
 
-The project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
+**Example Usage** (Supabase-only project, no Python):
+
+```yaml
+jobs:
+  backend-ci:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@v1
+    with:
+      run-python-checks: false
+      run-supabase-test: true
+    secrets: inherit
+```
+
+With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
 
 ---
 
