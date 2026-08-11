@@ -23,7 +23,11 @@ on:
         type: string
         default: ""
       stack-file:
-        description: "Path to the docker stack (compose) file in the consumer repo"
+        description: >
+          Path to the docker stack (compose) file in the consumer repo.
+          Accepts multiple space-separated paths to layer a base file with a
+          per-environment overlay — see deploy-swarm's stack-file input for
+          merge semantics.
         required: false
         type: string
         default: "docker-stack.yml"

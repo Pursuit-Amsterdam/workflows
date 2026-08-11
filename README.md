@@ -894,7 +894,7 @@ Zero-downtime deployment of a stateless docker stack (e.g. Next.js frontend, Fas
 
 - `images` (**required**) - JSON array of images to build/push. Each entry: `{ "name": "ghcr.io/org/app-frontend", "dockerfile": "./apps/web/Dockerfile", "build-args": "public" }`. `"build-args": "public"` passes the non-concealed 1Password fields as build args (e.g. `NEXT_PUBLIC_*`).
 - `stack-name` (**required**) - Swarm stack name
-- `stack-file` (default `docker-stack.yml`) - Path to the stack file in your repo
+- `stack-file` (default `docker-stack.yml`) - Path to the stack file in your repo. Accepts multiple space-separated paths (e.g. `"docker-stack.base.yml docker-stack.production.yml"`) to layer a base file with a per-environment overlay — later files win, merged with the same engine as `docker compose -f a -f b`. Merge rules vary per field (map-like fields such as `environment`/`labels` merge key-by-key; others like `command` are replaced wholesale) — see the [Compose merge spec](https://github.com/compose-spec/compose-spec/blob/master/13-merge.md) and check `docker compose -f ... config` before relying on a given field.
 - `ssh-host`, `ssh-user` (**required**), `ssh-port` (default `22`) - Swarm manager connection
 - `environment` (default `production`) - Deployment environment
 - `use-custom-token` (default `false`) - Use `CUSTOM_GITHUB_TOKEN` for private packages during build
