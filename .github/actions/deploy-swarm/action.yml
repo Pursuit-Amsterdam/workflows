@@ -138,7 +138,7 @@ runs:
         echo "Running migrations on ${DOCKER_HOST} using ${MIGRATE_IMAGE}..."
         # Runs to completion on the VM, against the managed DB. A non-zero exit
         # fails this step, so the stack deploy below never runs.
-        docker run --rm ${entrypoint_args[@]+"${entrypoint_args[@]}"} ${env_args[@]+"${env_args[@]}"} "$MIGRATE_IMAGE" $MIGRATE_COMMAND
+        docker run --rm --pull=always ${entrypoint_args[@]+"${entrypoint_args[@]}"} ${env_args[@]+"${env_args[@]}"} "$MIGRATE_IMAGE" $MIGRATE_COMMAND
 
     - name: Deploy stack
       shell: bash

@@ -34,6 +34,13 @@ inputs:
     description: 'GitHub token for private Python packages during build'
     required: false
     default: ''
+  additional-tags:
+    description: >
+      Extra image:tag references to push alongside image-name:image-tag,
+      space-separated (e.g. a content-addressable sha-<hash> tag). Empty =
+      push only the primary tag.
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -61,12 +68,28 @@ runs:
           echo "EOF"
         } >> "$GITHUB_OUTPUT"
 
+    - name: Prepare image tags
+      id: prepare_tags
+      shell: bash
+      env:
+        PRIMARY_TAG: ${{ inputs.image-name }}:${{ inputs.image-tag }}
+        ADDITIONAL_TAGS: ${{ inputs.additional-tags }}
+      run: |
+        {
+          echo "tags<<EOF"
+          echo "$PRIMARY_TAG"
+          if [[ -n "$ADDITIONAL_TAGS" ]]; then
+            tr ' ' '\n' <<< "$ADDITIONAL_TAGS"
+          fi
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Build and push container image to registry
       uses: docker/build-push-action@v5
       with:
           context: ${{ inputs.build-context }}
           push: true
-          tags: ${{ inputs.image-name }}:${{ inputs.image-tag }}
+          tags: ${{ steps.prepare_tags.outputs.tags }}
           file: ${{ inputs.docker-file }}
           platforms: ${{ inputs.image-platform }}
           cache-from: type=gha

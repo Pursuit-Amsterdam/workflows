@@ -156,6 +156,14 @@ jobs:
           # nearest ancestor tag; the default shallow clone has no tags at all.
           fetch-depth: 0
 
+      - name: Set SHA tag
+        id: set-sha-tag
+        shell: bash
+        # Derived from the checked-out ref (not github.sha), since for
+        # workflow_run callers github.sha is the default branch's HEAD, not
+        # the commit actually being built — see the `ref` input above.
+        run: echo "tag=sha-$(git rev-parse HEAD | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
         id: load_onepassword_secrets
@@ -184,6 +192,7 @@ jobs:
           node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
           python-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
           build-args: ${{ matrix.image.build-args == 'public' && steps.load_onepassword_secrets.outputs.build_args || '' }}
+          additional-tags: ${{ format('{0}:{1}', matrix.image.name, steps.set-sha-tag.outputs.tag) }}
 
   deploy:
     if: inputs.deploy-enabled
