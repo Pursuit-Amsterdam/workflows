@@ -17,6 +17,10 @@ inputs:
     description: 'Run type checking'
     required: false
     default: 'true'
+  run-format:
+    description: 'Run format check'
+    required: false
+    default: 'false'
   build-command:
     description: 'Custom build command'
     required: false
@@ -33,10 +37,19 @@ inputs:
     description: 'Custom typecheck command'
     required: false
     default: 'typecheck'
+  format-command:
+    description: 'Custom format check command'
+    required: false
+    default: 'format:check'
 
 runs:
   using: 'composite'
   steps:
+    - name: Run Format Check
+      if: inputs.run-format == 'true'
+      shell: bash
+      run: pnpm run --if-present ${{ inputs.format-command }}
+
     - name: Run Type Checking
       if: inputs.run-typecheck == 'true'
       shell: bash

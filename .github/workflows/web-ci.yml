@@ -72,6 +72,11 @@ on:
         required: false
         type: boolean
         default: true
+      run-format:
+        description: "Run format check"
+        required: false
+        type: boolean
+        default: false
 
       # Custom commands
       build-command:
@@ -94,6 +99,11 @@ on:
         required: false
         type: string
         default: "typecheck"
+      format-command:
+        description: "Custom format check command"
+        required: false
+        type: string
+        default: "format:check"
 
       # 1Password secrets
       onepassword_enabled:
@@ -173,7 +183,9 @@ jobs:
           run-test: ${{ inputs.run-test }}
           run-lint: ${{ inputs.run-lint }}
           run-typecheck: ${{ inputs.run-typecheck }}
+          run-format: ${{ inputs.run-format }}
           build-command: ${{ inputs.build-command }}
           test-command: ${{ inputs.test-command }}
           lint-command: ${{ inputs.lint-command }}
           typecheck-command: ${{ inputs.typecheck-command }}
+          format-command: ${{ inputs.format-command }}
