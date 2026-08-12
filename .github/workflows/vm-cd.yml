@@ -149,7 +149,7 @@ jobs:
         image: ${{ fromJSON(inputs.images) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           # Full history so `git describe --tags` (setup-version) can find the
@@ -204,7 +204,7 @@ jobs:
         working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
           # Same full-history checkout as the build job so both derive the SAME

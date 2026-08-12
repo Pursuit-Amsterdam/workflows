@@ -1222,7 +1222,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@main
       - uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         with:

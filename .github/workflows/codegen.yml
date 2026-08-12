@@ -56,7 +56,7 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # For PR events, checkout the PR branch with write permissions
           token: ${{ github.event_name == 'pull_request' && github.token || secrets.GITHUB_TOKEN }}
