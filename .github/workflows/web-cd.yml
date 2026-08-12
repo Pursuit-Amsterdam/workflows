@@ -62,6 +62,11 @@ on:
         required: false
         type: boolean
         default: true
+      run-format:
+        description: "Run format check before deployment"
+        required: false
+        type: boolean
+        default: false
       test-command:
         description: "Custom test command"
         required: false
@@ -77,6 +82,11 @@ on:
         required: false
         type: string
         default: "typecheck"
+      format-command:
+        description: "Custom format check command"
+        required: false
+        type: string
+        default: "format:check"
       build-mode:
         description: 'Build mode: "github" (build in GitHub Actions) or "vercel" (build on Vercel)'
         required: false
@@ -184,15 +194,20 @@ jobs:
         run: ${{ inputs.codegen_command }}
 
       - name: Run Quality Checks
-        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck)
+        if: inputs.build-mode == 'github' && (inputs.run-test || inputs.run-lint || inputs.run-typecheck || inputs.run-format)
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
+          # Quality checks validate the source, not the artifact — the actual
+          # build happens once, below, as part of the deploy step itself.
+          run-build: false
           run-test: ${{ inputs.run-test }}
           run-lint: ${{ inputs.run-lint }}
           run-typecheck: ${{ inputs.run-typecheck }}
+          run-format: ${{ inputs.run-format }}
           test-command: ${{ inputs.test-command }}
           lint-command: ${{ inputs.lint-command }}
           typecheck-command: ${{ inputs.typecheck-command }}
+          format-command: ${{ inputs.format-command }}
 
       - name: Deploy to Vercel
         uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@main
