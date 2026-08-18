@@ -137,11 +137,29 @@ runs:
           echo "Failed to start Supabase services within ${{ inputs.wait-timeout }} seconds"
           exit 1
         }
-                       
+
         echo "Supabase services started successfully"
 
-    - name: Run Supabase tests against local services
+    # supabase test db (pg_prove) treats an empty suite as a failure (`NOTESTS`),
+    # so a repo with no pgTAP tests yet would fail this step on every run
+    # regardless of whether its migrations are sound. Migrations already got
+    # verified above by `supabase start` actually applying them; pgTAP only
+    # adds value once there's something to prove, so gate it on a test file
+    # existing instead of making its absence a permanent red build.
+    - name: Check for pgTAP test files
+      id: check_tests
       if: steps.check_changes.outputs.changes == 'true'
+      shell: bash
+      run: |
+        if find supabase/tests -type f -name '*.sql' 2>/dev/null | grep -q .; then
+          echo "has_tests=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "No pgTAP test files found under supabase/tests; skipping supabase test db."
+          echo "has_tests=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Run Supabase tests against local services
+      if: steps.check_changes.outputs.changes == 'true' && steps.check_tests.outputs.has_tests == 'true'
       shell: bash
       run: |
         echo "Running tests against local Supabase services..."
