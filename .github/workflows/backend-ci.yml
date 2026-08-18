@@ -1,10 +1,10 @@
 name: "Backend CI"
 
-# Backend CI for a Python project, a Supabase project, or both. The two halves are
-# independent boolean flags: `run-python-checks` (default true) gates the uv setup +
-# Ruff/pytest steps, `run-supabase-test` (default false) gates the local Supabase
-# `test db` run. A Supabase-only repo sets `run-python-checks: false` — otherwise
-# `uv sync` fails on the missing pyproject.toml / uv.lock.
+# Backend CI for a Python project, a Supabase project, or both. This workflow is a
+# menu: every tool is opt-in and defaults to off, so adding a new check here never
+# forces existing consumers to switch it off. `run-python-checks` gates the uv setup
+# + Ruff/pytest steps, `run-supabase-test` gates the local Supabase `test db` run.
+# Enable the ones your repo actually needs — a caller that sets neither tests nothing.
 
 on:
   workflow_call:
@@ -33,13 +33,13 @@ on:
       run-python-checks:
         description: >
           Master switch for the whole Python toolchain: uv/Python setup plus the
-          Ruff lint, Ruff format check and pytest steps. Set to false for a repo
-          with no Python project (e.g. Supabase-only) — the setup steps are then
-          skipped entirely, so `uv sync` never runs against a missing
-          pyproject.toml / uv.lock.
+          Ruff lint, Ruff format check and pytest steps. Opt in by setting true for
+          a repo with a uv project (pyproject.toml + uv.lock). Left false, the setup
+          steps are skipped entirely, so `uv sync` never runs against a missing
+          pyproject.toml — a Supabase-only repo needs no Python inputs at all.
         required: false
         type: boolean
-        default: true
+        default: false
       run-lint:
         description: "Run Ruff lint"
         required: false

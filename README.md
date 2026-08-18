@@ -670,10 +670,12 @@ jobs:
 
 ### 🏗️ `backend-ci.yml` - Backend Continuous Integration
 
-CI pipeline for a backend that is a Python project, a Supabase project, or both. Two independent flags select the halves:
+CI pipeline for a backend that is a Python project, a Supabase project, or both. Every tool is **opt-in and off by default** — a repo enables only the halves it needs, so adding a new check to this workflow never forces existing consumers to switch it off:
 
-- `run-python-checks` (default `true`) — uv setup + Ruff lint, Ruff format check, pytest
+- `run-python-checks` (default `false`) — uv setup + Ruff lint, Ruff format check, pytest
 - `run-supabase-test` (default `false`) — local Supabase instance + `supabase test db`
+
+> A caller that enables neither runs no checks at all. Set at least one.
 
 **Location**: `.github/workflows/backend-ci.yml`
 
@@ -687,11 +689,11 @@ CI pipeline for a backend that is a Python project, a Supabase project, or both.
 
 **Inputs:**
 
-- `run-python-checks` (default: `true`) - Master switch for the Python toolchain (uv setup + all three checks). Set `false` for a repo with no `pyproject.toml` / `uv.lock`
+- `run-python-checks` (default: `false`) - Master switch for the Python toolchain (uv setup + all three checks). Set `true` for a repo with a uv project (`pyproject.toml` + `uv.lock`); leave `false` for a repo with no Python code
 - `python-version` (default: `3.12`) - Python version
 - `working-directory` (default: `.`) - Project working directory
 - `use-custom-token` (default: `false`) - Use `CUSTOM_GITHUB_TOKEN` instead of `GITHUB_TOKEN` for private git dependencies during `uv sync`
-- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check (requires `run-python-checks: true`)
+- `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check individually; all three run once you opt in with `run-python-checks: true`
 - `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
 - `postgres-enabled` (default: `false`) - Start an ephemeral Postgres on `localhost:5432`; `postgres-image` / `postgres-user` / `postgres-password` / `postgres-db` configure it
 - `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
@@ -702,8 +704,7 @@ CI pipeline for a backend that is a Python project, a Supabase project, or both.
 >
 > ```yaml
 > with:
->   run-python-checks: false   # no Python project in this repo
->   run-supabase-test: true
+>   run-supabase-test: true   # no Python inputs needed — the toolchain is off by default
 > ```
 
 **Example Usage** (Python project, with a Supabase DB test):
@@ -713,9 +714,10 @@ jobs:
   backend-ci:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@v1
     with:
+      run-python-checks: true   # opt in: this repo has a uv project
       python-version: "3.12"
       working-directory: "apps/api"
-      run-supabase-test: true   # optional, off by default
+      run-supabase-test: true   # opt in: also run `supabase test db`
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: "test-env"
@@ -730,8 +732,7 @@ jobs:
   backend-ci:
     uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@v1
     with:
-      run-python-checks: false
-      run-supabase-test: true
+      run-supabase-test: true   # Python toolchain stays off — nothing to switch off
     secrets: inherit
 ```
 
