@@ -105,6 +105,18 @@ on:
         type: string
         default: "format:check"
 
+      # Translations CMS (@pursuit-amsterdam/translations-management)
+      tms_sync:
+        description: "Scan the codebase and push translation keys to the CMS. Runs on the default integration branch only."
+        required: false
+        type: boolean
+        default: false
+      tms_sync_branch:
+        description: "Branch whose pushes sync keys to the CMS"
+        required: false
+        type: string
+        default: "develop"
+
       # 1Password secrets
       onepassword_enabled:
         description: "Enable 1Password secrets loading"
@@ -128,6 +140,15 @@ on:
         required: false
       CUSTOM_GITHUB_TOKEN:
         description: "Custom Node.js registry token"
+        required: false
+
+      # Only needed when TMS_URL / TMS_API_KEY are not already in the
+      # 1Password item this run loads.
+      TMS_URL:
+        description: "Translations CMS base URL"
+        required: false
+      TMS_API_KEY:
+        description: "Translations CMS API key, scoped to one environment"
         required: false
 
 jobs:
@@ -189,3 +210,31 @@ jobs:
           lint-command: ${{ inputs.lint-command }}
           typecheck-command: ${{ inputs.typecheck-command }}
           format-command: ${{ inputs.format-command }}
+
+      # Keys reach the CMS from here, not from a developer's machine: `sync` scans
+      # the merged codebase, adds new keys, prunes keys nothing references any
+      # more, and leaves existing copy untouched. Values in the local dictionaries
+      # are uploaded as drafts so translators have a starting point.
+      #
+      # Integration branch only. Syncing a feature branch would register keys from
+      # work that may never merge, and pruning against it would delete keys the
+      # rest of the branch still uses.
+      #
+      # After the build on purpose — a codebase that does not compile is not a
+      # trustworthy source of truth for what to delete.
+      - name: Provide translations credentials
+        if: inputs.tms_sync && github.ref == format('refs/heads/{0}', inputs.tms_sync_branch)
+        env:
+          SECRET_TMS_URL: ${{ secrets.TMS_URL }}
+          SECRET_TMS_API_KEY: ${{ secrets.TMS_API_KEY }}
+        run: |
+          if [ -z "${TMS_URL:-}" ] && [ -n "${SECRET_TMS_URL}" ]; then
+            echo "TMS_URL=${SECRET_TMS_URL}" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${TMS_API_KEY:-}" ] && [ -n "${SECRET_TMS_API_KEY}" ]; then
+            echo "TMS_API_KEY=${SECRET_TMS_API_KEY}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Sync translation keys to the CMS
+        if: inputs.tms_sync && github.ref == format('refs/heads/{0}', inputs.tms_sync_branch)
+        run: pnpm exec translations sync

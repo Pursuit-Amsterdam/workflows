@@ -111,6 +111,18 @@ on:
         default: ""
 
       # 1Password secrets
+      # Translations CMS (@pursuit-amsterdam/translations-management)
+      tms_enabled:
+        description: "Pull published translations before building, and report the deploy back to the translations CMS"
+        required: false
+        type: boolean
+        default: false
+      release_id:
+        description: "Release the translations CMS asked to deploy. Empty on push- and release-triggered runs; the CLI then falls back to the newest pending release."
+        required: false
+        type: string
+        default: ""
+
       onepassword_enabled:
         description: "Enable 1Password secrets loading"
         required: false
@@ -131,6 +143,13 @@ on:
       CUSTOM_GITHUB_TOKEN:
         required: false
       OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+
+      # Only needed when TMS_URL / TMS_API_KEY are not already in the
+      # 1Password item this deploy loads.
+      TMS_URL:
+        required: false
+      TMS_API_KEY:
         required: false
 
       # Vercel secrets (only required when platform == 'vercel')
@@ -180,6 +199,40 @@ jobs:
           item-name: ${{ inputs.onepassword_item }}
           export-for-vercel: true
 
+      # Credentials come from the 1Password item when this deploy loads one, which
+      # is the normal case. Only fill the gaps from repository secrets, so an
+      # unset secret cannot blank out a value 1Password already exported.
+      - name: Provide translations credentials
+        if: inputs.tms_enabled
+        env:
+          SECRET_TMS_URL: ${{ secrets.TMS_URL }}
+          SECRET_TMS_API_KEY: ${{ secrets.TMS_API_KEY }}
+        run: |
+          if [ -z "${TMS_URL:-}" ] && [ -n "${SECRET_TMS_URL}" ]; then
+            echo "TMS_URL=${SECRET_TMS_URL}" >> "$GITHUB_ENV"
+          fi
+          if [ -z "${TMS_API_KEY:-}" ] && [ -n "${SECRET_TMS_API_KEY}" ]; then
+            echo "TMS_API_KEY=${SECRET_TMS_API_KEY}" >> "$GITHUB_ENV"
+          fi
+
+      # A release the CMS is waiting on expires after 3 minutes unless a deploy
+      # acknowledges it, which buys 30. Everything above this step counts against
+      # that window, so it goes as early as the CLI is usable — right after the
+      # install and the secrets it needs.
+      #
+      # `ack` exits 0 even when the CMS is unreachable: losing the long window is
+      # a far better outcome than failing a deploy over bookkeeping.
+      - name: Tell the translations CMS a deploy is running
+        if: inputs.tms_enabled
+        run: pnpm exec translations release ack --release-id "${{ inputs.release_id }}"
+
+      # Before the quality checks on purpose: pull rewrites the dictionaries and
+      # regenerates settings.ts/types.ts, so typecheck then validates the copy
+      # this deploy actually ships rather than what happened to be committed.
+      - name: Pull published translations
+        if: inputs.tms_enabled
+        run: pnpm exec translations pull
+
       - name: Set version variable
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@main
         id: set-version
@@ -219,6 +272,16 @@ jobs:
           build-mode: ${{ inputs.build-mode }}
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
+
+      # The CMS cannot observe this deploy, so it has to be told. Without these
+      # steps a release that went live is expired as failed.
+      - name: Mark the release deployed
+        if: inputs.tms_enabled && success()
+        run: pnpm exec translations release mark-deployed --release-id "${{ inputs.release_id }}"
+
+      - name: Mark the release failed
+        if: inputs.tms_enabled && failure()
+        run: pnpm exec translations release mark-failed --release-id "${{ inputs.release_id }}" --reason "${{ inputs.environment }} deploy failed"
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}

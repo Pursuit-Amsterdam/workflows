@@ -543,6 +543,15 @@ Comprehensive CI pipeline for modern web applications with framework detection, 
 - `run-lint` (default: `true`) - Run linting
 - `run-typecheck` (default: `true`) - Run type checking
 
+**Translations CMS:**
+
+- `tms_sync` (default: `false`) - Scan the codebase and push translation keys to the CMS
+- `tms_sync_branch` (default: `develop`) - Branch whose pushes sync; other branches skip
+
+Runs after the build, on the named branch only. Needs `TMS_URL` and `TMS_API_KEY`
+in the environment — from the 1Password item if it holds them, otherwise pass
+them as secrets.
+
 **1Password Integration:**
 
 - `onepassword_enabled` (default: `false`) - Enable 1Password secrets
@@ -737,6 +746,60 @@ jobs:
 ```
 
 With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
+
+---
+
+**Translations CMS:**
+
+- `tms_enabled` (default: `false`) - Pull published translations before building, and report the deploy back to the CMS
+- `release_id` (default: `""`) - Release the CMS asked to deploy; empty on push- and release-triggered runs
+
+With `tms_enabled: true` the deploy job gains four steps: `release ack` right
+after setup, `translations pull` before the quality checks, and
+`release mark-deployed` / `mark-failed` after the deploy.
+
+All four are needed together. Without the pull the build ships whatever copy is
+committed; without `mark-deployed` the CMS never learns the deploy succeeded and
+expires the release as failed; without the `ack` a slow build is
+indistinguishable from a workflow that never ran and gets a 3-minute window
+instead of 30.
+
+Declare `release_id` as a `workflow_dispatch` input in the calling workflow and
+forward it — GitHub rejects a dispatch carrying an input the workflow does not
+declare, which is how the CMS call fails when it is missing.
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: string
+      release_id:
+        description: "Release to deploy (sent by the translations CMS)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
+    with:
+      environment: "staging"
+      tms_enabled: true
+      release_id: ${{ inputs.release_id }}
+    secrets: inherit
+```
+
+Credentials come from the 1Password item when one is loaded; repository secrets
+`TMS_URL` / `TMS_API_KEY` fill any gaps and never overwrite a value 1Password
+already provided. The API key is scoped to one environment server-side, so
+staging and production need different keys.
+
+Note that the consuming app should **not** also set `pull: true` in its Next
+config — the step above already did it, and the plugin's flag applies to
+`next dev` as well, where a pull overwrites the dictionaries in a developer's
+working tree.
 
 ---
 
