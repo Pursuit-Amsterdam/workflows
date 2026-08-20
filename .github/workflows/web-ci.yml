@@ -116,6 +116,11 @@ on:
         required: false
         type: string
         default: "develop"
+      tms_working_directory:
+        description: "Directory the translations CLI runs in. Defaults to working-directory. Set this in a monorepo whose job scripts run from the repo root but whose app — and its dictionaries — live in a package."
+        required: false
+        type: string
+        default: ""
 
       # 1Password secrets
       onepassword_enabled:
@@ -235,6 +240,14 @@ jobs:
             echo "TMS_API_KEY=${SECRET_TMS_API_KEY}" >> "$GITHUB_ENV"
           fi
 
+      # Runs in `tms_working_directory`, not the job's working-directory.
+      #
+      # The two are the same for a single-app repo. They differ in a monorepo that
+      # drives its checks from root scripts — `lint-command: lint:frontend` and
+      # friends — and so leaves working-directory at `.`. The CLI resolves the
+      # project root from its own cwd, so at the repo root it finds no
+      # dictionaries, syncs every key with no copy, and says nothing was wrong.
       - name: Sync translation keys to the CMS
         if: inputs.tms_sync && github.ref == format('refs/heads/{0}', inputs.tms_sync_branch)
+        working-directory: ${{ inputs.tms_working_directory != '' && inputs.tms_working_directory || inputs.working-directory }}
         run: pnpm exec translations sync

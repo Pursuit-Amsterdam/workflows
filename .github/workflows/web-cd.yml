@@ -122,6 +122,11 @@ on:
         required: false
         type: string
         default: ""
+      tms_working_directory:
+        description: "Directory the translations CLI runs in. Defaults to working-directory. Set this in a monorepo whose job scripts run from the repo root but whose app — and its dictionaries — live in a package."
+        required: false
+        type: string
+        default: ""
 
       onepassword_enabled:
         description: "Enable 1Password secrets loading"
@@ -222,8 +227,11 @@ jobs:
       #
       # `ack` exits 0 even when the CMS is unreachable: losing the long window is
       # a far better outcome than failing a deploy over bookkeeping.
+      # See `tms_working_directory` — `pull` in particular has to write into the
+      # package the build imports from, not the repo root.
       - name: Tell the translations CMS a deploy is running
         if: inputs.tms_enabled
+        working-directory: ${{ inputs.tms_working_directory != '' && inputs.tms_working_directory || inputs.working-directory }}
         run: pnpm exec translations release ack --release-id "${{ inputs.release_id }}"
 
       # Before the quality checks on purpose: pull rewrites the dictionaries and
@@ -231,6 +239,7 @@ jobs:
       # this deploy actually ships rather than what happened to be committed.
       - name: Pull published translations
         if: inputs.tms_enabled
+        working-directory: ${{ inputs.tms_working_directory != '' && inputs.tms_working_directory || inputs.working-directory }}
         run: pnpm exec translations pull
 
       - name: Set version variable
@@ -277,10 +286,12 @@ jobs:
       # steps a release that went live is expired as failed.
       - name: Mark the release deployed
         if: inputs.tms_enabled && success()
+        working-directory: ${{ inputs.tms_working_directory != '' && inputs.tms_working_directory || inputs.working-directory }}
         run: pnpm exec translations release mark-deployed --release-id "${{ inputs.release_id }}"
 
       - name: Mark the release failed
         if: inputs.tms_enabled && failure()
+        working-directory: ${{ inputs.tms_working_directory != '' && inputs.tms_working_directory || inputs.working-directory }}
         run: pnpm exec translations release mark-failed --release-id "${{ inputs.release_id }}" --reason "${{ inputs.environment }} deploy failed"
 
   unsupported-platform:
