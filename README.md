@@ -547,10 +547,26 @@ Comprehensive CI pipeline for modern web applications with framework detection, 
 
 - `tms_sync` (default: `false`) - Scan the codebase and push translation keys to the CMS
 - `tms_sync_branch` (default: `develop`) - Branch whose pushes sync; other branches skip
+- `tms_working_directory` (default: `working-directory`) - Directory the translations CLI runs in
 
 Runs after the build, on the named branch only. Needs `TMS_URL` and `TMS_API_KEY`
 in the environment — from the 1Password item if it holds them, otherwise pass
 them as secrets.
+
+**Monorepos:** the CLI resolves the project from its own working directory, so it
+has to run in the package that holds the app and its dictionaries. That is usually
+`working-directory`, and then there is nothing to set. Set
+`tms_working_directory` when the two differ — a repo driving its checks from root
+scripts (`lint-command: "lint:frontend"`) leaves `working-directory` at `.`, and the
+CLI would find no dictionaries there: it syncs every key with no copy, writes pulled
+translations where nothing imports them, and reports success either way.
+
+```yaml
+with:
+  working-directory: "." # root scripts fan out to the app
+  tms_working_directory: "./frontend" # where the dictionaries actually are
+```
+
 
 **1Password Integration:**
 
@@ -753,6 +769,7 @@ With `run-python-checks: true` the project must be a uv project (`pyproject.toml
 
 - `tms_enabled` (default: `false`) - Pull published translations before building, and report the deploy back to the CMS
 - `release_id` (default: `""`) - Release the CMS asked to deploy; empty on push- and release-triggered runs
+- `tms_working_directory` (default: `working-directory`) - Directory the translations CLI runs in; see the monorepo note under `web-ci.yml`
 
 With `tms_enabled: true` the deploy job gains four steps: `release ack` right
 after setup, `translations pull` before the quality checks, and
@@ -763,6 +780,11 @@ committed; without `mark-deployed` the CMS never learns the deploy succeeded and
 expires the release as failed; without the `ack` a slow build is
 indistinguishable from a workflow that never ran and gets a 3-minute window
 instead of 30.
+
+Two of them read the repository, so `tms_working_directory` matters to both:
+`pull` writes the dictionaries, and `mark-deployed` scans the source to build the
+key manifest the production publish gate checks against. A manifest built from the
+wrong directory describes a deployed codebase with no keys in it.
 
 Declare `release_id` as a `workflow_dispatch` input in the calling workflow and
 forward it — GitHub rejects a dispatch carrying an input the workflow does not
