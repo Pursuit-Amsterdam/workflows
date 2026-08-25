@@ -150,6 +150,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
           github-token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          working-directory: ${{ inputs.python-working-directory }}
 
       - name: Setup Python (with GitHub token)
         if: ${{ !inputs.use-custom-token }}
@@ -157,6 +158,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.python-working-directory }}
 
       - name: Load 1Password Secrets
         if: inputs.onepassword_enabled
@@ -168,9 +170,9 @@ jobs:
 
       # --- Node checks ---
       - name: Node build and test
-        working-directory: ${{ inputs.node-working-directory }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-pnpm-build-test@main
         with:
+          working-directory: ${{ inputs.node-working-directory }}
           run-build: ${{ inputs.run-node-build }}
           run-test: ${{ inputs.run-node-test }}
           run-lint: ${{ inputs.run-node-lint }}
@@ -182,9 +184,9 @@ jobs:
 
       # --- Python checks ---
       - name: Python checks
-        working-directory: ${{ inputs.python-working-directory }}
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
         with:
+          working-directory: ${{ inputs.python-working-directory }}
           run-lint: ${{ inputs.run-python-lint }}
           run-format-check: ${{ inputs.run-python-format-check }}
           run-test: ${{ inputs.run-python-test }}
