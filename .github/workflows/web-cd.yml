@@ -104,6 +104,14 @@ on:
         required: false
         type: string
         default: ""
+      vercel-project-env-keys:
+        description: >-
+          Space-separated env var names to also write to Vercel's project-level
+          environment store. Only for variables the Vercel platform itself
+          reads, e.g. CRON_SECRET for cron authentication.
+        required: false
+        type: string
+        default: "CRON_SECRET"
       vercel-output-directory:
         description: "Output directory for Vercel builds"
         required: false
@@ -219,6 +227,7 @@ jobs:
           build-mode: ${{ inputs.build-mode }}
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
+          vercel-project-env-keys: ${{ inputs.vercel-project-env-keys }}
 
   unsupported-platform:
     if: ${{ inputs.platform != 'vercel' && inputs.platform != 'azure-asp' }}
