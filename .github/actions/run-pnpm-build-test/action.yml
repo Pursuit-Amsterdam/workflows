@@ -41,6 +41,13 @@ inputs:
     description: 'Custom format check command'
     required: false
     default: 'format:check'
+  working-directory:
+    description: >
+      Directory to run the checks in (the Node project root). Required when the
+      project is not at the repo root — a caller job's
+      `defaults.run.working-directory` does NOT reach inside a composite action.
+    required: false
+    default: '.'
 
 runs:
   using: 'composite'
@@ -48,11 +55,13 @@ runs:
     - name: Run Format Check
       if: inputs.run-format == 'true'
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: pnpm run --if-present ${{ inputs.format-command }}
 
     - name: Run Type Checking
       if: inputs.run-typecheck == 'true'
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         TYPECHECK_SCRIPT="${{ inputs.typecheck-command }}"
 
@@ -69,11 +78,13 @@ runs:
     - name: Run Linting
       if: inputs.run-lint == 'true'
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: pnpm run --if-present ${{ inputs.lint-command }}
 
     - name: Run Build
       if: inputs.run-build == 'true'
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         echo "Building application..."
         pnpm run ${{ inputs.build-command }}
@@ -82,5 +93,6 @@ runs:
     - name: Run Tests
       if: inputs.run-test == 'true'
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         pnpm run --if-present ${{ inputs.test-command }}

@@ -183,6 +183,7 @@ Comprehensive build, test, lint, and type-checking action with graceful error ha
 - `test-command` (default: `test`) - Custom test command name
 - `lint-command` (default: `lint`) - Custom lint command name
 - `typecheck-command` (default: `typecheck`) - Custom typecheck command name
+- `working-directory` (default: `.`) - Directory to run the checks in (the Node project root). Required when the project is not at the repo root — a caller job's `defaults.run.working-directory` does **not** reach inside a composite action.
 
 **Features:**
 
