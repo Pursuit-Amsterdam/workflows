@@ -30,10 +30,84 @@ inputs:
     description: "Custom build command to run before deployment"
     required: false
     default: ""
+  vercel-project-env-keys:
+    description: >-
+      Space-separated env var names to ALSO write to Vercel's project-level
+      environment store (Settings -> Environment Variables), on top of the
+      baked env file. Only needed for variables the Vercel platform itself
+      reads rather than the app, e.g. CRON_SECRET. Values are read from the
+      environment populated by setup-onepassword.
+    required: false
+    default: "CRON_SECRET"
 
 runs:
   using: "composite"
   steps:
+    # Some environment variables are consumed by the Vercel platform itself,
+    # not by the deployed app. Cron is the case that bites: Vercel only
+    # attaches the `Authorization: Bearer <CRON_SECRET>` header to scheduled
+    # requests when a PROJECT-LEVEL CRON_SECRET exists. The env file this
+    # action writes further down is baked into the prebuilt output, so it sets
+    # process.env correctly at runtime but is invisible to the scheduler --
+    # which then sends no header at all and every /api/cron/* route answers
+    # 401, indistinguishable in the logs from a cron with nothing to do.
+    #
+    # Only the keys named in vercel-project-env-keys are synced. 1Password
+    # stays the source of truth: every deploy re-asserts the value, so the
+    # project store cannot drift from the env file. Do NOT list keys the app
+    # merely reads at runtime -- the env file already covers those, and
+    # duplicating them spreads secrets across two stores for no benefit.
+    #
+    # Runs before the CLI install so a misconfiguration fails fast.
+    - name: Sync platform-consumed env vars to project level
+      if: inputs.vercel-project-env-keys != ''
+      shell: bash
+      env:
+        VERCEL_TOKEN: ${{ inputs.vercel-token }}
+        VERCEL_ORG_ID: ${{ inputs.vercel-org-id }}
+        VERCEL_PROJECT_ID: ${{ inputs.vercel-project-id }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        PROJECT_ENV_KEYS: ${{ inputs.vercel-project-env-keys }}
+      run: |
+        set -euo pipefail
+
+        if [[ "${ENVIRONMENT}" == "production" ]]; then
+          target="production"
+        else
+          target="preview"
+        fi
+
+        api="https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env?upsert=true"
+        # Only team-scoped ids take a teamId; personal-scope projects do not.
+        if [[ "${VERCEL_ORG_ID}" == team_* ]]; then
+          api="${api}&teamId=${VERCEL_ORG_ID}"
+        fi
+
+        for key in ${PROJECT_ENV_KEYS}; do
+          value="${!key:-}"
+          if [[ -z "${value}" ]]; then
+            # Not fatal: the allowlist applies to every Vercel project, and one
+            # without crons has no CRON_SECRET to sync. A cron project that
+            # loses its secret is caught at runtime instead -- the cron routes
+            # log the rejection reason on a 401.
+            echo "::warning::${key} is not set in the environment; skipping project-level sync. Expected for projects that do not use it."
+            continue
+          fi
+
+          payload="$(jq -n --arg k "${key}" --arg v "${value}" --arg t "${target}" \
+            '{key: $k, value: $v, type: "encrypted", target: [$t]}')"
+
+          if ! curl -sS --fail-with-body -X POST "${api}" \
+                 -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+                 -H "Content-Type: application/json" \
+                 -d "${payload}" >/dev/null; then
+            echo "::error::Failed to sync ${key} to the Vercel project env (${target}). Does the token have env write scope?"
+            exit 1
+          fi
+
+          echo "Synced ${key} to project-level env (${target})"
+        done
+
     - name: Install Vercel CLI
       shell: bash
       run: npm install --global vercel@latest
