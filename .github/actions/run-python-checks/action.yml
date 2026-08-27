@@ -1,5 +1,5 @@
 name: "Python checks"
-description: "Runs Ruff lint, Ruff format check, and pytest via uv"
+description: "Runs Ruff lint, Ruff format check, an optional typecheck, and pytest via uv"
 inputs:
   run-lint:
     description: "Run Ruff lint"
@@ -9,6 +9,15 @@ inputs:
     description: "Run Ruff format check"
     required: false
     default: "true"
+  run-typecheck:
+    description: >
+      Run the typecheck step. Defaults to FALSE, unlike its siblings: this step
+      was added after consumers were already enabling `run-python-checks`, and a
+      default of true would have started failing every one of them that has not
+      cleaned up its diagnostics — or does not have a type checker installed at
+      all. The project must carry the tool in its dev dependencies.
+    required: false
+    default: "false"
   run-test:
     description: "Run pytest"
     required: false
@@ -21,6 +30,10 @@ inputs:
     description: "Ruff format check command"
     required: false
     default: "ruff format --check ."
+  typecheck-command:
+    description: "Typecheck command"
+    required: false
+    default: "ty check"
   test-command:
     description: "pytest command"
     required: false
@@ -60,6 +73,14 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         CHECK_COMMAND: ${{ inputs.format-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
+
+    - name: Typecheck
+      if: inputs.run-typecheck == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK_COMMAND: ${{ inputs.typecheck-command }}
       run: uv run sh -c "$CHECK_COMMAND"
 
     - name: Pytest

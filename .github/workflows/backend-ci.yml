@@ -3,7 +3,8 @@ name: "Backend CI"
 # Backend CI for a Python project, a Supabase project, or both. This workflow is a
 # menu: every tool is opt-in and defaults to off, so adding a new check here never
 # forces existing consumers to switch it off. `run-python-checks` gates the uv setup
-# + Ruff/pytest steps, `run-supabase-test` gates the local Supabase `test db` run.
+# + the Ruff/typecheck/pytest steps, `run-supabase-test` gates the local Supabase
+# `test db` run.
 # Enable the ones your repo actually needs — a caller that sets neither tests nothing.
 
 on:
@@ -50,6 +51,16 @@ on:
         required: false
         type: boolean
         default: true
+      run-typecheck:
+        description: >
+          Run the typecheck step (default command `ty check`). Defaults to FALSE,
+          unlike its siblings: it was added after consumers were already enabling
+          `run-python-checks`, so a default of true would start failing every one
+          that has not cleaned up its diagnostics — or has no type checker in its
+          dev dependencies at all.
+        required: false
+        type: boolean
+        default: false
       run-test:
         description: "Run pytest"
         required: false
@@ -65,6 +76,11 @@ on:
         required: false
         type: string
         default: "ruff format --check ."
+      typecheck-command:
+        description: "Typecheck command"
+        required: false
+        type: string
+        default: "ty check"
       test-command:
         description: "pytest command"
         required: false
@@ -212,9 +228,11 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
           run-lint: ${{ inputs.run-lint }}
           run-format-check: ${{ inputs.run-format-check }}
+          run-typecheck: ${{ inputs.run-typecheck }}
           run-test: ${{ inputs.run-test }}
           lint-command: ${{ inputs.lint-command }}
           format-command: ${{ inputs.format-command }}
+          typecheck-command: ${{ inputs.typecheck-command }}
           test-command: ${{ inputs.test-command }}
 
       - name: Setup local Supabase environment and test
