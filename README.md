@@ -237,11 +237,14 @@ Runs Ruff lint, Ruff format check, and pytest via `uv run`. Each check is a hard
 - `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each check
 - `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides
 
+**Every command may be compound.** Each runs as `uv run sh -c "<command>"`, so both halves of `ruff check . && pylint src` execute inside the project environment. Interpolated bare, only the first tool would be under `uv run` and the second would resolve against the system Python.
+
 ```yaml
 - uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
   with:
     run-test: true
     test-command: "pytest -q"
+    lint-command: "ruff check . && pylint src"
 ```
 
 ---
@@ -695,7 +698,7 @@ CI pipeline for a backend that is a Python project, a Supabase project, or both.
 - `working-directory` (default: `.`) - Project working directory
 - `use-custom-token` (default: `false`) - Use `CUSTOM_GITHUB_TOKEN` instead of `GITHUB_TOKEN` for private git dependencies during `uv sync`
 - `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check individually; all three run once you opt in with `run-python-checks: true`
-- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides. Each runs as `uv run sh -c "<command>"`, so a compound command works: `lint-command: "ruff check . && pylint src"` runs both inside the project environment
 - `postgres-enabled` (default: `false`) - Start an ephemeral Postgres on `localhost:5432`; `postgres-image` / `postgres-user` / `postgres-password` / `postgres-db` configure it
 - `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
 - `seed` (default: `false`) - Seed the Supabase DB before testing
@@ -737,7 +740,7 @@ jobs:
     secrets: inherit
 ```
 
-With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
+With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies — plus any second linter named in a compound `lint-command`. FastAPI and arq workers share one Python project, so this single job covers both.
 
 ---
 

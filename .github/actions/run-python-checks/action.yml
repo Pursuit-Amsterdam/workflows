@@ -33,6 +33,16 @@ inputs:
     required: false
     default: "."
 
+# Every command runs as `uv run sh -c "$CHECK_COMMAND"`, with the command passed
+# through the environment rather than interpolated into the script. Two reasons:
+#
+# 1. `&&` works. Interpolated directly, `uv run ruff check . && pylint src` puts
+#    only `ruff` inside `uv run` — the second tool runs against the system Python
+#    and either fails to resolve or silently checks the wrong interpreter. Under
+#    `sh -c` the whole chain runs in the project environment, so a repo that wants
+#    two linters can say so in one input.
+# 2. A `${{ }}` expansion lands in the shell script itself, so any input reaching
+#    it is executable text. Reading it from the environment keeps it data.
 runs:
   using: "composite"
   steps:
@@ -40,21 +50,27 @@ runs:
       if: inputs.run-lint == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: uv run ${{ inputs.lint-command }}
+      env:
+        CHECK_COMMAND: ${{ inputs.lint-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
 
     - name: Ruff format check
       if: inputs.run-format-check == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: uv run ${{ inputs.format-command }}
+      env:
+        CHECK_COMMAND: ${{ inputs.format-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
 
     - name: Pytest
       if: inputs.run-test == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK_COMMAND: ${{ inputs.test-command }}
       run: |
         set +e
-        uv run ${{ inputs.test-command }}
+        uv run sh -c "$CHECK_COMMAND"
         code=$?
         # ponytail: pytest exit 5 = "no tests collected"; treat as pass (mirrors Node's --passWithNoTests)
         if [ "$code" -eq 5 ]; then

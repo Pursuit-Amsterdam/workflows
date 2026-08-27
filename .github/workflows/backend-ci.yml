@@ -71,6 +71,11 @@ on:
         type: string
         default: "pytest"
 
+      # Every *-command input runs as `uv run sh -c "<command>"`, so a compound
+      # command works: `lint-command: "ruff check . && pylint src"` runs both
+      # inside the project environment. Interpolated bare, only the first tool
+      # would be under `uv run`.
+
       # Ephemeral Postgres for tests that need a real database
       postgres-enabled:
         description: >
