@@ -26,7 +26,7 @@ This repository is structured to provide maximum reusability and modularity:
 │   ├── run-codegen/            # Code generation (GraphQL, types, etc.)
 │   ├── run-docker-build-push/  # Docker image build and push to GHCR
 │   ├── run-pnpm-build-test/    # Build, test, lint, and typecheck with PNPM
-│   ├── run-python-checks/      # Ruff lint, Ruff format check, and pytest via uv
+│   ├── run-python-checks/      # Ruff lint, Ruff format check, typecheck, and pytest via uv
 │   ├── run-supabase-test/      # Local Supabase environment setup and testing
 │   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
 │   ├── setup-onepassword/     # Secure secret management with 1Password
@@ -228,20 +228,25 @@ Installs [uv](https://docs.astral.sh/uv/), a pinned Python version, and syncs pr
 
 ### 🧹 `run-python-checks`
 
-Runs Ruff lint, Ruff format check, and pytest via `uv run`. Each check is a hard failure (CI gate); pytest exit code 5 ("no tests collected") is treated as a pass.
+Runs Ruff lint, Ruff format check, an optional typecheck, and pytest via `uv run`. Each check is a hard failure (CI gate); pytest exit code 5 ("no tests collected") is treated as a pass.
 
 **Location**: `.github/actions/run-python-checks`
 
 **Inputs:**
 
 - `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each check
-- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides
+- `run-typecheck` (default: **`false`**) - Toggle the typecheck. Off by default because it was added after consumers were already enabling the toolchain; see the note below
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `typecheck-command` (default: `ty check`), `test-command` (default: `pytest`) - Command overrides
+
+**Every command may be compound.** Each runs as `uv run sh -c "<command>"`, so both halves of `ruff check . && pylint src` execute inside the project environment. Interpolated bare, only the first tool would be under `uv run` and the second would resolve against the system Python.
 
 ```yaml
 - uses: Pursuit-Amsterdam/workflows/.github/actions/run-python-checks@main
   with:
     run-test: true
     test-command: "pytest -q"
+    run-typecheck: true
+    lint-command: "ruff check . && pylint src"
 ```
 
 ---
@@ -673,7 +678,7 @@ jobs:
 
 CI pipeline for a backend that is a Python project, a Supabase project, or both. Every tool is **opt-in and off by default** — a repo enables only the halves it needs, so adding a new check to this workflow never forces existing consumers to switch it off:
 
-- `run-python-checks` (default `false`) — uv setup + Ruff lint, Ruff format check, pytest
+- `run-python-checks` (default `false`) — uv setup + Ruff lint, Ruff format check, optional typecheck, pytest
 - `run-supabase-test` (default `false`) — local Supabase instance + `supabase test db`
 
 > A caller that enables neither runs no checks at all. Set at least one.
@@ -683,19 +688,20 @@ CI pipeline for a backend that is a Python project, a Supabase project, or both.
 **Key Features:**
 
 - 🐍 uv-based Python environment with dependency caching
-- 🧹 Ruff lint + format check, 🧪 pytest
+- 🧹 Ruff lint + format check, 🔎 optional typecheck, 🧪 pytest
 - 🗄️ Optional local Supabase instance + `supabase test db`
 - 🐘 Optional ephemeral Postgres container for tests needing a real database
 - 🔐 1Password secrets integration for testing
 
 **Inputs:**
 
-- `run-python-checks` (default: `false`) - Master switch for the Python toolchain (uv setup + all three checks). Set `true` for a repo with a uv project (`pyproject.toml` + `uv.lock`); leave `false` for a repo with no Python code
+- `run-python-checks` (default: `false`) - Master switch for the Python toolchain (uv setup + every check below). Set `true` for a repo with a uv project (`pyproject.toml` + `uv.lock`); leave `false` for a repo with no Python code
 - `python-version` (default: `3.12`) - Python version
 - `working-directory` (default: `.`) - Project working directory
 - `use-custom-token` (default: `false`) - Use `CUSTOM_GITHUB_TOKEN` instead of `GITHUB_TOKEN` for private git dependencies during `uv sync`
 - `run-lint` / `run-format-check` / `run-test` (default: `true`) - Toggle each Python check individually; all three run once you opt in with `run-python-checks: true`
-- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `test-command` (default: `pytest`) - Command overrides (run via `uv run`)
+- `run-typecheck` (default: **`false`**) - Toggle the typecheck. The one sub-flag that is off by default: it landed after consumers were already enabling `run-python-checks`, so defaulting it on would have started failing every repo that has not cleaned up its diagnostics, or has no type checker installed
+- `lint-command` (default: `ruff check .`), `format-command` (default: `ruff format --check .`), `typecheck-command` (default: `ty check`), `test-command` (default: `pytest`) - Command overrides. Each runs as `uv run sh -c "<command>"`, so a compound command works: `lint-command: "ruff check . && pylint src"` runs both inside the project environment
 - `postgres-enabled` (default: `false`) - Start an ephemeral Postgres on `localhost:5432`; `postgres-image` / `postgres-user` / `postgres-password` / `postgres-db` configure it
 - `run-supabase-test` (default: `false`) - Spin up a local Supabase instance and run `supabase test db`
 - `seed` (default: `false`) - Seed the Supabase DB before testing
@@ -737,7 +743,7 @@ jobs:
     secrets: inherit
 ```
 
-With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies. FastAPI and arq workers share one Python project, so this single job covers both.
+With `run-python-checks: true` the project must be a uv project (`pyproject.toml` + `uv.lock`) with `ruff` and `pytest` in its dev dependencies — plus a type checker if you set `run-typecheck: true`, and any second linter named in a compound `lint-command`. FastAPI and arq workers share one Python project, so this single job covers both.
 
 ---
 

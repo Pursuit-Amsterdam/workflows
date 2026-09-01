@@ -1,5 +1,5 @@
 name: "Python checks"
-description: "Runs Ruff lint, Ruff format check, and pytest via uv"
+description: "Runs Ruff lint, Ruff format check, an optional typecheck, and pytest via uv"
 inputs:
   run-lint:
     description: "Run Ruff lint"
@@ -9,6 +9,15 @@ inputs:
     description: "Run Ruff format check"
     required: false
     default: "true"
+  run-typecheck:
+    description: >
+      Run the typecheck step. Defaults to FALSE, unlike its siblings: this step
+      was added after consumers were already enabling `run-python-checks`, and a
+      default of true would have started failing every one of them that has not
+      cleaned up its diagnostics — or does not have a type checker installed at
+      all. The project must carry the tool in its dev dependencies.
+    required: false
+    default: "false"
   run-test:
     description: "Run pytest"
     required: false
@@ -21,6 +30,10 @@ inputs:
     description: "Ruff format check command"
     required: false
     default: "ruff format --check ."
+  typecheck-command:
+    description: "Typecheck command"
+    required: false
+    default: "ty check"
   test-command:
     description: "pytest command"
     required: false
@@ -33,6 +46,16 @@ inputs:
     required: false
     default: "."
 
+# Every command runs as `uv run sh -c "$CHECK_COMMAND"`, with the command passed
+# through the environment rather than interpolated into the script. Two reasons:
+#
+# 1. `&&` works. Interpolated directly, `uv run ruff check . && pylint src` puts
+#    only `ruff` inside `uv run` — the second tool runs against the system Python
+#    and either fails to resolve or silently checks the wrong interpreter. Under
+#    `sh -c` the whole chain runs in the project environment, so a repo that wants
+#    two linters can say so in one input.
+# 2. A `${{ }}` expansion lands in the shell script itself, so any input reaching
+#    it is executable text. Reading it from the environment keeps it data.
 runs:
   using: "composite"
   steps:
@@ -40,21 +63,35 @@ runs:
       if: inputs.run-lint == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: uv run ${{ inputs.lint-command }}
+      env:
+        CHECK_COMMAND: ${{ inputs.lint-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
 
     - name: Ruff format check
       if: inputs.run-format-check == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: uv run ${{ inputs.format-command }}
+      env:
+        CHECK_COMMAND: ${{ inputs.format-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
+
+    - name: Typecheck
+      if: inputs.run-typecheck == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK_COMMAND: ${{ inputs.typecheck-command }}
+      run: uv run sh -c "$CHECK_COMMAND"
 
     - name: Pytest
       if: inputs.run-test == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      env:
+        CHECK_COMMAND: ${{ inputs.test-command }}
       run: |
         set +e
-        uv run ${{ inputs.test-command }}
+        uv run sh -c "$CHECK_COMMAND"
         code=$?
         # ponytail: pytest exit 5 = "no tests collected"; treat as pass (mirrors Node's --passWithNoTests)
         if [ "$code" -eq 5 ]; then
