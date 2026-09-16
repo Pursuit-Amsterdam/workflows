@@ -10,8 +10,12 @@ on:
             {"name":"ghcr.io/org/app-backend","dockerfile":"./apps/api/Dockerfile"}]'.
           Set "build-args":"public" to pass the non-concealed 1Password fields as build args
           (e.g. NEXT_PUBLIC_* for the frontend).
-        required: true
+          Empty (the default) skips the build job entirely and deploys the stack as-is —
+          for stacks built only from third-party images (e.g. a packaged application),
+          where there is nothing in the repo to build.
+        required: false
         type: string
+        default: "[]"
       ref:
         description: >
           Git ref (branch, tag, or SHA) to check out for the build and deploy.
@@ -139,6 +143,11 @@ permissions:
 
 jobs:
   build:
+    # An empty `images` array yields zero matrix jobs, which GitHub reports as a
+    # SKIPPED job rather than a successful one — and a skipped `needs` blocks the
+    # dependent job. Gating here keeps that shape explicit instead of relying on
+    # the empty-matrix behaviour; `deploy` handles the skip (see its `if`).
+    if: inputs.images != '[]'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
     defaults:
@@ -195,7 +204,17 @@ jobs:
           additional-tags: ${{ format('{0}:{1}', matrix.image.name, steps.set-sha-tag.outputs.tag) }}
 
   deploy:
-    if: inputs.deploy-enabled
+    # `always()` is required so a SKIPPED build (no images to build) does not
+    # cascade into a skipped deploy — without it the default `success()` treats
+    # the skip as "not successful". It must then be paired with an explicit
+    # result check, or `always()` would also deploy on top of a FAILED build.
+    # `!= 'failure'` (rather than `== 'success'`) accepts both 'success' and
+    # 'skipped'; 'cancelled' is excluded by the cancellation check.
+    if: >-
+      always()
+      && inputs.deploy-enabled
+      && needs.build.result != 'failure'
+      && needs.build.result != 'cancelled'
     needs: build
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
