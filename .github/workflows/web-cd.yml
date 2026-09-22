@@ -118,6 +118,40 @@ on:
         type: string
         default: ""
 
+      # Supabase Edge Functions
+      supabase-functions-deploy:
+        description: >-
+          Deploy Supabase Edge Functions (and sync their secrets) before the
+          app deploy, so a green release never ships an app that talks to
+          stale functions.
+        required: false
+        type: boolean
+        default: false
+      supabase-functions:
+        description: >-
+          Space-separated function names to deploy. Empty (the default) deploys
+          every function declared in supabase/config.toml -- pin names only if
+          you accept maintaining the same list in two places.
+        required: false
+        type: string
+        default: ""
+      supabase-secret-names:
+        description: >-
+          Space-separated env var names to sync to the Supabase secret store.
+          Values must already be in the environment, i.e. present in the
+          1Password item loaded above.
+        required: false
+        type: string
+        default: ""
+      supabase-functions-use-api:
+        description: >-
+          Bundle functions server-side via the Management API, keeping Docker
+          off the runner. Set to false only if a function needs something the
+          API bundler cannot do.
+        required: false
+        type: boolean
+        default: true
+
       # 1Password secrets
       onepassword_enabled:
         description: "Enable 1Password secrets loading"
@@ -147,6 +181,12 @@ on:
       VERCEL_ORG_ID:
         required: false
       VERCEL_PROJECT_ID:
+        required: false
+
+      # Supabase secrets (only required when supabase-functions-deploy is true)
+      SUPABASE_ACCESS_TOKEN:
+        required: false
+      SUPABASE_PROJECT_REF:
         required: false
         
 permissions:
@@ -216,6 +256,20 @@ jobs:
           lint-command: ${{ inputs.lint-command }}
           typecheck-command: ${{ inputs.typecheck-command }}
           format-command: ${{ inputs.format-command }}
+
+      # Before Vercel on purpose: if the functions fail, the app does not ship
+      # at all. The reverse order would leave a new app talking to old
+      # functions with no failing signal.
+      - name: Deploy Supabase Edge Functions
+        if: inputs.supabase-functions-deploy
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-supabase-functions@main
+        with:
+          access-token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          project-ref: ${{ secrets.SUPABASE_PROJECT_REF }}
+          functions: ${{ inputs.supabase-functions }}
+          secret-names: ${{ inputs.supabase-secret-names }}
+          use-api: ${{ inputs.supabase-functions-use-api }}
+          working-directory: ${{ inputs.working-directory }}
 
       - name: Deploy to Vercel
         uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@main

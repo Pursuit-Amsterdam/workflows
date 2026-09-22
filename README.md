@@ -131,6 +131,17 @@ Configure these secrets in your repository or organization settings:
 - `DB_CONNECTION_STRING`: Database connection URL
 - `DB_PASSWORD`: Database password
 
+**For Supabase Edge Functions:**
+
+- `SUPABASE_ACCESS_TOKEN`: Personal access token of a machine account with the
+  **Owner or Administrator** role on the Supabase org. `supabase secrets set` is
+  gated on that role, so a developer's own token will not do. Note that a
+  Supabase PAT is account-wide: keep the machine account in this org only, with
+  2FA, and rotate the token on a schedule.
+- `SUPABASE_PROJECT_REF`: The project ref from the project URL. Set it as an
+  **environment-scoped** secret so one workflow file targets a different project
+  per environment, exactly like `VERCEL_PROJECT_ID`.
+
 ---
 
 ## Composite Actions
@@ -513,6 +524,63 @@ Supabase database migration action that applies migrations using the Supabase CL
 
 ---
 
+### ⚡ `deploy-supabase-functions`
+
+Syncs Edge Function secrets and deploys Supabase Edge Functions with the Supabase
+CLI. Separate from `deploy-supabase`, which handles database migrations.
+
+**Location**: `.github/actions/deploy-supabase-functions`
+
+**Inputs:**
+
+- `access-token` (**required**) - Supabase PAT from a machine account with org
+  Owner/Administrator (see [Required Secrets](#4-required-secrets-configuration))
+- `project-ref` (**required**) - Supabase project ref
+- `functions` (optional, default: `""`) - Space-separated function names. Empty
+  deploys every function declared in `supabase/config.toml`
+- `secret-names` (optional, default: `""`) - Space-separated env var names to
+  sync to the Supabase secret store. Empty skips the sync
+- `use-api` (optional, default: `"true"`) - Bundle server-side via the
+  Management API, so the runner needs no Docker
+- `working-directory` (optional, default: `"."`) - Directory containing the
+  `supabase/` folder
+
+**Features:**
+
+- 🔐 Secret sync from the job environment — the action never talks to a secret
+  store itself, so any source works; `setup-onepassword` already exports the
+  vault item to `$GITHUB_ENV`
+- 🔁 Every release re-asserts the listed names, so a changed value in 1Password
+  reaches the project on the next deploy
+- ⚠️ One-directional: `supabase secrets set` never unsets. Removing a name from
+  `secret-names` leaves the old value live in the project — to revoke a secret,
+  run `supabase secrets unset NAME --project-ref <ref>` explicitly. Automating
+  "delete everything unlisted" would let one typo wipe live secrets mid-release
+- 🚫 Fails fast, with a named error, on: an empty access token or project ref, a
+  name that is not a valid env var name, a name missing from the environment,
+  the reserved `SUPABASE_` prefix, and values containing a line break (CR
+  included — a Windows copy-paste otherwise reaches the secret store intact)
+- ⚙️ `verify_jwt`, `import_map` and `entrypoint` come from
+  `supabase/config.toml`, so nothing about a function's wiring lives in the
+  workflow
+
+**Why this exists:** `supabase secrets set` and `supabase functions deploy` are
+CLI actions that require org Owner/Administrator. Without them in CD, function
+secrets are set by hand by whoever has the rights, and a green pipeline can ship
+an app that talks to stale functions.
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-supabase-functions@main
+  with:
+    access-token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    project-ref: ${{ secrets.SUPABASE_PROJECT_REF }}
+    secret-names: "WEBHOOK_SECRET SMTP2GO_API_KEY"
+```
+
+---
+
 ## Workflows
 
 ### 🌐 `web-ci.yml` - Web Application CI Pipeline
@@ -603,6 +671,23 @@ Generic web deployment workflow with platform abstraction (currently supports Ve
 - `build-mode` (default: `github`) - Build location
 - `prepare-package` (default: `false`) - Prepare package.json for runtime
 
+**Supabase Edge Function Options:**
+
+- `supabase-functions-deploy` (default: `false`) - Deploy Edge Functions and sync
+  their secrets before the app deploy
+- `supabase-functions` (default: `""`) - Function names to deploy. Empty deploys
+  every function in `supabase/config.toml`
+- `supabase-secret-names` (default: `""`) - Env var names to sync to the Supabase
+  secret store. The values must come from the 1Password item, so
+  `onepassword_enabled` has to be on
+- `supabase-functions-use-api` (default: `true`) - Bundle server-side via the
+  Management API. Set to `false` only if a function needs the Docker bundler
+
+Functions deploy **before** Vercel: if they fail, the app does not ship at all,
+which keeps the window where a new app talks to old functions as small as
+possible. Requires the `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_REF`
+secrets.
+
 **Example Usage:**
 
 ```yaml
@@ -617,6 +702,25 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+```
+
+**With Supabase Edge Functions:**
+
+```yaml
+jobs:
+  deploy:
+    uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
+    with:
+      platform: "vercel"
+      environment: "production"
+      # supabase-functions omitted: deploy everything in supabase/config.toml,
+      # so a newly added function can never be silently left undeployed.
+      supabase-functions-deploy: true
+      supabase-secret-names: "WEBHOOK_SECRET SMTP2GO_API_KEY"
+      onepassword_enabled: true
+      onepassword_vault: my-app-production
+      onepassword_item: my-app-production-secrets
+    secrets: inherit
 ```
 
 ---
