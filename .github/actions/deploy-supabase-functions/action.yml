@@ -74,12 +74,24 @@ runs:
       with:
         version: latest
 
-    # Every release re-asserts the full set, so the Supabase secret store cannot
-    # drift from 1Password -- the same reasoning as the Vercel project-env sync
-    # in deploy-vercel. Unlike that sync, a missing value is fatal here: an Edge
-    # Function that starts with an empty env fails at request time with a 401 or
-    # a 500 that looks like anything else, so failing the release is strictly
-    # cheaper to diagnose.
+    # Every release re-asserts the listed names, so a value that changes in
+    # 1Password reaches the project on the next deploy -- the same reasoning as
+    # the Vercel project-env sync in deploy-vercel.
+    #
+    # This syncs one direction only. `supabase secrets set` adds and updates;
+    # it never unsets, and this action never calls `secrets unset`. Dropping a
+    # name from secret-names therefore leaves the old value live and readable
+    # by every Edge Function in the project. That is the rotation case, where
+    # an operator most expects removal to have propagated, so revoking a secret
+    # means unsetting it explicitly:
+    #   supabase secrets unset NAME --project-ref <ref>
+    # Deliberately not automated: inferring "remove everything not listed"
+    # would let one typo in secret-names wipe live secrets mid-release.
+    #
+    # Unlike the Vercel sync, a missing value is fatal here: an Edge Function
+    # that starts with an empty env fails at request time with a 401 or a 500
+    # that looks like anything else, so failing the release is cheaper to
+    # diagnose.
     - name: Sync Edge Function secrets
       if: inputs.secret-names != ''
       shell: bash

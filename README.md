@@ -550,8 +550,12 @@ CLI. Separate from `deploy-supabase`, which handles database migrations.
 - 🔐 Secret sync from the job environment — the action never talks to a secret
   store itself, so any source works; `setup-onepassword` already exports the
   vault item to `$GITHUB_ENV`
-- 🔁 Every release re-asserts the full set, so the Supabase secret store cannot
-  drift from 1Password
+- 🔁 Every release re-asserts the listed names, so a changed value in 1Password
+  reaches the project on the next deploy
+- ⚠️ One-directional: `supabase secrets set` never unsets. Removing a name from
+  `secret-names` leaves the old value live in the project — to revoke a secret,
+  run `supabase secrets unset NAME --project-ref <ref>` explicitly. Automating
+  "delete everything unlisted" would let one typo wipe live secrets mid-release
 - 🚫 Fails fast, with a named error, on: an empty access token or project ref, a
   name that is not a valid env var name, a name missing from the environment,
   the reserved `SUPABASE_` prefix, and values containing a line break (CR
