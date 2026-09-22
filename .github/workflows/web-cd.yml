@@ -143,6 +143,14 @@ on:
         required: false
         type: string
         default: ""
+      supabase-functions-use-api:
+        description: >-
+          Bundle functions server-side via the Management API, keeping Docker
+          off the runner. Set to false only if a function needs something the
+          API bundler cannot do.
+        required: false
+        type: boolean
+        default: true
 
       # 1Password secrets
       onepassword_enabled:
@@ -260,6 +268,7 @@ jobs:
           project-ref: ${{ secrets.SUPABASE_PROJECT_REF }}
           functions: ${{ inputs.supabase-functions }}
           secret-names: ${{ inputs.supabase-secret-names }}
+          use-api: ${{ inputs.supabase-functions-use-api }}
           working-directory: ${{ inputs.working-directory }}
 
       - name: Deploy to Vercel

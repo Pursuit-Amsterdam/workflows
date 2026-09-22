@@ -552,8 +552,10 @@ CLI. Separate from `deploy-supabase`, which handles database migrations.
   vault item to `$GITHUB_ENV`
 - 🔁 Every release re-asserts the full set, so the Supabase secret store cannot
   drift from 1Password
-- 🚫 Fails fast on a name that is missing from the environment, on the reserved
-  `SUPABASE_` prefix, and on multiline values
+- 🚫 Fails fast, with a named error, on: an empty access token or project ref, a
+  name that is not a valid env var name, a name missing from the environment,
+  the reserved `SUPABASE_` prefix, and values containing a line break (CR
+  included — a Windows copy-paste otherwise reaches the secret store intact)
 - ⚙️ `verify_jwt`, `import_map` and `entrypoint` come from
   `supabase/config.toml`, so nothing about a function's wiring lives in the
   workflow
@@ -674,6 +676,8 @@ Generic web deployment workflow with platform abstraction (currently supports Ve
 - `supabase-secret-names` (default: `""`) - Env var names to sync to the Supabase
   secret store. The values must come from the 1Password item, so
   `onepassword_enabled` has to be on
+- `supabase-functions-use-api` (default: `true`) - Bundle server-side via the
+  Management API. Set to `false` only if a function needs the Docker bundler
 
 Functions deploy **before** Vercel: if they fail, the app does not ship at all,
 which keeps the window where a new app talks to old functions as small as

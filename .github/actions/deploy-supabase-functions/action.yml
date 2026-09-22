@@ -46,6 +46,29 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # `required: true` is not enforced for composite-action inputs, and both of
+    # these arrive from optional workflow_call secrets -- an unset secret is an
+    # empty string, which otherwise fails deep inside the CLI with no hint that
+    # a GitHub secret is what is missing.
+    - name: Validate required inputs
+      shell: bash
+      env:
+        ACCESS_TOKEN: ${{ inputs.access-token }}
+        PROJECT_REF: ${{ inputs.project-ref }}
+      run: |
+        set -euo pipefail
+
+        missing=0
+        if [[ -z "${ACCESS_TOKEN}" ]]; then
+          echo "::error::access-token is empty. Is the SUPABASE_ACCESS_TOKEN secret set for this repository/environment, and passed through by the caller?"
+          missing=1
+        fi
+        if [[ -z "${PROJECT_REF}" ]]; then
+          echo "::error::project-ref is empty. Is the SUPABASE_PROJECT_REF secret set for this environment, and passed through by the caller?"
+          missing=1
+        fi
+        [[ "${missing}" -eq 0 ]]
+
     - name: Install Supabase CLI
       uses: supabase/setup-cli@v1
       with:
@@ -67,12 +90,25 @@ runs:
         SECRET_NAMES: ${{ inputs.secret-names }}
       run: |
         set -euo pipefail
+        # Unquoted ${SECRET_NAMES} below is deliberate word splitting, but it
+        # also invites pathname expansion -- a name containing a glob character
+        # would otherwise silently become whatever file it happens to match.
+        set -f
 
         env_file="$(mktemp)"
         trap 'rm -f "${env_file}"' EXIT
         chmod 600 "${env_file}"
 
+        count=0
         for name in ${SECRET_NAMES}; do
+          # Check the shape before the indirect expansion below: `${!name}` on
+          # anything that is not a valid identifier aborts with bash's own
+          # "invalid variable name", which says nothing about where the typo is.
+          if [[ ! "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            echo "::error::'${name}' in secret-names is not a valid environment variable name. Expected names separated by spaces, e.g. 'WEBHOOK_SECRET SMTP2GO_API_KEY'."
+            exit 1
+          fi
+
           # Supabase reserves this prefix for the keys it injects itself
           # (SUPABASE_URL, SUPABASE_SECRET_KEYS, ...) and rejects the whole
           # batch if one shows up. Catch it here with a name, not there.
@@ -83,21 +119,29 @@ runs:
 
           value="${!name:-}"
           if [[ -z "${value}" ]]; then
-            echo "::error::${name} is listed in secret-names but not set in the environment. Is it present in the 1Password item, spelled exactly like this?"
+            # Two distinct causes, and the second is easy to miss: if no step
+            # loaded secrets into the environment at all, EVERY name fails here
+            # and the item is a red herring.
+            echo "::error::${name} is listed in secret-names but not set in the environment. Either it is missing from the loaded secrets item (check the exact spelling), or no secrets were loaded at all -- setup-onepassword only runs when onepassword_enabled is true."
             exit 1
           fi
 
           # Values are single-line by convention (generated tokens, API keys).
           # A multiline value would need dotenv quoting the CLI does not apply.
-          if [[ "${value}" == *$'\n'* ]]; then
-            echo "::error::${name} contains a newline; the Supabase env-file format takes single-line values only."
+          # CR matters as much as LF: a value pasted into 1Password from a
+          # Windows editor carries a trailing \r, which travels all the way into
+          # the secret store and makes the function 401 at request time -- the
+          # exact failure this validation exists to prevent.
+          if [[ "${value}" == *$'\n'* || "${value}" == *$'\r'* ]]; then
+            echo "::error::${name} contains a line break; the Supabase env-file format takes single-line values only. A trailing CR from a copy-paste counts -- check the 1Password field."
             exit 1
           fi
 
           printf '%s=%s\n' "${name}" "${value}" >> "${env_file}"
+          count=$((count + 1))
         done
 
-        echo "Syncing $(wc -l < "${env_file}" | tr -d ' ') secret(s) to project ${PROJECT_REF}..."
+        echo "Syncing ${count} secret(s) to project ${PROJECT_REF}..."
         supabase secrets set --project-ref "${PROJECT_REF}" --env-file "${env_file}"
 
     # verify_jwt, import_map and entrypoint all come from supabase/config.toml,
@@ -112,6 +156,8 @@ runs:
         USE_API: ${{ inputs.use-api }}
       run: |
         set -euo pipefail
+        # See the sync step: word-split ${FUNCTIONS}, but never glob it.
+        set -f
 
         deploy_args=("--project-ref" "${PROJECT_REF}")
         if [[ "${USE_API}" == "true" ]]; then
