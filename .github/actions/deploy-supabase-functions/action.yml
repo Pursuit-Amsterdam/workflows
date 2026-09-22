@@ -1,0 +1,129 @@
+name: "Deploy Supabase Edge Functions"
+description: >-
+  Syncs Edge Function secrets and deploys Edge Functions with the Supabase CLI.
+  Secret values are read from the job environment (load them first, e.g. via
+  setup-onepassword), so this action never talks to a secret store itself.
+inputs:
+  access-token:
+    description: >-
+      Supabase personal access token. `supabase secrets set` requires Owner or
+      Administrator on the Supabase org, so this must come from a machine
+      account with that role -- not from a developer's own account.
+    required: true
+  project-ref:
+    description: "Supabase project ref (the id in the project URL)."
+    required: true
+  functions:
+    description: >-
+      Space-separated function names to deploy. Empty (the default) deploys
+      every function declared in supabase/config.toml, which keeps config.toml
+      the single source of truth.
+    required: false
+    default: ""
+  secret-names:
+    description: >-
+      Space-separated env var names to sync to the Supabase secret store before
+      deploying. Values are read from the environment populated by
+      setup-onepassword. Empty skips the sync entirely.
+    required: false
+    default: ""
+  use-api:
+    description: >-
+      Bundle functions server-side via the Management API instead of locally
+      with Docker. Keeps Docker off the runner; set to "false" only if a
+      function needs something the API bundler cannot do.
+    required: false
+    default: "true"
+  working-directory:
+    description: >-
+      Directory containing the `supabase/` folder. Required when the project is
+      not at the repo root -- a caller job's `defaults.run.working-directory`
+      does NOT reach inside a composite action, and the CLI reads
+      supabase/config.toml relative to the working directory.
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+
+    # Every release re-asserts the full set, so the Supabase secret store cannot
+    # drift from 1Password -- the same reasoning as the Vercel project-env sync
+    # in deploy-vercel. Unlike that sync, a missing value is fatal here: an Edge
+    # Function that starts with an empty env fails at request time with a 401 or
+    # a 500 that looks like anything else, so failing the release is strictly
+    # cheaper to diagnose.
+    - name: Sync Edge Function secrets
+      if: inputs.secret-names != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ inputs.access-token }}
+        PROJECT_REF: ${{ inputs.project-ref }}
+        SECRET_NAMES: ${{ inputs.secret-names }}
+      run: |
+        set -euo pipefail
+
+        env_file="$(mktemp)"
+        trap 'rm -f "${env_file}"' EXIT
+        chmod 600 "${env_file}"
+
+        for name in ${SECRET_NAMES}; do
+          # Supabase reserves this prefix for the keys it injects itself
+          # (SUPABASE_URL, SUPABASE_SECRET_KEYS, ...) and rejects the whole
+          # batch if one shows up. Catch it here with a name, not there.
+          if [[ "${name}" == SUPABASE_* ]]; then
+            echo "::error::${name} uses the reserved SUPABASE_ prefix and cannot be set as a function secret."
+            exit 1
+          fi
+
+          value="${!name:-}"
+          if [[ -z "${value}" ]]; then
+            echo "::error::${name} is listed in secret-names but not set in the environment. Is it present in the 1Password item, spelled exactly like this?"
+            exit 1
+          fi
+
+          # Values are single-line by convention (generated tokens, API keys).
+          # A multiline value would need dotenv quoting the CLI does not apply.
+          if [[ "${value}" == *$'\n'* ]]; then
+            echo "::error::${name} contains a newline; the Supabase env-file format takes single-line values only."
+            exit 1
+          fi
+
+          printf '%s=%s\n' "${name}" "${value}" >> "${env_file}"
+        done
+
+        echo "Syncing $(wc -l < "${env_file}" | tr -d ' ') secret(s) to project ${PROJECT_REF}..."
+        supabase secrets set --project-ref "${PROJECT_REF}" --env-file "${env_file}"
+
+    # verify_jwt, import_map and entrypoint all come from supabase/config.toml,
+    # so nothing about a function's wiring lives in the workflow.
+    - name: Deploy Edge Functions
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SUPABASE_ACCESS_TOKEN: ${{ inputs.access-token }}
+        PROJECT_REF: ${{ inputs.project-ref }}
+        FUNCTIONS: ${{ inputs.functions }}
+        USE_API: ${{ inputs.use-api }}
+      run: |
+        set -euo pipefail
+
+        deploy_args=("--project-ref" "${PROJECT_REF}")
+        if [[ "${USE_API}" == "true" ]]; then
+          deploy_args+=("--use-api")
+        fi
+
+        if [[ -z "${FUNCTIONS}" ]]; then
+          echo "Deploying every function declared in supabase/config.toml..."
+          supabase functions deploy "${deploy_args[@]}"
+        else
+          for fn in ${FUNCTIONS}; do
+            echo "Deploying ${fn}..."
+            supabase functions deploy "${fn}" "${deploy_args[@]}"
+          done
+        fi
