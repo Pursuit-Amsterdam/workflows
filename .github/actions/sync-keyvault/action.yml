@@ -1,0 +1,71 @@
+name: "Sync secrets to Azure Key Vault"
+description: "Writes values already loaded into the job env (e.g. by setup-onepassword) into an Azure Key Vault"
+inputs:
+  azure-credentials:
+    description: "Azure service principal JSON for azure/login (AZURE_CREDENTIALS)"
+    required: true
+  vault-name:
+    description: "Azure Key Vault name (not the URI)"
+    required: true
+  secrets:
+    description: >
+      Newline-separated `<kv-secret-name>=<ENV_VAR_NAME>` pairs, e.g.
+      'cloudflare-origin-cert=CLOUDFLARE_ORIGIN_CERT'. The env var is read from the
+      job environment, so setup-onepassword must have run first. An env var that is
+      unset or empty is skipped, not written.
+
+      Values are compared against the Key Vault before writing, so an unchanged
+      secret creates no new version.
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Log in to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ inputs.azure-credentials }}
+
+    - name: Push secrets to Key Vault
+      shell: bash
+      env:
+        VAULT_NAME: ${{ inputs.vault-name }}
+        SECRET_MAP: ${{ inputs.secrets }}
+      run: |
+        set -euo pipefail
+
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+
+        while IFS= read -r line; do
+          line="${line%%#*}"
+          line="${line#"${line%%[![:space:]]*}"}"   # trim leading
+          line="${line%"${line##*[![:space:]]}"}"   # trim trailing
+          [[ -z "$line" ]] && continue
+
+          kv_name="${line%%=*}"
+          env_name="${line#*=}"
+          value="${!env_name:-}"
+
+          if [[ -z "$value" ]]; then
+            echo "⏭  ${kv_name}: \$${env_name} is unset or empty — skipping"
+            continue
+          fi
+
+          # --file keeps multiline values (PEM blocks) intact and off the command line.
+          printf '%s' "$value" > "$tmp/value"
+
+          # `secret show` 404s when the secret has never been created; treat that
+          # as "different" so the first run writes it.
+          current=$(az keyvault secret show --vault-name "$VAULT_NAME" --name "$kv_name" 2>/dev/null \
+            | jq -r '.value // empty' || true)
+
+          if [[ "$current" == "$value" ]]; then
+            echo "✅ ${kv_name}: unchanged"
+            continue
+          fi
+
+          # Output carries the secret value, so it never reaches the log.
+          az keyvault secret set --vault-name "$VAULT_NAME" --name "$kv_name" --file "$tmp/value" > /dev/null
+          echo "⬆️  ${kv_name}: updated from \$${env_name}"
+        done <<< "$SECRET_MAP"

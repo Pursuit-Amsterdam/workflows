@@ -31,7 +31,8 @@ This repository is structured to provide maximum reusability and modularity:
 │   ├── setup-node-pnpm/       # Node.js and PNPM environment setup
 │   ├── setup-onepassword/     # Secure secret management with 1Password
 │   ├── setup-python/          # Python (uv) environment setup
-│   └── setup-version/         # Version management and environment variables
+│   ├── setup-version/         # Version management and environment variables
+│   └── sync-keyvault/         # Push env values (from 1Password) into Azure Key Vault
 └── workflows/                   # Reusable workflows
     ├── backend-cd.yml          # Backend continuous deployment (Supabase)
     ├── backend-ci.yml          # Backend CI: Python checks + optional Supabase test
@@ -505,6 +506,54 @@ Supabase database migration action that applies migrations using the Supabase CL
 
 ---
 
+### 🔑 `sync-keyvault`
+
+Writes values that are already in the job environment — typically loaded by [`setup-onepassword`](#-setup-onepassword) — into an Azure Key Vault. Use it when something outside the deployed stack reads Key Vault (a VM fetching its TLS cert at boot, an Azure App Service settings binding) but 1Password is the source of truth.
+
+**Location**: `.github/actions/sync-keyvault`
+
+**Inputs:**
+
+- `azure-credentials` (**required**) - Azure service principal JSON for `azure/login`
+- `vault-name` (**required**) - Key Vault name (not the URI)
+- `secrets` (**required**) - Newline-separated `<kv-secret-name>=<ENV_VAR_NAME>` pairs. `#` comments and blank lines are ignored.
+
+**Features:**
+
+- 🔐 Values are read from the environment by name — they never appear on a command line or in the log
+- 📄 Multiline values (PEM blocks) survive intact
+- ♻️ Compares against the current Key Vault value first, so an unchanged secret creates **no new version**
+- ⏭ An env var that is unset or empty is skipped, not written — a partially-filled 1Password item won't blank a Key Vault secret
+
+**Service principal:** needs `Key Vault Secrets Officer` (or at least `set`/`get` on secrets) scoped to the vault.
+
+```bash
+az ad sp create-for-rbac --name "<repo>-kv-sync" --role "Key Vault Secrets Officer" \
+  --scopes "$(az keyvault show --name "$VAULT" --query id -o tsv)" --json-auth
+```
+
+Store the JSON output as the `AZURE_CREDENTIALS` repo secret.
+
+**Example Usage:**
+
+```yaml
+- uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@main
+  with:
+    service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    vault-name: "my-project"
+    item-name: "production-env"
+
+- uses: Pursuit-Amsterdam/workflows/.github/actions/sync-keyvault@main
+  with:
+    azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+    vault-name: "myapp-kv-a1b2c3"
+    secrets: |
+      cloudflare-origin-cert=CLOUDFLARE_ORIGIN_CERT
+      cloudflare-origin-key=CLOUDFLARE_ORIGIN_KEY
+```
+
+---
+
 ## Workflows
 
 ### 🌐 `web-ci.yml` - Web Application CI Pipeline
@@ -899,6 +948,8 @@ Zero-downtime deployment of a stateless docker stack (e.g. Next.js frontend, Fas
 - `migrate-image` (optional) - Image **name** (without tag) to run once before deploying, e.g. the backend image for DB migrations. The current `VERSION` tag is applied automatically; empty skips migrations.
 - `migrate-command` (optional) - Command override for the migration container, e.g. `alembic upgrade head`
 - `onepassword_enabled` / `onepassword_vault` / `onepassword_item` - 1Password integration
+- `keyvault-name` (optional) - Azure Key Vault to fill from 1Password before deploying. Empty skips the step.
+- `keyvault-secrets` (optional) - Newline-separated `<kv-secret-name>=<OP_FIELD_NAME>` pairs to copy across. See [`sync-keyvault`](#-sync-keyvault).
 
 **Secrets:**
 
@@ -906,6 +957,7 @@ Zero-downtime deployment of a stateless docker stack (e.g. Next.js frontend, Fas
 - `VM_SSH_KNOWN_HOSTS` (optional) - `known_hosts` entry for the manager; if omitted the host is scanned with `ssh-keyscan`
 - `OP_SERVICE_ACCOUNT_TOKEN` - 1Password service account token
 - `CUSTOM_GITHUB_TOKEN` - Token for private npm/Python packages during build
+- `AZURE_CREDENTIALS` - Service principal JSON, required only when `keyvault-name` is set
 
 **Example Usage:**
 
@@ -921,6 +973,13 @@ jobs:
       onepassword_enabled: true
       onepassword_vault: "my-project"
       onepassword_item: "production-env"
+      # Fill the VM's Key Vault from that same 1Password item before deploying.
+      # The VM reads the Origin cert from Key Vault at boot; 1Password stays the
+      # single source of truth.
+      keyvault-name: ${{ vars.AZURE_KEY_VAULT }}
+      keyvault-secrets: |
+        cloudflare-origin-cert=CLOUDFLARE_ORIGIN_CERT
+        cloudflare-origin-key=CLOUDFLARE_ORIGIN_KEY
       # Reuse the backend image to run migrations once before deploying:
       migrate-image: "ghcr.io/pursuit-amsterdam/myapp-backend"
       migrate-command: "alembic upgrade head"
@@ -933,7 +992,13 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
       VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
       VM_SSH_KNOWN_HOSTS: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+      AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 ```
+
+> **Note:** syncing a cert into Key Vault does not restart anything on the VM. The
+> VM's `refresh-cert.sh` runs at boot; after rotating the cert, run it once
+> (`ssh <admin>@<vm> 'sudo /usr/local/bin/refresh-cert.sh'`) and then
+> `docker service update --force <stack>_traefik`.
 
 **Consumer `docker-stack.yml` template:**
 
