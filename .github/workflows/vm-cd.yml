@@ -126,6 +126,22 @@ on:
         required: false
         type: string
         default: ""
+      keyvault-name:
+        description: >
+          Azure Key Vault to push secrets into before deploying. Empty to skip.
+          Requires onepassword_enabled and the AZURE_CREDENTIALS secret.
+        required: false
+        type: string
+        default: ""
+      keyvault-secrets:
+        description: >
+          Newline-separated `<kv-secret-name>=<OP_FIELD_NAME>` pairs to copy from the
+          1Password item into the Key Vault, e.g.
+          'cloudflare-origin-cert=CLOUDFLARE_ORIGIN_CERT'. A field that is absent or
+          empty in 1Password is skipped, and an unchanged value creates no new version.
+        required: false
+        type: string
+        default: ""
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN:
         required: false
@@ -135,6 +151,8 @@ on:
       VM_SSH_KNOWN_HOSTS:
         required: false
       CUSTOM_GITHUB_TOKEN:
+        required: false
+      AZURE_CREDENTIALS:
         required: false
 
 permissions:
@@ -237,6 +255,17 @@ jobs:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           vault-name: ${{ inputs.onepassword_vault }}
           item-name: ${{ inputs.onepassword_item }}
+
+      # Key Vault holds the material the VM itself reads at boot (Cloudflare Origin
+      # cert), which 1Password is the source of truth for. Syncing it here keeps the
+      # two in step without an operator running `az keyvault secret set` by hand.
+      - name: Sync secrets to Key Vault
+        if: inputs.keyvault-name != '' && inputs.keyvault-secrets != ''
+        uses: Pursuit-Amsterdam/workflows/.github/actions/sync-keyvault@main
+        with:
+          azure-credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          vault-name: ${{ inputs.keyvault-name }}
+          secrets: ${{ inputs.keyvault-secrets }}
 
       - name: Set version variable
         id: set-version
