@@ -37,7 +37,7 @@ Door twee regels van GitHub Actions kun je op `main` niets veranderen zonder all
 Wat op `v2` staat, draait met de environment-secrets van elke repo die hem aanroept. Een push naar `v2` is daarmee een push naar elke productie-deploy. De branch krijgt daarom vanaf dag één:
 
 - Een ruleset voor `v*`: PR verplicht, één review, review van de code owners, geen force push, geen verwijderen. De eigen CI (principe 8) als verplichte check.
-- **Tijdens de bouw: bypass voor repo-admins, alleen op PR's.** De PR's van de bouw komen allemaal onder één account binnen, en een auteur kan zijn eigen PR niet goedkeuren; zonder bypass wacht elke taak op een collega. De bypass laat een admin een PR mergen zonder review, zichtbaar als "bypassed" in de PR; de check `pipeline` blijft verplicht. PR's die de gate of secrets raken (Taak 11, 19, 24) laat je bewust wél door een andere senior reviewen. De bypass gaat weg bij "v2 is klaar" (Taak 28).
+- **Senior developers mogen hun eigen PR mergen** ([besloten](../beslissingen.md#decided)): de ruleset laat repo-admins (het team `senior-developers`) de review overslaan, alleen op PR's; de check `pipeline` blijft voor iedereen verplicht. Iedereen anders heeft de review van een senior nodig. Dat is dezelfde regel als in de consumer-repo's. PR's die de gate of secrets raken (Task 11, 19, 24) laat een senior bij voorkeur toch door een tweede senior reviewen.
 - `CODEOWNERS` voor `.github/` en `scripts/`.
 - Dependabot met `target-branch: v2` voor `github-actions`, zodat de vastgepinde externe actions bijgewerkt blijven. Zonder die regel kijkt Dependabot alleen naar `main`, en die bevriest.
 - Geen secrets in deze repo behalve wat de voorbeeldrepo en de audit nodig hebben, en die staan op een environment met `v2` als enige toegestane branch.
@@ -78,7 +78,7 @@ De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8
 
 ## Beleid na de overstap
 
-- **Elke PR naar `v2` krijgt een review van een senior developer.** `@Pursuit-Amsterdam/senior-developers` is code owner van `.github/`, `scripts/` en `check-pr.sh`, en de ruleset op `v*` eist die review plus een groene `pipeline`. Dat geldt vanaf dag één, ook tijdens de bouw: een merge naar `v2` draait in elke repo die hem aanroept.
+- **Elke PR naar `v2` gaat langs een senior developer.** `@Pursuit-Amsterdam/senior-developers` is code owner van `.github/`, `scripts/` en `check-pr.sh`; een senior mag zijn eigen PR mergen, iedereen anders heeft de review van een senior nodig, en `pipeline` moet groen zijn. Een merge naar `v2` draait in elke repo die hem aanroept.
 - **Lokaal nodig:** `pnpm`, `actionlint`, `shellcheck` en `gh` (`brew install actionlint shellcheck gh`); `pnpm lint` en `pnpm test` zijn precies wat CI draait.
 - **Wijzigingen na "v2 is klaar":** een PR op `v2`, zoals in elke andere repo. Zo'n wijziging test je eerst door een testrepo de featurebranch te laten aanroepen (`@feature/x`): voor CI in een PR van die testrepo, voor CD via een merge naar zijn `develop` en een handmatige start vanaf `develop` naar staging ([waarom](bouwstenen.md#gate-outcomes)). Verandert er een action, zet dan in die featurebranch de interne refs tijdelijk op `@feature/x`, anders draait de oude action; vóór de merge gaan ze terug naar `@v2`. `check-pr.sh` kan dat afdwingen.
 - **Een breaking change wordt `v3`**, op dezelfde manier: een nieuwe branch die eerst alleen de testrepo's gebruiken.
