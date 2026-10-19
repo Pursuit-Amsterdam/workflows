@@ -148,7 +148,7 @@ runs:
     - name: Start Supabase local stack
       id: supabase
       if: inputs.database == 'supabase'
-      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@feature/setup-services
+      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@v2
       with:
         working-directory: ${{ inputs.working-directory }}
         seed: ${{ inputs.supabase-seed }}
@@ -157,7 +157,7 @@ runs:
     - name: Load 1Password secrets
       id: onepassword
       if: inputs.onepassword-item != ''
-      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@feature/setup-services
+      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@v2
       with:
         service-account-token: ${{ inputs.onepassword-token }}
         vault-name: ${{ inputs.onepassword-vault }}
