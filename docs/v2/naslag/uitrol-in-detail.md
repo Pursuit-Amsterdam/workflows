@@ -12,7 +12,7 @@ Door twee regels van GitHub Actions kun je op `main` niets veranderen zonder all
 | Ref | Wie hem gebruikt | Wat hij belooft |
 | --- | --- | --- |
 | `v2` | Eerst alleen de testrepo's: template-nextjs-vercel, tms-test, gp-map-webapp, gp-groot-automations, gp-container-tracking-webapp, een repo met Supabase edge functions en translations-management. Zo gekozen dat alles aan bod komt: Vercel, het vertalingen-CMS, Swarm met Postgres en images, een CI die nu niets doet, een Swarm-stack zonder eigen images, het token van het Supabase-machine-account, en een pakket publiceren. Daarna alle anderen, wanneer ze zelf willen. | Tijdens de bouw niets: hij kan elk moment veranderen, en een rode run hoort erbij. Na de afspraak "v2 is klaar": geen breaking changes meer. De volgende breaking change wordt `v3`. |
-| `main` | Repo's die nog niet zijn overgestapt. | End of life: geen wijzigingen meer, ook geen hotfixes. De README krijgt een banner die naar v2 wijst. |
+| `main` | Repo's die nog niet zijn overgestapt. | End of life: geen wijzigingen meer, ook geen hotfixes en geen banner. |
 
 ## Volgorde
 

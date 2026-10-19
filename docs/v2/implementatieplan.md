@@ -14,7 +14,7 @@
 
 ## Vaste regels voor elke taak
 
-- Werk op `v2`: een branch `feature/<taak>` vanaf `v2`, PR naar `v2`. Nooit naar `main`.
+- Werk op `v2`: een branch `feature/<taak>` vanaf `v2`, PR naar `v2`. Nooit naar `main`, in geen enkele repo: in consumer-repo's gaat het werk naar `develop`, en `main` krijgt het via de eigen release van het team.
 - Runner: `blacksmith-4vcpu-ubuntu-2404`. Interne refs: `Pursuit-Amsterdam/workflows/.github/...@v2`, nooit `./` en nooit `@main`.
 - Externe actions op een vaste commit met de versie als commentaar (`@3d3c42e… # v7.0.1`).
 - Inputnamen kebab-case. YAML en commentaar in het Engels; docs in het Nederlands.
@@ -231,7 +231,7 @@ Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 **Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration).
 
 - [ ] Stap 1: environments: `staging` met branch `develop`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, één reviewer, dezelfde variabelen en secrets. Het environment `Preview` verwijderen als het niets meer doet.
-- [ ] Stap 2: PR naar `main`: `cd.yml` volgens het voorbeeld, met `health-path: /`. Merge.
+- [ ] Stap 2: PR naar `develop`: `cd.yml` volgens het voorbeeld, met `health-path: /`. Merge naar `develop`; naar `main` komt het via de normale release van het team (`develop → main`), niet via een PR van ons. Pas daarna werken `workflow_run` en `release`, want die lezen het workflowbestand van de default branch.
 - [ ] Stap 3: merge iets naar `develop`; verwacht een groene gate en een preview-deploy met de variabelen van `staging`, health-check groen.
 - [ ] Stap 4: publiceer een release; verwacht goedkeuring gevraagd, daarna een `--prod`-deploy.
 - [ ] Stap 5: dispatch vanaf die tag; verwacht dezelfde deploy nog eens.
@@ -349,11 +349,10 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 2: draai op een kopie van gp-groot-automations (Python zonder hoofdschakelaar); verwacht een `backend/package.json` met `lint` en `format` en een waarschuwing in de PR-tekst dat CI rood zal zijn.
 - [ ] Stap 3: commit `feat: add migrate-consumer script`.
 
-### Task 27: README op `v2`, banner op `main`
+### Task 27: README op `v2`
 
 - [ ] Stap 1: herschrijf `README.md` op `v2`: per workflow en action de inputs uit de naslag, de standaardinrichting, en de drie scripts. Verwijder `framework` uit elk voorbeeld.
-- [ ] Stap 2: PR naar `main` (hotfix) met alleen een banner bovenaan de README: "`main` is end of life; nieuwe repo's gebruiken `@v2`, zie docs/v2", en `framework` uit de voorbeelden.
-- [ ] Stap 3: commit `docs: rewrite README for v2` en `docs: point main to v2`.
+- [ ] Stap 2: commit `docs: rewrite README for v2`.
 
 ### Task 28: v1 weg op `v2`
 
@@ -371,7 +370,7 @@ De afspraak geldt als dit allemaal waar is:
 - De zeven testrepo's draaien CI en CD op `@v2` en hebben elk via `v2` naar al hun environments gedeployd, met minstens één herdeploy via dispatch vanaf de tag.
 - Het gate-testplan (21 scenario's) is in de voorbeeldrepo groen gedraaid en de run-URL's staan in de PR van Task 11.
 - `audit-consumers.sh` geeft 0 bevindingen op de testrepo's.
-- De README op `v2` beschrijft elke input; `main` wijst naar `v2`.
+- De README op `v2` beschrijft elke input. `main` blijft onaangeroerd.
 - Dependabot heeft minstens één PR op `v2` geopend en die is via de eigen CI gemerged.
 - `v2` is de default branch, en de wekelijkse audit heeft minstens één keer vanzelf gedraaid.
 
