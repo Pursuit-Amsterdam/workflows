@@ -104,7 +104,7 @@ runs:
 
     - name: Install Supabase CLI
       if: steps.check_changes.outputs.changes == 'true'
-      uses: supabase/setup-cli@v1
+      uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
       with:
         version: ${{ inputs.supabase-cli-version }}
 

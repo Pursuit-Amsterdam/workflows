@@ -13,21 +13,30 @@ inputs:
     description: 'Node.js authentication token for private registries (optional)'
     required: false
     default: ''
+  working-directory:
+    description: >
+      Directory holding the package.json, pnpm-lock.yaml and packageManager
+      field. pnpm reads packageManager from the package.json it runs next to,
+      and the install must run where the lockfile is. A caller job's
+      defaults.run.working-directory does NOT reach inside a composite action.
+    required: false
+    default: '.'
 
 runs:
   using: 'composite'
   steps:
     - name: Install PNPM
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
 
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: ${{ inputs.node-version }}
         cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
 
     - name: Configure npm auth for GitHub Packages
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
       run: |
         if [ -n "${NODE_AUTH_TOKEN}" ]; then
           echo "Configuring GitHub Packages authentication..."
@@ -40,8 +49,11 @@ runs:
       env:
         NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
 
+    # --frozen-lockfile: CD must install exactly what CI tested. A missing or
+    # outdated pnpm-lock.yaml fails here instead of silently resolving anew.
     - name: Install dependencies
       shell: bash
-      run: pnpm install
+      working-directory: ${{ inputs.working-directory }}
+      run: pnpm install --frozen-lockfile
       env:
         NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
