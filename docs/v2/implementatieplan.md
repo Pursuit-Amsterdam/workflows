@@ -139,10 +139,10 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Interface:** inputs volgens [ci.md](naslag/ci.md#ci); job-id `pipeline`; secrets `OP_SERVICE_ACCOUNT_TOKEN`, `CUSTOM_GITHUB_TOKEN`, `TMS_URL`, `TMS_API_KEY` optioneel. De `tms-sync`-stap komt in Task 21; laat de input gedeclareerd en de stap weg.
 
-- [ ] Stap 1: schrijf `ci.yml`; `actionlint`.
-- [ ] Stap 2: voorbeeldrepo: `.github/workflows/ci.yml` met `name: Continuous Integration`, trigger `push` op `main`/`develop` en `pull_request`, job `run-ci` → `ci.yml@feature/<taak>` met `checks: lint typecheck test`. Verwacht groen, met in de log de drie `ok`-regels en `Setup Python (uv)` uitgevoerd (de `backend/pyproject.toml`).
-- [ ] Stap 3: negatieve tests, elk één commit op een PR-branch van de voorbeeldrepo: `checks: ""` → rood "checks is empty"; `checks: lint nonexistent` → rood met `nonexistent` in de melding; `working-directory: nope` → rood "no package.json".
-- [ ] Stap 4: turbo-test: voeg in de voorbeeldrepo `turbo.json` en `pnpm-workspace.yaml` met `packages: [backend]` toe op een PR-branch; verwacht `pnpm turbo run … --affected` in de log en alleen het gewijzigde pakket. Houd dit in de repo (de voorbeeldrepo is vanaf nu een monorepo).
+- [x] Stap 1: schrijf `ci.yml`; `actionlint`.
+- [x] Stap 2: voorbeeldrepo: `.github/workflows/ci.yml` met `name: Continuous Integration`, trigger `push` op `main`/`develop` en `pull_request`, job `run-ci` → `ci.yml@feature/<taak>` met `checks: lint typecheck test`. Verwacht groen, met in de log de drie `ok`-regels en `Setup Python (uv)` uitgevoerd (de `backend/pyproject.toml`).
+- [x] Stap 3: negatieve tests, elk één commit op een PR-branch van de voorbeeldrepo: `checks: ""` → rood "checks is empty"; `checks: lint nonexistent` → rood met `nonexistent` in de melding; `working-directory: nope` → rood "no package.json".
+- [ ] Stap 4: turbo-test: voeg in de voorbeeldrepo `turbo.json` en `pnpm-workspace.yaml` met `packages: [backend]` toe op een PR-branch; verwacht `pnpm turbo run … --affected` in de log en alleen het gewijzigde pakket. Houd dit in de repo (de voorbeeldrepo is vanaf nu een monorepo, met pakketten `web/` en `backend/` en root-scripts die naar turbo doorgeven). "Alleen het gewijzigde pakket" toets je met een PR die alleen `web/` wijzigt, ná de merge van de turbo-opzet: een PR die de root wijzigt, maakt alle pakketten affected. Gevonden en gerepareerd tijdens deze stap: een check die alleen als root-doorgeefscript bestaat, draaide nul taken en werd groen; nu telt `ci.yml` alleen workspace-pakketten plus `//#<taak>` uit `turbo.json`.
 - [ ] Stap 5: zet de ref in de voorbeeldrepo op `@v2` zodra de PR gemerged is; commit in deze repo `feat: add ci.yml, the one CI workflow for every repo`.
 
 ### Task 8: `run-image-smoke` en `ci-images.yml`
