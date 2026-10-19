@@ -1,0 +1,77 @@
+name: "Image smoke test"
+description: >
+  Starts a locally loaded image and checks that it works: waits for health-path,
+  walks the smoke list, runs the exec commands, prints the logs on failure and
+  always cleans up. Takes one entry of the `images` JSON that ci-images and
+  cd-swarm share. Does nothing when the entry has no health-path, smoke or exec.
+  The container runs on the host network, so services started by setup-services
+  (Postgres, Redis) are reachable on localhost.
+inputs:
+  image:
+    description: "Local image reference (already built with load: true)"
+    required: true
+  config:
+    description: "One entry of the images JSON: port, health-path, env (object), smoke (list of 'path status'), exec (list of commands)"
+    required: true
+  timeout:
+    description: "Seconds to wait for health-path"
+    required: false
+    default: "60"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Smoke test ${{ inputs.image }}
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        CONFIG: ${{ inputs.config }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        set -euo pipefail
+        port=$(jq -r '.port // empty' <<<"$CONFIG")
+        health=$(jq -r '.["health-path"] // empty' <<<"$CONFIG")
+        nsmoke=$(jq '(.smoke // []) | length' <<<"$CONFIG")
+        nexec=$(jq '(.exec // []) | length' <<<"$CONFIG")
+        if [ -z "$health" ] && [ "$nsmoke" -eq 0 ] && [ "$nexec" -eq 0 ]; then
+          echo "No health-path, smoke or exec for $IMAGE; nothing to test."; exit 0
+        fi
+        if { [ -n "$health" ] || [ "$nsmoke" -gt 0 ]; } && [ -z "$port" ]; then
+          echo "::error::health-path or smoke needs a port"; exit 1
+        fi
+
+        # Placeholder env from the JSON, written to a 0600 file, never to argv.
+        umask 077
+        envfile=$(mktemp)
+        jq -r '(.env // {}) | to_entries[] | "\(.key)=\(.value)"' <<<"$CONFIG" > "$envfile"
+
+        name="smoke-$RANDOM"
+        cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -f "$envfile"; }
+        fail() { echo "::error::$1"; echo "::group::container logs"; docker logs "$name" 2>&1 | tail -n 200 || true; echo "::endgroup::"; exit 1; }
+        trap cleanup EXIT
+
+        docker run -d --name "$name" --network host --env-file "$envfile" "$IMAGE" >/dev/null
+        base="http://localhost:${port}"
+
+        if [ -n "$health" ]; then
+          deadline=$((SECONDS + TIMEOUT))
+          until curl -fsS -o /dev/null "$base$health"; do
+            [ "$(docker inspect -f '{{.State.Running}}' "$name")" = true ] || fail "container exited before $health answered"
+            [ "$SECONDS" -lt "$deadline" ] || fail "$health did not answer within ${TIMEOUT}s"
+            sleep 2
+          done
+          echo "healthy: $health"
+        fi
+
+        while read -r path want; do
+          [ -n "$path" ] || continue
+          got=$(curl -s -o /dev/null -w '%{http_code}' "$base$path" || true)
+          [ "$got" = "$want" ] || fail "smoke $path: expected $want, got $got"
+          echo "smoke ok: $path $got"
+        done < <(jq -r '(.smoke // [])[]' <<<"$CONFIG")
+
+        while IFS= read -r cmd; do
+          [ -n "$cmd" ] || continue
+          docker exec "$name" sh -c "$cmd" || fail "exec failed: $cmd"
+          echo "exec ok: $cmd"
+        done < <(jq -r '(.exec // [])[]' <<<"$CONFIG")
