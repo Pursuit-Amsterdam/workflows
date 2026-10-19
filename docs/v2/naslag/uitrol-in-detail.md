@@ -77,6 +77,8 @@ De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8
 
 ## Beleid na de overstap
 
+- **Elke PR naar `v2` krijgt een review van een senior developer.** `@Pursuit-Amsterdam/senior-developers` is code owner van `.github/`, `scripts/` en `check-pr.sh`, en de ruleset op `v*` eist die review plus een groene `pipeline`. Dat geldt vanaf dag één, ook tijdens de bouw: een merge naar `v2` draait in elke repo die hem aanroept.
+- **Lokaal nodig:** `pnpm`, `actionlint`, `shellcheck` en `gh` (`brew install actionlint shellcheck gh`); `pnpm lint` en `pnpm test` zijn precies wat CI draait.
 - **Wijzigingen na "v2 is klaar":** een PR op `v2`, zoals in elke andere repo. Zo'n wijziging test je eerst door een testrepo de featurebranch te laten aanroepen (`@feature/x`): voor CI in een PR van die testrepo, voor CD via een merge naar zijn `develop` en een handmatige start vanaf `develop` naar staging ([waarom](bouwstenen.md#gate-outcomes)). Verandert er een action, zet dan in die featurebranch de interne refs tijdelijk op `@feature/x`, anders draait de oude action; vóór de merge gaan ze terug naar `@v2`. `check-pr.sh` kan dat afdwingen.
 - **Een breaking change wordt `v3`**, op dezelfde manier: een nieuwe branch die eerst alleen de testrepo's gebruiken.
 - `main` is end of life: geen wijzigingen meer, ook geen hotfixes.

@@ -28,6 +28,13 @@ Allowed heads: `main`, `develop`, `acceptance`, `hotfix/*`, `feature/*`, `releas
 
 Merge rules: `feature/*` `dependabot/*` `module-develop/*` `main` → `develop`; `hotfix/*` `release/*` `develop` → `main`; `module-feature/*` → `module-develop/*`; `develop` → `release/*`; `develop` → `acceptance`. Stacked PRs (GitHub's stack feature targets the parent branch) are allowed same-prefix: `feature/*` → `feature/*`, `hotfix/*` → `hotfix/*`, `module-feature/*` → `module-feature/*`. Branch from `main` here (default), name it accordingly, and PR per these rules.
 
+## Working on `v2`
+
+- `v2` is the branch under development (see `docs/v2/`). Branch `feature/<topic>` from `v2` and open a PR to `v2`; `check-pr` allows `feature/*` and `hotfix/*` into `v*`.
+- **Every PR to `v2` needs a review from a senior developer** (`@Pursuit-Amsterdam/senior-developers`, via CODEOWNERS and the ruleset on `v*`), plus a green `pipeline` check. A merge to `v2` runs in every repo that calls these workflows.
+- Tools you need locally: `pnpm` (version from `packageManager` in `package.json`), `actionlint`, `shellcheck`, and the GitHub CLI `gh` (logged in with access to the org) for the consumer scripts. On macOS: `brew install actionlint shellcheck gh`.
+- `pnpm lint` and `pnpm test` are exactly what CI runs; run them before you push.
+
 ## Testing changes
 
 - Branch logic: `scripts/check-pr-cases.sh` (the whole table), or `./check-pr.sh` after editing the `HEAD`/`BASE` vars at the top.
