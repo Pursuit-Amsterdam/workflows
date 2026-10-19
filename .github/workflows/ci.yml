@@ -202,6 +202,7 @@ jobs:
           CHECKS: ${{ steps.repo.outputs.checks }}
           TURBO: ${{ steps.repo.outputs.turbo }}
           EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           read -ra checks <<<"$CHECKS"
@@ -220,7 +221,14 @@ jobs:
               grep -qxF -- "$c" <<<"$defined" || { echo "::error::no package defines a '$c' script"; exit 1; }
             done
             args=(--cache-dir=.turbo)
-            if [ "$EVENT" = pull_request ]; then args+=(--affected); fi
+            if [ "$EVENT" = pull_request ]; then
+              # In Actions turbo takes GITHUB_BASE_REF ("develop") as the base,
+              # but a PR checkout has no local branch of that name, and turbo
+              # then treats every package as affected. The remote branch exists
+              # (fetch-depth: 0), so point turbo at it.
+              export TURBO_SCM_BASE="origin/$BASE_REF"
+              args+=(--affected)
+            fi
             pnpm turbo run "${checks[@]}" "${args[@]}"
           else
             for c in "${checks[@]}"; do
