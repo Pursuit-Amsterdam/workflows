@@ -31,7 +31,7 @@ Merge rules: `feature/*` `dependabot/*` `module-develop/*` `main` → `develop`;
 ## Working on `v2`
 
 - `v2` is the branch under development (see `docs/v2/`). Branch `feature/<topic>` from `v2` and open a PR to `v2`; `check-pr` allows `feature/*` and `hotfix/*` into `v*`.
-- **Every PR to `v2` needs a review from a senior developer** (`@Pursuit-Amsterdam/senior-developers`, via CODEOWNERS and the ruleset on `v*`), plus a green `pipeline` check. A merge to `v2` runs in every repo that calls these workflows.
+- **A PR to `v2` needs a senior developer** (`@Pursuit-Amsterdam/senior-developers`, admin on the repo): a senior may merge their own PR, everyone else needs a senior's review (CODEOWNERS + the ruleset on `v*`, which lets repo admins bypass the review on pull requests only). A green `pipeline` check is required for everyone. A merge to `v2` runs in every repo that calls these workflows.
 - Tools you need locally: `pnpm` (version from `packageManager` in `package.json`), `actionlint`, `shellcheck`, and the GitHub CLI `gh` (logged in with access to the org) for the consumer scripts. On macOS: `brew install actionlint shellcheck gh`.
 - `pnpm lint` and `pnpm test` are exactly what CI runs; run them before you push.
 
