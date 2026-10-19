@@ -207,8 +207,15 @@ jobs:
           read -ra checks <<<"$CHECKS"
           if [ "$TURBO" = true ]; then
             # turbo runs a task that no package defines as zero tasks, and passes.
-            defined=$(find . -name package.json -not -path '*/node_modules/*' -print0 \
-              | xargs -0 jq -r '.scripts // {} | keys[]' | sort -u)
+            # Only workspace packages count, not the root package.json: its
+            # scripts are usually pass-throughs ("format": "turbo run format")
+            # that turbo never runs as a task. Root tasks turbo does run are
+            # declared as "//#<task>" in turbo.json.
+            defined=$( {
+              find . -mindepth 2 -name package.json -not -path '*/node_modules/*' -print0 \
+                | xargs -0 -r jq -r '.scripts // {} | keys[]'
+              jq -r '(.tasks // .pipeline // {}) | keys[] | select(startswith("//#")) | ltrimstr("//#")' turbo.json
+            } | sort -u)
             for c in "${checks[@]}"; do
               grep -qxF -- "$c" <<<"$defined" || { echo "::error::no package defines a '$c' script"; exit 1; }
             done
