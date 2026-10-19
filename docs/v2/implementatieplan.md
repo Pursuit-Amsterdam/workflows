@@ -27,11 +27,11 @@
 
 Vijf situaties die de spec impliceert maar geen taak vanzelf test. Elke regel heeft zijn test in de taak die de code bezit.
 
-1. **Een release op een tag die niet op `main` staat** (per ongeluk getagd op `develop`): de gate vindt een groene push-run op die commit en deployt develop-code naar productie. Verwacht: rood, "tag is not on main". Test in Taak 11.
-2. **Een prerelease** vuurt ook `release: published`: cd-vercel zou een prerelease naar productie deployen. Verwacht: de gate slaat een prerelease over, tenzij `allow-prerelease: true` (cd-packages, voor de `next`-tag). Test in Taak 11.
-3. **Een releasetag zonder `v`** (`1.4.0`): de branchregel `v*` van `production` weigert de job met een onduidelijke melding. Verwacht: de gate faalt eerst, met "tag must match v*". Test in Taak 11.
-4. **Een deploy naar een environment dat nog niet bestaat** (eerste push naar `acceptance`): GitHub maakt het environment aan zonder regels, en de deploy gaat door. Verwacht: het auditscript meldt een environment zonder branchregels, en `setup-consumer.sh` maakt de environments met regels aan vóór de eerste run. Test in Taak 24 en 25.
-5. **Een CMS-verzoek voor een branch die niet bestaat** (`environment: acceptance` zonder `acceptance`-branch): `getBranch` geeft 404 en de gate valt om met een stacktrace. Verwacht: rood met "branch acceptance does not exist". Test in Taak 11.
+1. **Een release op een tag die niet op `main` staat** (per ongeluk getagd op `develop`): de gate vindt een groene push-run op die commit en deployt develop-code naar productie. Verwacht: rood, "tag is not on main". Test in Task 11.
+2. **Een prerelease** vuurt ook `release: published`: cd-vercel zou een prerelease naar productie deployen. Verwacht: de gate slaat een prerelease over, tenzij `allow-prerelease: true` (cd-packages, voor de `next`-tag). Test in Task 11.
+3. **Een releasetag zonder `v`** (`1.4.0`): de branchregel `v*` van `production` weigert de job met een onduidelijke melding. Verwacht: de gate faalt eerst, met "tag must match v*". Test in Task 11.
+4. **Een deploy naar een environment dat nog niet bestaat** (eerste push naar `acceptance`): GitHub maakt het environment aan zonder regels, en de deploy gaat door. Verwacht: het auditscript meldt een environment zonder branchregels, en `setup-consumer.sh` maakt de environments met regels aan vóór de eerste run. Test in Task 24 en 25.
+5. **Een CMS-verzoek voor een branch die niet bestaat** (`environment: acceptance` zonder `acceptance`-branch): `getBranch` geeft 404 en de gate valt om met een stacktrace. Verwacht: rood met "branch acceptance does not exist". Test in Task 11.
 
 ---
 
@@ -39,13 +39,13 @@ Vijf situaties die de spec impliceert maar geen taak vanzelf test. Elke regel he
 
 Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 
-### Taak 1: check-pr kent `v*` en leest het event
+### Task 1: check-pr kent `v*` en leest het event
 
 **Bestanden:**
 - Wijzig: `.github/workflows/check-pr.yml`
 - Wijzig: `check-pr.sh`
 
-**Interface:** `check-pr.yml` houdt `workflow_call` en de job-id `pipeline`, maar zonder inputs: `HEAD` en `BASE` komen uit `github.event.pull_request.head.ref` en `.base.ref`. Geen checkout. `head-ref` en `base-ref` blijven tijdelijk gedeclareerd als optioneel en ongebruikt, zodat v1-aanroepers op `@v2` niet met `startup_failure` breken; ze verdwijnen in Taak 28.
+**Interface:** `check-pr.yml` houdt `workflow_call` en de job-id `pipeline`, maar zonder inputs: `HEAD` en `BASE` komen uit `github.event.pull_request.head.ref` en `.base.ref`. Geen checkout. `head-ref` en `base-ref` blijven tijdelijk gedeclareerd als optioneel en ongebruikt, zodat v1-aanroepers op `@v2` niet met `startup_failure` breken; ze verdwijnen in Task 28.
 
 - [ ] Stap 1: voeg in `check-pr.sh` de regels toe: `v[0-9]+` is een geldige head en base; `feature/*`, `hotfix/*` en `revert-<n>-(feature|hotfix)/*` mogen naar `v*`; `v*` zelf mag nergens heen. Zet bovenaan een reeks testgevallen als commentaar: `feature/x → v2 ✅`, `develop → v2 ❌`, `v2 → main ❌`, `v2 → develop ❌`.
 - [ ] Stap 2: draai `./check-pr.sh` met elk van die vier combinaties in `HEAD`/`BASE` en controleer de exitcode (0, 1, 1, 1).
@@ -53,29 +53,29 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 - [ ] Stap 4: `actionlint .github/workflows/check-pr.yml` en `shellcheck check-pr.sh`.
 - [ ] Stap 5: commit `feat(check-pr): allow v* as base and read head/base from the event`.
 
-### Taak 2: eigen CI van deze repo
+### Task 2: eigen CI van deze repo
 
 **Bestanden:**
 - Maak: `package.json` (deze repo volgt zijn eigen besluit: de scripts zijn de namen van wat CI en mensen draaien), met `packageManager: pnpm@<huidig>`, `private: true`, en scripts:
   - `lint`: `actionlint && shellcheck check-pr.sh scripts/*.sh`
   - `test`: `scripts/check-pr-cases.sh`
-  - `audit:consumers`: `scripts/audit-consumers.sh` (Taak 24; argumenten via `pnpm audit:consumers -- gp-map-webapp`; niet `audit`, dat is een ingebouwd pnpm-commando)
-  - `audit:consumers:remote`: `gh workflow run audit-consumers.yml --ref v2` (Taak 24)
-  - `setup-consumer`: `scripts/setup-consumer.sh` (Taak 25)
-  - `migrate-consumer`: `scripts/migrate-consumer.sh` (Taak 26)
-  Plus een lege `pnpm-lock.yaml` en `.nvmrc` met `22`. De scripts voor Taak 24–26 mogen er nu al in staan; ze falen met "no such file" tot die taak klaar is.
+  - `audit:consumers`: `scripts/audit-consumers.sh` (Task 24; argumenten via `pnpm audit:consumers -- gp-map-webapp`; niet `audit`, dat is een ingebouwd pnpm-commando)
+  - `audit:consumers:remote`: `gh workflow run audit-consumers.yml --ref v2` (Task 24)
+  - `setup-consumer`: `scripts/setup-consumer.sh` (Task 25)
+  - `migrate-consumer`: `scripts/migrate-consumer.sh` (Task 26)
+  Plus een lege `pnpm-lock.yaml` en `.nvmrc` met `22`. De scripts voor Task 24–26 mogen er nu al in staan; ze falen met "no such file" tot die taak klaar is.
 - Maak: `.github/workflows/self-ci.yml` met `name: Continuous Integration`, trigger `pull_request` en `push` op `v2`, één job `pipeline`.
 - Maak: `scripts/check-pr-cases.sh`: draait `check-pr.sh` voor een tabel van `HEAD BASE verwacht` en faalt bij één afwijking.
 
-**Interface:** de check heet `pipeline` (job-id), dus de verplichte check in Taak 3 is `pipeline`. Lokaal en in CI is het commando hetzelfde: `pnpm lint` en `pnpm test`.
+**Interface:** de check heet `pipeline` (job-id), dus de verplichte check in Task 3 is `pipeline`. Lokaal en in CI is het commando hetzelfde: `pnpm lint` en `pnpm test`.
 
-- [ ] Stap 1: schrijf `scripts/check-pr-cases.sh` met minstens de vier gevallen van Taak 1 plus de bestaande regels (`feature/x → develop ✅`, `hotfix/x → main ✅`, `feature/x → main ❌`, `develop → acceptance ✅`). Het script zet `HEAD`/`BASE` via `sed` in een kopie van `check-pr.sh` in `$RUNNER_TEMP` en vergelijkt de exitcode.
+- [ ] Stap 1: schrijf `scripts/check-pr-cases.sh` met minstens de vier gevallen van Task 1 plus de bestaande regels (`feature/x → develop ✅`, `hotfix/x → main ✅`, `feature/x → main ❌`, `develop → acceptance ✅`). Het script zet `HEAD`/`BASE` via `sed` in een kopie van `check-pr.sh` in `$RUNNER_TEMP` en vergelijkt de exitcode.
 - [ ] Stap 2: draai het lokaal; verwacht `8 cases, 0 failures`.
 - [ ] Stap 3: `self-ci.yml`: checkout, `pnpm/action-setup` op vaste commit, actionlint installeren via het downloadscript van rhysd op een vaste commit (`shellcheck` staat op de runner), dan `pnpm lint` en `pnpm test`. Een `.github/actionlint.yaml` met het Blacksmith-label onder `self-hosted-runner.labels`, zodat `pnpm lint` schoon is.
 - [ ] Stap 4: open de PR naar `v2`; verwacht één groene check `pipeline`.
 - [ ] Stap 5: commit `ci: lint workflows and test check-pr on every PR`.
 
-### Taak 3: bescherming van `v2` (**handwerk**)
+### Task 3: bescherming van `v2` (**handwerk**)
 
 **Bron:** [uitrol in detail, Bescherming van v2](naslag/uitrol-in-detail.md#rollout).
 
@@ -85,17 +85,17 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 - [ ] Stap 4: test: een push rechtstreeks naar `v2` wordt geweigerd; een PR zonder groene `pipeline` is niet te mergen.
 - [ ] Stap 5: commit `chore: add CODEOWNERS and Dependabot for v2`.
 
-### Taak 4: de voorbeeldrepo `workflows-example` (**handwerk** voor het aanmaken)
+### Task 4: de voorbeeldrepo `workflows-example` (**handwerk** voor het aanmaken)
 
 **Repo:** `Pursuit-Amsterdam/workflows-example`, privé, branches `main` en `develop`, default `main`.
 
-**Inhoud (Taak 4 maakt de basis; latere taken voegen toe):**
+**Inhoud (Task 4 maakt de basis; latere taken voegen toe):**
 - `package.json` met `packageManager: pnpm@<huidig>`, scripts `lint`, `typecheck`, `test`, `build` die elk `node -e "console.log('<naam> ok')"` doen; `pnpm-lock.yaml`; `.nvmrc` met `22`.
 - `backend/pyproject.toml` (naam `example-backend`, geen dependencies), `backend/uv.lock`, `backend/.python-version` met `3.12`, `backend/package.json` met `"lint": "uv run python -c 'print(1)'"`.
 - `.github/workflows/check-pr.yml` dat `check-pr.yml@v2` aanroept vanuit job `run-check-pr`, op `pull_request` met `types: [opened, synchronize, reopened, edited]`.
 - `README.md`: "Dit is de testrepo van Pursuit-Amsterdam/workflows; elke workflow op v2 wordt hier eerst bewezen."
 
-- [ ] Stap 1: maak de repo en de bestanden; branchprotectie op `main` en `develop` volgens de [standaardinrichting](naslag/standaardinrichting.md#consumer-config), nog zonder verplichte CI-check (die komt in Taak 9).
+- [ ] Stap 1: maak de repo en de bestanden; branchprotectie op `main` en `develop` volgens de [standaardinrichting](naslag/standaardinrichting.md#consumer-config), nog zonder verplichte CI-check (die komt in Task 9).
 - [ ] Stap 2: open een PR `feature/hello → develop`; verwacht `run-check-pr / pipeline` groen.
 - [ ] Stap 3: open een PR `feature/hello → main`; verwacht rood.
 
@@ -105,7 +105,7 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 
 Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel.
 
-### Taak 5: bestaande actions op orde
+### Task 5: bestaande actions op orde
 
 **Bestanden:**
 - Wijzig: `.github/actions/setup-node-pnpm/action.yml`
@@ -120,24 +120,24 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 - [ ] Stap 4: test in de voorbeeldrepo met een tijdelijke workflow die `setup-node-pnpm@feature/<taak>` aanroept met `working-directory: backend`; verwacht een install zonder fout en een `.npmrc` in `backend/`. Verwijder de tijdelijke workflow weer.
 - [ ] Stap 5: commit `feat(actions): pin external actions, frozen installs, working-directory for pnpm`.
 
-### Taak 6: `setup-services` en `setup-supabase`
+### Task 6: `setup-services` en `setup-supabase`
 
 **Bestanden:**
 - Maak: `.github/actions/setup-services/action.yml` uit het [concept](naslag/concept-yaml.md) (blok `setup-services`).
 - Maak: `.github/actions/setup-supabase/action.yml`: de stappen `Check for Supabase directory changes` tot en met `Start Supabase local services` uit `run-supabase-test/action.yml`, plus outputs `started`, `db-url`, `api-url`, `anon-key`, `service-role-key`, en een stap die `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` naar `$GITHUB_ENV` schrijft. CLI-versie: `supabase/setup-cli` zonder `version`, met een voorafgaande stap die faalt als `supabase` geen devDependency in `package.json` is.
 
-**Interface (gebruikt door Taak 7, 8, 15, 18, 20):** inputs `database`, `redis`, `supabase-seed`, `supabase-skip-unchanged`, `postgres-*`, `onepassword-vault`, `onepassword-item`, `onepassword-token`, `onepassword-export-for-vercel`, `onepassword-export-build-args`; outputs `database-url`, `supabase-started`, `build-args`.
+**Interface (gebruikt door Task 7, 8, 15, 18, 20):** inputs `database`, `redis`, `supabase-seed`, `supabase-skip-unchanged`, `postgres-*`, `onepassword-vault`, `onepassword-item`, `onepassword-token`, `onepassword-export-for-vercel`, `onepassword-export-build-args`; outputs `database-url`, `supabase-started`, `build-args`.
 
 - [ ] Stap 1: schrijf beide actions; `actionlint` + `shellcheck` op de scripts erin.
 - [ ] Stap 2: test in de voorbeeldrepo met een tijdelijke workflow: `database: postgres` → `psql "$DATABASE_URL" -c 'select 1'` slaagt; `redis: true` → `redis-cli -u "$REDIS_URL" ping` geeft `PONG`; `database: banana` → de validatiestap faalt met de melding; `onepassword-item: x` zonder vault → faalt vóór er iets gestart is.
 - [ ] Stap 3: commit `feat(actions): add setup-services and split setup-supabase from run-supabase-test`.
 
-### Taak 7: `ci.yml`
+### Task 7: `ci.yml`
 
 **Bestanden:**
 - Maak: `.github/workflows/ci.yml` uit het concept-blok `ci.yml`, met `working-directory` doorgegeven aan `setup-node-pnpm`.
 
-**Interface:** inputs volgens [ci.md](naslag/ci.md#ci); job-id `pipeline`; secrets `OP_SERVICE_ACCOUNT_TOKEN`, `CUSTOM_GITHUB_TOKEN`, `TMS_URL`, `TMS_API_KEY` optioneel. De `tms-sync`-stap komt in Taak 21; laat de input gedeclareerd en de stap weg.
+**Interface:** inputs volgens [ci.md](naslag/ci.md#ci); job-id `pipeline`; secrets `OP_SERVICE_ACCOUNT_TOKEN`, `CUSTOM_GITHUB_TOKEN`, `TMS_URL`, `TMS_API_KEY` optioneel. De `tms-sync`-stap komt in Task 21; laat de input gedeclareerd en de stap weg.
 
 - [ ] Stap 1: schrijf `ci.yml`; `actionlint`.
 - [ ] Stap 2: voorbeeldrepo: `.github/workflows/ci.yml` met `name: Continuous Integration`, trigger `push` op `main`/`develop` en `pull_request`, job `run-ci` → `ci.yml@feature/<taak>` met `checks: lint typecheck test`. Verwacht groen, met in de log de drie `ok`-regels en `Setup Python (uv)` uitgevoerd (de `backend/pyproject.toml`).
@@ -145,7 +145,7 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 - [ ] Stap 4: turbo-test: voeg in de voorbeeldrepo `turbo.json` en `pnpm-workspace.yaml` met `packages: [backend]` toe op een PR-branch; verwacht `pnpm turbo run … --affected` in de log en alleen het gewijzigde pakket. Houd dit in de repo (de voorbeeldrepo is vanaf nu een monorepo).
 - [ ] Stap 5: zet de ref in de voorbeeldrepo op `@v2` zodra de PR gemerged is; commit in deze repo `feat: add ci.yml, the one CI workflow for every repo`.
 
-### Taak 8: `run-image-smoke` en `ci-images.yml`
+### Task 8: `run-image-smoke` en `ci-images.yml`
 
 **Bestanden:**
 - Maak: `.github/actions/run-image-smoke/action.yml` (concept-blok).
@@ -158,12 +158,12 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 - [ ] Stap 3: negatieve tests: PR die alleen `README.md` wijzigt → images-job meldt "No changes under: web/**" en slaagt; `stack-file` en `images` allebei leeg → rood "Neither stack-file nor images"; `${MISSING:?}` in het stackbestand zonder `stack-env` → `stack` rood.
 - [ ] Stap 4: commit `feat: add ci-images.yml and run-image-smoke`.
 
-### Taak 9: verplichte checks in de voorbeeldrepo (**handwerk**)
+### Task 9: verplichte checks in de voorbeeldrepo (**handwerk**)
 
 - [ ] Stap 1: maak `run-check-pr / pipeline`, `run-ci / pipeline` en `run-ci-images / pipeline` verplicht op `main` en `develop`, bron GitHub Actions, up-to-date verplicht.
 - [ ] Stap 2: test: een PR met een rode `lint` is niet te mergen.
 
-### Taak 10: eerste echte repo: template-nextjs-vercel op `ci.yml@v2`
+### Task 10: eerste echte repo: template-nextjs-vercel op `ci.yml@v2`
 
 **Bron:** [migratievoorbeelden](naslag/migratievoorbeelden.md#migration). **Handwerk:** branchprotectie van de template volgens de standaard (nu: geen verplichte checks, force push toegestaan).
 
@@ -177,7 +177,7 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de voorbeeldrepo.
 
-### Taak 11: `cd-gate.yml`
+### Task 11: `cd-gate.yml`
 
 **Bestanden:**
 - Maak: `.github/workflows/cd-gate.yml` uit het concept-blok, plus de vier aanvullingen uit de Review Focus.
@@ -192,7 +192,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
 - [ ] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
 - [ ] Stap 5: commit `feat: add cd-gate.yml`.
 
-### Taak 12: gate-documentatie bijwerken
+### Task 12: gate-documentatie bijwerken
 
 - [ ] Stap 1: zet de concept-YAML van cd-gate gelijk aan het bestand (`allow-prerelease`, de drie extra controles) en neem de vier scenario's op in het testplan.
 - [ ] Stap 2: commit `docs: sync cd-gate reference with the implementation`.
@@ -203,7 +203,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
 
 Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 
-### Taak 13: `deploy-vercel` en `run-codegen`
+### Task 13: `deploy-vercel` en `run-codegen`
 
 **Bestanden:**
 - Wijzig: `.github/actions/deploy-vercel/action.yml`
@@ -217,16 +217,16 @@ Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 - [ ] Stap 2: run-codegen: schrijf de action; test in de voorbeeldrepo met scripts `codegen` (schrijft `generated.ts`), `typecheck`, en `codegen-check` (vergelijkt `$CODEGEN_BASELINE/openapi.json` met `openapi.json` via `cmp`); test: `codegen-check` zonder `codegen-baseline` → rood; ongecommit baseline-bestand → rood; gelijk bestand → groen.
 - [ ] Stap 3: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel; new run-codegen`.
 
-### Taak 14: `cd-vercel.yml`
+### Task 14: `cd-vercel.yml`
 
 **Bestanden:**
-- Maak: `.github/workflows/cd-vercel.yml` uit het concept-blok, zonder de drie `run-translations`-stappen (Taak 21); laat de `tms*`-inputs gedeclareerd.
+- Maak: `.github/workflows/cd-vercel.yml` uit het concept-blok, zonder de drie `run-translations`-stappen (Task 21); laat de `tms*`-inputs gedeclareerd.
 
 - [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: test op template-nextjs-vercel (Taak 15), want de voorbeeldrepo heeft geen Vercel-project.
+- [ ] Stap 2: test op template-nextjs-vercel (Task 15), want de voorbeeldrepo heeft geen Vercel-project.
 - [ ] Stap 3: commit `feat: add cd-vercel.yml`.
 
-### Taak 15: template-nextjs-vercel op `cd-vercel@v2` (**handwerk** voor de environments)
+### Task 15: template-nextjs-vercel op `cd-vercel@v2` (**handwerk** voor de environments)
 
 **Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration).
 
@@ -242,15 +242,15 @@ Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 
 Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
-### Taak 16: `deploy-swarm` met `pre-deploy`
+### Task 16: `deploy-swarm` met `pre-deploy`
 
 **Bestanden:** wijzig `.github/actions/deploy-swarm/action.yml`: inputs `pre-deploy`, `environment`, `version`; de stap uit [cd.md](naslag/cd.md#cd-swarm) tussen GHCR-login en migraties.
 
 - [ ] Stap 1: schrijf en lint; `shellcheck` op het script met `printf %q`.
-- [ ] Stap 2: test komt in Taak 18 op een echte VM; hier alleen een droogtest met `ssh` naar `localhost` op de runner: een script dat `exit 3` doet stopt de stap met exitcode 3 vóór `docker stack deploy`.
+- [ ] Stap 2: test komt in Task 18 op een echte VM; hier alleen een droogtest met `ssh` naar `localhost` op de runner: een script dat `exit 3` doet stopt de stap met exitcode 3 vóór `docker stack deploy`.
 - [ ] Stap 3: commit `feat(deploy-swarm): add pre-deploy checks on the manager`.
 
-### Taak 17: `cd-swarm.yml`
+### Task 17: `cd-swarm.yml`
 
 **Bestanden:** maak `.github/workflows/cd-swarm.yml` uit het concept-blok (met de `migrate-image`-tag en `working-directory` in de concurrency-groep).
 
@@ -258,7 +258,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 2: validatietests in de voorbeeldrepo, zonder VM: `images: []` met `deploy-enabled: false` → rood in `validate`; `images` met één image en `deploy-enabled: false` → build-job bouwt, smoketest draait, push naar GHCR slaagt, deploy overgeslagen.
 - [ ] Stap 3: commit `feat: add cd-swarm.yml`.
 
-### Taak 18: gp-container-tracking-webapp en gp-map-webapp op `v2` (**handwerk** voor vars en environments)
+### Task 18: gp-container-tracking-webapp en gp-map-webapp op `v2` (**handwerk** voor vars en environments)
 
 **Bron:** [migratievoorbeelden Swarm](naslag/migratievoorbeelden.md#migration). Volgorde: eerst container-tracking (alleen stack), dan gp-map (Postgres, images, migraties).
 
@@ -270,7 +270,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ## Plak 5: Supabase, CMS, pakketten, Pages
 
-### Taak 19: `cd-supabase.yml` (**handwerk** voor het machine-account)
+### Task 19: `cd-supabase.yml` (**handwerk** voor het machine-account)
 
 **Bestanden:** maak `.github/workflows/cd-supabase.yml` uit het concept-blok.
 
@@ -280,14 +280,14 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 4: CI van dezelfde testrepo op `database: supabase` met `checks: dbtest` (het script `"dbtest": "supabase test db"`): verwacht groen met de pgTAP-uitvoer; een PR die niets onder `supabase/` wijzigt → de stack start niet en de job slaagt met "No changes under supabase/"; `checks: dbtest` in een repo zonder `supabase/tests` → rood met `NOTESTS`.
 - [ ] Stap 4: commit `feat: add cd-supabase.yml`.
 
-### Taak 20: edge functions typechecken in CI
+### Task 20: edge functions typechecken in CI
 
 **Bestanden:** wijzig `ci.yml`: installeer Deno (vaste commit van `denoland/setup-deno`) als `supabase/functions` bestaat, zoals uv bij `pyproject.toml`.
 
 - [ ] Stap 1: schrijf; test in de testrepo met `"typecheck:functions": "deno check supabase/functions"` in `checks`; een opzettelijke typefout → rood.
 - [ ] Stap 2: commit `feat(ci): set up Deno when the repo has edge functions`.
 
-### Taak 21: `run-translations` en de CMS-stappen
+### Task 21: `run-translations` en de CMS-stappen
 
 **Bestanden:**
 - Maak: `.github/actions/run-translations/action.yml` (concept-blok).
@@ -299,7 +299,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 2: tms-test op `v2`: CI met `tms-sync-branch: develop`; CD met `tms: true` en `repository_dispatch: [tms-deploy]`. Merge naar `develop`; verwacht `sync` in CI, en in CD `ack` → `pull` → typecheck → deploy → `mark-deployed`. Een `tms-deploy` met `environment: production` vanuit het CMS → rood met de staging-melding.
 - [ ] Stap 3: commit `feat: add run-translations and wire the CMS into ci and cd-vercel`.
 
-### Taak 22: `cd-packages.yml`
+### Task 22: `cd-packages.yml`
 
 **Bestanden:** maak `.github/workflows/cd-packages.yml` uit het concept-blok (met de `.npmrc`-overschrijving vóór `publish`).
 
@@ -308,7 +308,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 3: translations-management op `v2` (**handwerk** voor `packages: write`); eerste echte publicatie.
 - [ ] Stap 4: commit `feat: add cd-packages.yml`.
 
-### Taak 23: `cd-pages.yml`
+### Task 23: `cd-pages.yml`
 
 **Bestanden:** maak `.github/workflows/cd-pages.yml`: `storybook-cd.yml` als basis, met `build-command` (default `build-storybook`), `output-directory` (default `storybook-static`), `codegen*`, Node uit `.nvmrc`, job `deploy` in environment `github-pages`, `run-codegen` vóór de build.
 
@@ -321,19 +321,19 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ## Plak 6: toetsen, inrichten, migreren
 
-### Taak 24: `scripts/audit-consumers.sh` en `audit-consumers.yml`
+### Task 24: `scripts/audit-consumers.sh` en `audit-consumers.yml`
 
 **Bestanden:**
 - Maak: `scripts/audit-consumers.sh` uit het concept-blok, plus: per environment de branchregels (`deployment_branch_policy`) en of de deploy-secrets op het environment staan en niet ook op de repo; een environment dat bestaat zonder regels is een bevinding (Review Focus 4); repo's die alleen losse actions of alleen cd-pages aanroepen, krijgen alleen de check-pr-, protectie- en Dependabot-controles.
-- Maak: `.github/workflows/audit-consumers.yml`: wekelijks en `workflow_dispatch`, environment `audit` (alleen `v2`), GitHub App-token via `actions/create-github-app-token` op vaste commit, draait het script en werkt één issue bij. Let op: `schedule` werkt alleen vanaf de default branch, en dat is tot Taak 28 nog `main`. Tot die tijd start je de audit met `pnpm audit:consumers:remote` (`gh workflow run audit-consumers.yml --ref v2`); `pull_request` en `push` hebben dat probleem niet, dus `self-ci.yml` (Taak 2) draait wél gewoon vanaf `v2`.
+- Maak: `.github/workflows/audit-consumers.yml`: wekelijks en `workflow_dispatch`, environment `audit` (alleen `v2`), GitHub App-token via `actions/create-github-app-token` op vaste commit, draait het script en werkt één issue bij. Let op: `schedule` werkt alleen vanaf de default branch, en dat is tot Task 28 nog `main`. Tot die tijd start je de audit met `pnpm audit:consumers:remote` (`gh workflow run audit-consumers.yml --ref v2`); `pull_request` en `push` hebben dat probleem niet, dus `self-ci.yml` (Task 2) draait wél gewoon vanaf `v2`.
 
-- [ ] Stap 1: `pnpm lint`; draai `pnpm audit:consumers -- workflows-example gp-map-webapp template-nextjs-vercel`; verwacht 0 bevindingen voor de eerste twee na Plak 1–4, en een lijst voor de template vóór Taak 15.
+- [ ] Stap 1: `pnpm lint`; draai `pnpm audit:consumers -- workflows-example gp-map-webapp template-nextjs-vercel`; verwacht 0 bevindingen voor de eerste twee na Plak 1–4, en een lijst voor de template vóór Task 15.
 - [ ] Stap 2: test Review Focus 4: maak in de voorbeeldrepo een environment `acceptance` zonder regels; verwacht de bevinding "environment acceptance has no deployment branch policy".
 - [ ] Stap 3: GitHub App aanmaken met alleen-lezen `administration`, `environments`, `secrets`, `contents`, `metadata`; installeren op de org (**handwerk**); app-id en private key als secrets op environment `audit`.
-- [ ] Stap 4: eerste run via `pnpm audit:consumers:remote`; verwacht een issue "Consumer audit" met de tabel. Werkt de dispatch niet omdat het bestand niet op de default branch staat, dan is dat de reden om Taak 28 stap 4 naar voren te halen.
+- [ ] Stap 4: eerste run via `pnpm audit:consumers:remote`; verwacht een issue "Consumer audit" met de tabel. Werkt de dispatch niet omdat het bestand niet op de default branch staat, dan is dat de reden om Task 28 stap 4 naar voren te halen.
 - [ ] Stap 5: commit `feat: add audit-consumers script and weekly workflow`.
 
-### Taak 25: `scripts/setup-consumer.sh`
+### Task 25: `scripts/setup-consumer.sh`
 
 **Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), branchprotectie op `main`/`develop` met de verplichte checks, en meldt welke secrets de beheerder nog moet zetten. Idempotent: een tweede run verandert niets.
 
@@ -341,7 +341,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 2: tweede run; verwacht geen wijzigingen (vergelijk `gh api` vóór en na).
 - [ ] Stap 3: commit `feat: add setup-consumer script`.
 
-### Taak 26: migratiescript
+### Task 26: migratiescript
 
 **Bestanden:** maak `scripts/migrate-consumer.sh <repo>`: kloont de repo, herschrijft `.github/workflows/*.yml` volgens de tabellen in [ci.md](naslag/ci.md), [cd.md](naslag/cd.md) en de [migratievoorbeelden](naslag/migratievoorbeelden.md) (`@main` → `@v2`, `run-*` → `checks`, `onepassword_*` weg, twee deploy-jobs → gate + deploy, trigger `push` → `workflow_run`, `head-ref`/`base-ref` weg), draait `setup-consumer.sh`, en opent een PR naar `main` met een checklist van wat handmatig blijft (secrets verplaatsen, `package.json`-scripts, verplichte checks vlak vóór de merge).
 
@@ -349,13 +349,13 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 2: draai op een kopie van gp-groot-automations (Python zonder hoofdschakelaar); verwacht een `backend/package.json` met `lint` en `format` en een waarschuwing in de PR-tekst dat CI rood zal zijn.
 - [ ] Stap 3: commit `feat: add migrate-consumer script`.
 
-### Taak 27: README op `v2`, banner op `main`
+### Task 27: README op `v2`, banner op `main`
 
 - [ ] Stap 1: herschrijf `README.md` op `v2`: per workflow en action de inputs uit de naslag, de standaardinrichting, en de drie scripts. Verwijder `framework` uit elk voorbeeld.
 - [ ] Stap 2: PR naar `main` (hotfix) met alleen een banner bovenaan de README: "`main` is end of life; nieuwe repo's gebruiken `@v2`, zie docs/v2", en `framework` uit de voorbeelden.
 - [ ] Stap 3: commit `docs: rewrite README for v2` en `docs: point main to v2`.
 
-### Taak 28: v1 weg op `v2`
+### Task 28: v1 weg op `v2`
 
 - [ ] Stap 1: verwijder op `v2`: `web-ci.yml`, `backend-ci.yml`, `fullstack-ci.yml`, `web-cd.yml`, `backend-cd.yml`, `vm-cd.yml`, `storybook-cd.yml`, `codegen.yml`, `run-pnpm-build-test`, `run-python-checks`, `run-supabase-test`, `deploy-supabase`; verwijder `head-ref`/`base-ref` uit `check-pr.yml`.
 - [ ] Stap 2: `pnpm audit:consumers -- workflows-example gp-map-webapp gp-container-tracking-webapp template-nextjs-vercel tms-test gp-groot-automations translations-management` → 0 bevindingen.
@@ -369,13 +369,13 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 De afspraak geldt als dit allemaal waar is:
 
 - De zeven testrepo's draaien CI en CD op `@v2` en hebben elk via `v2` naar al hun environments gedeployd, met minstens één herdeploy via dispatch vanaf de tag.
-- Het gate-testplan (21 scenario's) is in de voorbeeldrepo groen gedraaid en de run-URL's staan in de PR van Taak 11.
+- Het gate-testplan (21 scenario's) is in de voorbeeldrepo groen gedraaid en de run-URL's staan in de PR van Task 11.
 - `audit-consumers.sh` geeft 0 bevindingen op de testrepo's.
 - De README op `v2` beschrijft elke input; `main` wijst naar `v2`.
 - Dependabot heeft minstens één PR op `v2` geopend en die is via de eigen CI gemerged.
 - `v2` is de default branch, en de wekelijkse audit heeft minstens één keer vanzelf gedraaid.
 
-Daarna: Taak 26 per repo, in eigen tempo, en de audit als wekelijkse thermometer.
+Daarna: Task 26 per repo, in eigen tempo, en de audit als wekelijkse thermometer.
 
 ---
 
