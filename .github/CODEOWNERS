@@ -1,0 +1,6 @@
+# A merge to v2 runs in every repo that calls these workflows, so changes to
+# the workflows, the actions and the scripts need a review from the senior
+# developers. The ruleset on v* requires the code owners' review.
+/.github/     @Pursuit-Amsterdam/senior-developers
+/scripts/     @Pursuit-Amsterdam/senior-developers
+/check-pr.sh  @Pursuit-Amsterdam/senior-developers
