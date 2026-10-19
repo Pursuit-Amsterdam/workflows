@@ -1,0 +1,137 @@
+name: "Setup Supabase local stack"
+description: >
+  Starts the Supabase local stack for a job: detects whether anything under
+  supabase/ changed (optional skip), installs the CLI at the version the repo
+  pins, runs `supabase start`, and exports the URLs and keys. Split off from
+  run-supabase-test; the pgTAP run is a script in the repo (`dbtest`). Called
+  by setup-services for `database: supabase`.
+inputs:
+  working-directory:
+    description: "Directory holding package.json and supabase/"
+    required: false
+    default: "."
+  seed:
+    description: "Keep supabase/seed.sql when starting (true/false)"
+    required: false
+    default: "false"
+  skip-if-no-changes:
+    description: "Skip the stack when nothing under supabase/ changed since the base commit"
+    required: false
+    default: "false"
+  wait-timeout:
+    description: "Seconds to wait for `supabase start`"
+    required: false
+    default: "300"
+
+outputs:
+  started:
+    description: "'true' when the stack was started, 'false' when skipped as unchanged"
+    value: ${{ steps.check_changes.outputs.changes }}
+  api-url:
+    value: ${{ steps.status.outputs.api-url }}
+  db-url:
+    value: ${{ steps.status.outputs.db-url }}
+  anon-key:
+    value: ${{ steps.status.outputs.anon-key }}
+  service-role-key:
+    value: ${{ steps.status.outputs.service-role-key }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check for Supabase directory changes
+      id: check_changes
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SKIP_IF_NO_CHANGES: ${{ inputs.skip-if-no-changes }}
+        # Base commit to diff against, from the event payload. On pull_request
+        # it is the tip of the target branch; on push the previous tip of the
+        # pushed branch. Empty on any other event.
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        EVENT_NAME: ${{ github.event_name }}
+      # Fails towards STARTING the stack: every uncertain path (no base commit,
+      # unfetchable base, failed diff) starts it. Two-dot diff on purpose: a
+      # three-dot diff needs the merge base, which a shallow checkout lacks.
+      run: |
+        set -euo pipefail
+        start() { echo "changes=true" >> "$GITHUB_OUTPUT"; exit 0; }
+        if [ "$SKIP_IF_NO_CHANGES" != "true" ]; then start; fi
+        if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+          echo "No base commit for event '$EVENT_NAME'; starting the stack."; start
+        fi
+        if ! git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+          echo "Could not fetch base commit $BASE_SHA; starting the stack."; start
+        fi
+        if ! CHANGED="$(git diff --name-only "$BASE_SHA" HEAD -- ':(top)supabase/')"; then
+          echo "git diff against $BASE_SHA failed; starting the stack."; start
+        fi
+        if [ -n "$CHANGED" ]; then
+          echo "Changes under supabase/ since $BASE_SHA:"; sed 's/^/  /' <<<"$CHANGED"; start
+        fi
+        echo "No changes under supabase/ since $BASE_SHA; skipping the stack."
+        echo "changes=false" >> "$GITHUB_OUTPUT"
+
+    # The CLI version the repo pins, so CI and CD run the same CLI a developer
+    # runs locally. No fallback to `latest`: an unpinned CLI is a finding.
+    - name: Resolve the Supabase CLI version from package.json
+      id: cli
+      if: steps.check_changes.outputs.changes == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        [ -f package.json ] || { echo "::error::no package.json in $(pwd): pin the supabase CLI as a devDependency"; exit 1; }
+        spec=$(jq -r '.devDependencies.supabase // .dependencies.supabase // empty' package.json)
+        version=${spec#[~^=v]}
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::supabase is not pinned to an exact version in package.json devDependencies (got '${spec:-nothing}'); add e.g. \"supabase\": \"2.45.5\""; exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "Supabase CLI $version (from package.json)"
+
+    - name: Install Supabase CLI
+      if: steps.check_changes.outputs.changes == 'true'
+      uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb # v1.7.3
+      with:
+        version: ${{ steps.cli.outputs.version }}
+
+    - name: Start Supabase local services
+      if: steps.check_changes.outputs.changes == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        SEED: ${{ inputs.seed }}
+        WAIT_TIMEOUT: ${{ inputs.wait-timeout }}
+      run: |
+        set -euo pipefail
+        [ -f supabase/config.toml ] || { echo "::error::no supabase/config.toml in $(pwd)"; exit 1; }
+        if [ "$SEED" != "true" ] && [ -f supabase/seed.sql ]; then
+          echo "Seeding disabled: removing supabase/seed.sql for this run"
+          rm supabase/seed.sql
+        fi
+        timeout "${WAIT_TIMEOUT}s" supabase start || { echo "::error::supabase start did not finish within ${WAIT_TIMEOUT}s"; exit 1; }
+
+    # `supabase status -o env` prints KEY="value" lines. Keys are masked before
+    # anything else is written.
+    - name: Export URLs and keys
+      id: status
+      if: steps.check_changes.outputs.changes == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        status=$(supabase status -o env)
+        get() { sed -n "s/^$1=\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p" <<<"$status" | head -n1; }
+        api_url=$(get API_URL); db_url=$(get DB_URL); anon=$(get ANON_KEY); service=$(get SERVICE_ROLE_KEY)
+        for v in "$api_url" "$db_url" "$anon" "$service"; do [ -n "$v" ] || { echo "::error::supabase status did not return API_URL, DB_URL, ANON_KEY and SERVICE_ROLE_KEY"; exit 1; }; done
+        echo "::add-mask::$anon"; echo "::add-mask::$service"
+        {
+          echo "api-url=$api_url"; echo "db-url=$db_url"
+          echo "anon-key=$anon"; echo "service-role-key=$service"
+        } >> "$GITHUB_OUTPUT"
+        {
+          echo "DATABASE_URL=$db_url"; echo "SUPABASE_URL=$api_url"
+          echo "SUPABASE_ANON_KEY=$anon"; echo "SUPABASE_SERVICE_ROLE_KEY=$service"
+        } >> "$GITHUB_ENV"
+        echo "Supabase up: $api_url"
