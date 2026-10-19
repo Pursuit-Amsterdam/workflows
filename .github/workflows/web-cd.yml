@@ -5,7 +5,7 @@ on:
     inputs:
       platform:
         description: "Target deployment platform (vercel, azure, aws, ...)."
-        required: true
+        required: false
         type: string
         default: "vercel"
       node-version:

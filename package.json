@@ -1,0 +1,14 @@
+{
+  "name": "@pursuit-amsterdam/workflows",
+  "private": true,
+  "description": "Reusable GitHub Actions workflows and composite actions. The scripts below are what CI and people run; see docs/v2.",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "lint": "actionlint && shellcheck -s bash check-pr.sh scripts/*.sh",
+    "test": "scripts/check-pr-cases.sh",
+    "audit:consumers": "scripts/audit-consumers.sh",
+    "audit:consumers:remote": "gh workflow run audit-consumers.yml --ref v2",
+    "setup-consumer": "scripts/setup-consumer.sh",
+    "migrate-consumer": "scripts/migrate-consumer.sh"
+  }
+}

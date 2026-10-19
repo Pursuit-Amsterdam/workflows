@@ -1,5 +1,9 @@
 HEAD="module-develop/datepick"
 BASE="develop"
+# Local mirror of the script in .github/workflows/check-pr.yml: edit both.
+# Set HEAD and BASE above and run it, or run scripts/check-pr-cases.sh for
+# the whole table. Cases for the version branches:
+#   feature/x → v2 ✅   develop → v2 ❌   v2 → main ❌   v2 → develop ❌
 
 echo "HEAD: $HEAD"
 echo "BASE: $BASE"
@@ -15,6 +19,7 @@ if [[
 "$HEAD" != dependabot/* &&
 "$HEAD" != module-develop/* &&
 "$HEAD" != module-feature/* &&
+! "$HEAD" =~ ^v[0-9]+$ &&
 ! "$HEAD" =~ ^revert-[0-9]+-(main|develop|acceptance)$ &&
 ! "$HEAD" =~ ^revert-[0-9]+-(hotfix|feature|release|dependabot|module-develop|module-feature)/
 ]]; then
@@ -23,6 +28,22 @@ if [[
 fi
 
 # 2. Merge rules
+
+# feature/*, hotfix/* → v2, v3, ... (version branches of this repo; a
+# version branch itself never merges anywhere)
+if [[ "$BASE" =~ ^v[0-9]+$ ]]; then
+if [[
+    "$HEAD" == feature/* ||
+    "$HEAD" == hotfix/* ||
+    "$HEAD" =~ ^revert-[0-9]+-(feature|hotfix)/
+]]; then
+    echo "✅ Merge allowed: $HEAD → $BASE"
+    exit 0
+else
+    echo "❌ Merge not allowed: $HEAD → $BASE"
+    exit 1
+fi
+fi
 
 # hotfix/*, release/*, develop → main
 if [[ "$BASE" == "main" ]]; then

@@ -1,29 +1,39 @@
 name: Check and Validate PR branch
 
+# Head and base come from the pull_request event, so callers pass no inputs.
+# head-ref and base-ref stay declared (optional, unused) until every caller
+# has dropped them: an unknown input is a startup_failure for the caller.
+# check-pr.sh in the repo root mirrors this script for local runs: edit both.
+
 on:
   workflow_call:
     inputs:
       head-ref:
-        description: "Head branch of the PR"
-        required: true
+        description: "Deprecated, ignored: the head branch is read from the pull_request event"
+        required: false
         type: string
+        default: ""
       base-ref:
-        description: "Base branch of the PR"
-        required: true
+        description: "Deprecated, ignored: the base branch is read from the pull_request event"
+        required: false
         type: string
+        default: ""
 
 jobs:
   pipeline:
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
-      - uses: actions/checkout@v7
-
       - name: Check if merge is allowed
         shell: bash
+        env:
+          HEAD: ${{ github.event.pull_request.head.ref }}
+          BASE: ${{ github.event.pull_request.base.ref }}
         run: |
-          HEAD="${{ inputs.head-ref }}"
-          BASE="${{ inputs.base-ref }}"
+          if [[ -z "$HEAD" || -z "$BASE" ]]; then
+            echo "❌ No pull_request in the event: call this workflow from a pull_request trigger."
+            exit 1
+          fi
 
           echo "HEAD: $HEAD"
           echo "BASE: $BASE"
@@ -39,6 +49,7 @@ jobs:
             "$HEAD" != dependabot/* &&
             "$HEAD" != module-develop/* &&
             "$HEAD" != module-feature/* &&
+            ! "$HEAD" =~ ^v[0-9]+$ &&
             ! "$HEAD" =~ ^revert-[0-9]+-(main|develop|acceptance)$ &&
             ! "$HEAD" =~ ^revert-[0-9]+-(hotfix|feature|release|dependabot|module-develop|module-feature)/
           ]]; then
@@ -47,6 +58,22 @@ jobs:
           fi
 
           # 2. Merge rules
+
+          # feature/*, hotfix/* → v2, v3, ... (version branches of this repo; a
+          # version branch itself never merges anywhere)
+          if [[ "$BASE" =~ ^v[0-9]+$ ]]; then
+            if [[
+              "$HEAD" == feature/* ||
+              "$HEAD" == hotfix/* ||
+              "$HEAD" =~ ^revert-[0-9]+-(feature|hotfix)/
+            ]]; then
+              echo "✅ Merge allowed: $HEAD → $BASE"
+              exit 0
+            else
+              echo "❌ Merge not allowed: $HEAD → $BASE"
+              exit 1
+            fi
+          fi
 
           # hotfix/*, release/*, develop → main
           if [[ "$BASE" == "main" ]]; then

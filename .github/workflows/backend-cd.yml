@@ -5,7 +5,7 @@ on:
     inputs:
       platform:
         description: "Target deployment platform (supabase, ...)."
-        required: true
+        required: false
         type: string
         default: "supabase"
       node-version:
