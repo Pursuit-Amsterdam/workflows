@@ -1,0 +1,224 @@
+name: "CI images"
+
+# Checks a Swarm project on a pull request: that the stack files are valid together,
+# and that every image the project builds itself builds and starts. Each part runs
+# only when its input is set; setting neither is refused (nothing checked is never
+# green). A closing job `pipeline` covers both, so a caller job `run-ci` gives one
+# required check: `run-ci / pipeline`.
+# No 1Password here: this runs on pull_request and must not need real secrets.
+
+on:
+  workflow_call:
+    inputs:
+      stack-file:
+        description: "Space-separated stack files (base + overlay), as for cd-swarm. Empty = no stack check."
+        required: false
+        type: string
+        default: ""
+      stack-env:
+        description: "Space-separated KEY=value placeholders so ${VAR:?} references resolve"
+        required: false
+        type: string
+        default: ""
+      images:
+        description: >
+          JSON array, same schema as cd-swarm (name = full image name), plus per
+          image: paths (only build when these changed), port, health-path, env,
+          build-env (object of placeholder build args, so a build that validates
+          its env still builds here), smoke, exec. [] = no images. build-args is
+          ignored: it selects 1Password fields, and this workflow loads no secrets.
+        required: false
+        type: string
+        default: "[]"
+      codegen:
+        description: "Name of the package script that generates code before the image build, on the runner as in cd-swarm. Empty = none."
+        required: false
+        type: string
+        default: ""
+      database:
+        description: "none | postgres | supabase, for backends that need one to boot"
+        required: false
+        type: string
+        default: "none"
+      redis:
+        description: "Start Redis for backends that need it to boot"
+        required: false
+        type: boolean
+        default: false
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN as a build secret for private dependencies"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      images-count: ${{ steps.count.outputs.n }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Counted with jq, not compared as a string: "[ ]" or a multi-line [] is
+      # empty too, and an empty matrix is a hard error instead of a skip.
+      - name: Refuse a run that checks nothing
+        id: count
+        env:
+          STACK_FILE: ${{ inputs.stack-file }}
+          IMAGES: ${{ inputs.images }}
+        run: |
+          set -euo pipefail
+          n=$(jq 'if type == "array" then length else error("not an array") end' <<<"$IMAGES") \
+            || { echo "::error::images is not a JSON array"; exit 1; }
+          if [ -z "${STACK_FILE//[[:space:]]/}" ] && [ "$n" -eq 0 ]; then
+            echo "::error::Neither stack-file nor images is set: this job would pass without checking anything."; exit 1
+          fi
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+
+      # Parses and merges base + overlay, rejects unknown fields and unresolvable
+      # ${VAR} references. Same command as `pnpm lint` in gp-container-tracking.
+      - name: Validate stack files
+        if: inputs.stack-file != ''
+        env:
+          STACK_FILE: ${{ inputs.stack-file }}
+          STACK_ENV: ${{ inputs.stack-env }}
+        run: |
+          set -euo pipefail
+          read -ra files <<<"$(tr -s '[:space:]' ' ' <<<"$STACK_FILE")"
+          read -ra vars <<<"$(tr -s '[:space:]' ' ' <<<"$STACK_ENV")"
+          args=()
+          for f in "${files[@]}"; do args+=(-f "$f"); done
+          env "${vars[@]}" docker compose "${args[@]}" config --quiet
+          echo "Stack files valid: $STACK_FILE"
+
+  images:
+    name: image ${{ matrix.image.name }}
+    needs: stack
+    # An empty matrix is a hard error at workflow start, not a skip.
+    if: needs.stack.outputs.images-count != '0'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(inputs.images) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Images whose paths did not change are skipped, not failed. No paths, or a
+      # push event, means always build. Compare against the merge base with the
+      # base branch: the checkout above has full history, the base branch is
+      # fetched in full too, so `base...HEAD` has a merge base to work with (a
+      # depth-1 fetch has none, and the diff would fail or report everything).
+      # Paths are matched as literal prefixes, never as a regex.
+      - name: Changed?
+        id: changed
+        env:
+          PATHS: ${{ join(matrix.image.paths, ' ') }}
+          BASE: ${{ github.base_ref }}
+          IMAGE: ${{ matrix.image.name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PATHS" ] || [ -z "$BASE" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          git fetch --no-tags origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+          changed=$(git diff --name-only "origin/$BASE...HEAD")
+          for p in $PATHS; do
+            prefix=${p%%\**}
+            while IFS= read -r f; do
+              case "$f" in "$prefix"*) echo "build=true" >> "$GITHUB_OUTPUT"; exit 0 ;; esac
+            done <<<"$changed"
+          done
+          echo "build=false" >> "$GITHUB_OUTPUT"
+          echo "No changes under: $PATHS — skipping $IMAGE"
+
+      - name: Services (database, redis)
+        if: steps.changed.outputs.build == 'true'
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          database: ${{ inputs.database }}
+          redis: ${{ inputs.redis }}
+
+      # Same as cd-swarm: codegen on the runner, the Dockerfile copies the result.
+      - name: Read the Node version from the repo
+        id: node
+        if: steps.changed.outputs.build == 'true' && inputs.codegen != ''
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        if: steps.changed.outputs.build == 'true' && inputs.codegen != ''
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Code generation
+        if: steps.changed.outputs.build == 'true' && inputs.codegen != ''
+        env:
+          SCRIPT: ${{ inputs.codegen }}
+        run: pnpm run "$SCRIPT"
+
+      # Placeholder build args from the JSON (build-env), one KEY=value per line,
+      # so a Dockerfile that validates NEXT_PUBLIC_* at build time still builds.
+      - name: Build args
+        id: build-args
+        if: steps.changed.outputs.build == 'true'
+        env:
+          CONFIG: ${{ toJSON(matrix.image) }}
+        run: |
+          set -euo pipefail
+          { echo "value<<BUILD_ARGS_EOF"; jq -r '(.["build-env"] // {}) | to_entries[] | "\(.key)=\(.value)"' <<<"$CONFIG"; echo "BUILD_ARGS_EOF"; } >> "$GITHUB_OUTPUT"
+
+      # The gha cache exporter needs a buildx builder; the default docker
+      # driver cannot write it.
+      - name: Set up Docker Buildx
+        if: steps.changed.outputs.build == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build (load only)
+        if: steps.changed.outputs.build == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.image.context || '.' }}
+          file: ${{ matrix.image.dockerfile || './Dockerfile' }}
+          build-args: ${{ steps.build-args.outputs.value }}
+          # Same secret ids as vm-cd and cd-swarm.
+          secrets: |
+            NODE_AUTH_TOKEN=${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+            GITHUB_TOKEN=${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+          load: true
+          push: false
+          tags: ${{ matrix.image.name }}:ci
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+
+      - name: Smoke test
+        if: steps.changed.outputs.build == 'true'
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-image-smoke@v2
+        with:
+          image: ${{ matrix.image.name }}:ci
+          config: ${{ toJSON(matrix.image) }}
+
+  # One required check for everything above. A skipped images job (no images)
+  # counts as fine; a failed or cancelled one does not.
+  pipeline:
+    needs: [stack, images]
+    if: ${{ always() }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Result
+        env:
+          STACK: ${{ needs.stack.result }}
+          IMAGES: ${{ needs.images.result }}
+        run: |
+          echo "stack: $STACK, images: $IMAGES"
+          [ "$STACK" = success ] || exit 1
+          case "$IMAGES" in success|skipped) ;; *) exit 1 ;; esac
