@@ -1,0 +1,18 @@
+# Keeps the pinned external actions current. target-branch: v2, because main
+# is end of life and Dependabot only looks at the default branch otherwise.
+# The second directory covers the composite actions' action.yml files.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    target-branch: v2
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      github-actions:
+        patterns: ["*"]
