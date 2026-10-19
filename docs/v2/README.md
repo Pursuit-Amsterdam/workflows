@@ -28,7 +28,7 @@ Bewijs en details per bevinding: [auditbevindingen](naslag/auditbevindingen.md#a
 
 ### Status
 
-De [acht principes](principes.md#design) staan, en alle [open punten zijn besloten](beslissingen.md#decided) op 15 oktober 2026. Volgende stap: de [uitrol](uitrol.md), te beginnen met de eigen CI en de bescherming van `v2`.
+De [acht principes](principes.md#design) staan, en alle [open punten zijn besloten](beslissingen.md#decided) op 15 oktober 2026. Volgende stap: het [implementatieplan](implementatieplan.md), te beginnen met de eigen CI en de bescherming van `v2`.
 
 ## Inhoud
 
@@ -40,6 +40,7 @@ Het voorstel bestaat uit twee delen. Het betoog is voor wie beslist; de naslag i
 2. [Het ontwerp in acht principes](principes.md): de regels, en welk probleem elke regel oplost.
 3. [Uitrol](uitrol.md): een branch `v2`, en de volgorde van overstappen.
 4. [Beslissingen](beslissingen.md): wat besloten is, en waarom.
+5. [Implementatieplan](implementatieplan.md): 28 taken in zeven plakken, elk met een test in de voorbeeldrepo.
 
 **Naslag**
 

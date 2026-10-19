@@ -16,7 +16,7 @@ Een input hernoemen op `main` breekt elke repo die hem meegeeft. Daarom komt v2 
 
 De vijf repo's die nu door `framework` niet starten, kunnen die input zelf uit hun aanroep halen. Dat is één regel in de repo en vraagt niets van `main`. De bron zit wel op `main`: de README noemt `framework` verplicht, en tien voorbeelden geven hem mee. Die tekst corrigeren voordat `main` bevriest, voorkomt nieuwe gevallen.
 
-Voorbeelden per soort repo, de volledige stappen, de mechaniek en het beleid na de overstap staan in de naslag: [migratievoorbeelden](naslag/migratievoorbeelden.md#migration) en [uitrol in detail](naslag/uitrol-in-detail.md#rollout).
+Voorbeelden per soort repo, de volledige stappen, de mechaniek en het beleid na de overstap staan in de naslag: [migratievoorbeelden](naslag/migratievoorbeelden.md#migration) en [uitrol in detail](naslag/uitrol-in-detail.md#rollout). De taken, in volgorde en met hun tests, staan in het [implementatieplan](implementatieplan.md#plan).
 
 ---
 

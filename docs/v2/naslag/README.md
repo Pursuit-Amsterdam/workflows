@@ -13,7 +13,7 @@ De auditbevindingen, alle inputs, bouwstenen, de standaardinrichting van een rep
 - Vervangt: `cd-vercel.yml` ← web-cd · `cd-supabase.yml` ← backend-cd · `cd-swarm.yml` ← vm-cd · `cd-pages.yml` ← storybook-cd
 - Gewijzigd: `check-pr.yml` (+ `v*`-regels; leest head en base uit het event)
 - Weg op `v2`: web-ci, backend-ci, fullstack-ci, web-cd, backend-cd, vm-cd, storybook-cd, codegen
-- Eigen onderhoud: `ci.yml` van deze repo zelf (actionlint, shellcheck, check-pr.sh, voorbeeldrepo) en `audit-consumers.yml`
+- Eigen onderhoud: `self-ci.yml` (actionlint, shellcheck, de check-pr-testgevallen) en `audit-consumers.yml`; de voorbeeldrepo `workflows-example` roept `v2` aan zoals een echte repo
 
 **`.github/actions`**
 
