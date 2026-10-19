@@ -1,0 +1,178 @@
+name: "Services"
+description: >
+  Side services a job may need before any check or build: a database (plain
+  Postgres container or the Supabase local stack), Redis, and secrets from
+  1Password. Opt-in by value, not by flag: `database: postgres|supabase` boots
+  that database and exports DATABASE_URL, `redis: true` exports REDIS_URL, a
+  non-empty `onepassword-item` loads the vault item. Never runs a check.
+  Shared by ci.yml, ci-images.yml and every cd-*.yml (the 1Password half).
+inputs:
+  database:
+    description: "none | postgres | supabase"
+    required: false
+    default: "none"
+  redis:
+    description: "Start a Redis container on localhost:6379 (backends that need it to boot)"
+    required: false
+    default: "false"
+  redis-image:
+    required: false
+    default: "redis:8-alpine"
+  working-directory:
+    description: "Directory holding package.json and supabase/ for database: supabase. A caller job's defaults.run.working-directory does NOT reach inside a composite action."
+    required: false
+    default: "."
+  supabase-seed:
+    description: "Keep supabase/seed.sql when starting the stack"
+    required: false
+    default: "false"
+  supabase-skip-unchanged:
+    description: "Skip starting the Supabase stack when nothing under supabase/ changed since the base commit"
+    required: false
+    default: "false"
+  postgres-image:
+    required: false
+    default: "postgres:18-alpine"
+  postgres-user:
+    required: false
+    default: "postgres"
+  postgres-password:
+    required: false
+    default: "postgres"
+  postgres-db:
+    required: false
+    default: "postgres"
+  onepassword-vault:
+    description: "1Password vault. Required when onepassword-item is set."
+    required: false
+    default: ""
+  onepassword-item:
+    description: "1Password item. Non-empty enables secret loading."
+    required: false
+    default: ""
+  onepassword-token:
+    description: "OP_SERVICE_ACCOUNT_TOKEN. Required when onepassword-item is set."
+    required: false
+    default: ""
+  onepassword-export-for-vercel:
+    description: "Also write the Vercel --env args file (cd-vercel)"
+    required: false
+    default: "false"
+  onepassword-export-build-args:
+    description: "Also emit non-concealed fields as Docker build args (cd-swarm)"
+    required: false
+    default: "false"
+
+outputs:
+  database-url:
+    description: "Connection URL of whichever database was started; also exported as DATABASE_URL"
+    value: ${{ steps.postgres.outputs.database-url || steps.supabase.outputs.db-url }}
+  supabase-started:
+    description: "'true' when the Supabase stack is up (false when skipped as unchanged or not requested)"
+    value: ${{ steps.supabase.outputs.started || 'false' }}
+  build-args:
+    description: "Non-concealed 1Password fields as KEY=value, one per line, when onepassword-export-build-args is true"
+    value: ${{ steps.build-args.outputs.value }}
+
+runs:
+  using: "composite"
+  steps:
+    # Everything that can be wrong with the inputs fails here, before a single
+    # container starts.
+    - name: Validate service inputs
+      shell: bash
+      env:
+        DATABASE: ${{ inputs.database }}
+        REDIS: ${{ inputs.redis }}
+        OP_VAULT: ${{ inputs.onepassword-vault }}
+        OP_ITEM: ${{ inputs.onepassword-item }}
+        OP_TOKEN: ${{ inputs.onepassword-token }}
+      run: |
+        set -euo pipefail
+        case "$DATABASE" in none|postgres|supabase) ;; *)
+          echo "::error::database must be none, postgres or supabase (got '$DATABASE')"; exit 1;; esac
+        case "$REDIS" in true|false) ;; *)
+          echo "::error::redis must be true or false (got '$REDIS')"; exit 1;; esac
+        if [ -n "$OP_ITEM" ] && { [ -z "$OP_VAULT" ] || [ -z "$OP_TOKEN" ]; }; then
+          echo "::error::onepassword-item is set but onepassword-vault or OP_SERVICE_ACCOUNT_TOKEN is missing"; exit 1
+        fi
+
+    - name: Start Postgres
+      id: postgres
+      if: inputs.database == 'postgres'
+      shell: bash
+      env:
+        POSTGRES_IMAGE: ${{ inputs.postgres-image }}
+        POSTGRES_USER: ${{ inputs.postgres-user }}
+        POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        POSTGRES_DB: ${{ inputs.postgres-db }}
+      # Same container and readiness probe as backend-ci.yml.
+      run: |
+        set -euo pipefail
+        docker run -d --name ci-postgres \
+          -e POSTGRES_USER -e POSTGRES_PASSWORD -e POSTGRES_DB \
+          -p 5432:5432 "$POSTGRES_IMAGE" >/dev/null
+        for _ in $(seq 1 30); do
+          if docker exec ci-postgres pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+            url="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}"
+            echo "database-url=$url" >> "$GITHUB_OUTPUT"
+            echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+            echo "Postgres ready at localhost:5432 (db $POSTGRES_DB)"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::Postgres failed to become ready"; docker logs ci-postgres >&2 || true; exit 1
+
+    - name: Start Redis
+      if: inputs.redis == 'true'
+      shell: bash
+      env:
+        REDIS_IMAGE: ${{ inputs.redis-image }}
+      run: |
+        set -euo pipefail
+        docker run -d --name ci-redis -p 6379:6379 "$REDIS_IMAGE" >/dev/null
+        for _ in $(seq 1 30); do
+          if docker exec ci-redis redis-cli ping 2>/dev/null | grep -q PONG; then
+            echo "REDIS_URL=redis://localhost:6379" >> "$GITHUB_ENV"
+            echo "Redis ready at localhost:6379"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::Redis failed to become ready"; docker logs ci-redis >&2 || true; exit 1
+
+    # The service half of the old run-supabase-test: change detection, CLI,
+    # `supabase start`, seed handling, URLs and keys. The pgTAP run is a script
+    # in the repo (`dbtest`), not part of this action.
+    - name: Start Supabase local stack
+      id: supabase
+      if: inputs.database == 'supabase'
+      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-supabase@v2
+      with:
+        working-directory: ${{ inputs.working-directory }}
+        seed: ${{ inputs.supabase-seed }}
+        skip-if-no-changes: ${{ inputs.supabase-skip-unchanged }}
+
+    - name: Load 1Password secrets
+      id: onepassword
+      if: inputs.onepassword-item != ''
+      uses: Pursuit-Amsterdam/workflows/.github/actions/setup-onepassword@v2
+      with:
+        service-account-token: ${{ inputs.onepassword-token }}
+        vault-name: ${{ inputs.onepassword-vault }}
+        item-name: ${{ inputs.onepassword-item }}
+        export-for-vercel: ${{ inputs.onepassword-export-for-vercel }}
+        export-build-args: ${{ inputs.onepassword-export-build-args }}
+
+    # setup-onepassword joins the pairs with spaces; build-push-action reads one
+    # per line. Same conversion as run-docker-build-push does in v1.
+    - name: Build args, one per line
+      id: build-args
+      if: inputs.onepassword-item != '' && inputs.onepassword-export-build-args == 'true'
+      shell: bash
+      env:
+        ARGS: ${{ steps.onepassword.outputs.build_args }}
+      run: |
+        set -euo pipefail
+        { echo "value<<BUILD_ARGS_EOF"; tr ' ' '\n' <<<"$ARGS"; echo "BUILD_ARGS_EOF"; } >> "$GITHUB_OUTPUT"
