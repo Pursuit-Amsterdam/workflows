@@ -2,6 +2,8 @@
 
 A comprehensive collection of reusable GitHub Actions and workflows designed for modern web development projects. This repository provides automated CI/CD pipelines for JavaScript/TypeScript projects with support for multiple frameworks, code generation, testing, deployment, and secure secret management.
 
+> **Working on `v2`.** This branch holds the next version of the workflows; the design and the plan live in [`docs/v2/`](docs/v2/README.md). Branch `feature/<topic>` from `v2` and open a PR to `v2`. **Every PR to `v2` needs a review from a senior developer** (`@Pursuit-Amsterdam/senior-developers`) and a green `pipeline` check: a merge to `v2` runs in every repo that calls these workflows. Locally you need `pnpm`, `actionlint`, `shellcheck` and the GitHub CLI `gh` (`brew install actionlint shellcheck gh`); `pnpm lint` and `pnpm test` are exactly what CI runs.
+
 ## 📋 Table of Contents
 
 - [Overall Setup](#overall-setup)
