@@ -99,6 +99,7 @@ jobs:
           echo "Stack files valid: $STACK_FILE"
 
   images:
+    name: image ${{ matrix.image.name }}
     needs: stack
     # An empty matrix is a hard error at workflow start, not a skip.
     if: needs.stack.outputs.images-count != '0'
