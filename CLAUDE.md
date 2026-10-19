@@ -19,7 +19,7 @@ Dependency direction: **workflows → composite actions → third-party actions*
 
 - **Runner**: jobs use `blacksmith-4vcpu-ubuntu-2404` (a Blacksmith self-hosted runner), not `ubuntu-latest`. Match the surrounding file.
 - **Secrets flow through 1Password**, not raw GH secrets. `setup-onepassword` pulls a vault item, masks every value (`::add-mask::`), writes them to `$GITHUB_ENV` (multiline-safe via heredoc), and can additionally emit a NUL-delimited Vercel `--env` args file or Azure `key=value` app-settings strings. Azure has two output flavors: `azure_settings_full` and `azure_settings_public_only` (drops `CONCEALED` fields). Preserve masking and the public/concealed split when editing.
-- **`check-pr.sh` is a local mirror of the inline script in `check-pr.yml`.** Edit both together — `check-pr.sh` hardcodes `HEAD`/`BASE` at the top so you can run it locally to test the branch-naming and merge-rule logic. It is the only runnable test in the repo.
+- **`check-pr.sh` is a local mirror of the inline script in `check-pr.yml`.** Edit both together — `check-pr.sh` hardcodes `HEAD`/`BASE` on its first two lines so you can run it locally. `scripts/check-pr-cases.sh` runs it for a table of `HEAD BASE expected-exit` cases; add a case for every rule you touch.
 - Graceful degradation: `run-pnpm-build-test` warns (doesn't fail) on missing npm scripts; command names (build/test/lint/typecheck) are overridable inputs.
 
 ## Branch & merge model (enforced by check-pr, and used in this repo)
@@ -30,5 +30,5 @@ Merge rules: `feature/*` `dependabot/*` `module-develop/*` `main` → `develop`;
 
 ## Testing changes
 
-- Branch logic: `./check-pr.sh` after editing the `HEAD`/`BASE` vars at the top.
+- Branch logic: `scripts/check-pr-cases.sh` (the whole table), or `./check-pr.sh` after editing the `HEAD`/`BASE` vars at the top.
 - Action/workflow YAML: validate with `actionlint` if available; otherwise rely on a consumer repo's CI against your branch ref. There is no test suite to run.
