@@ -47,11 +47,11 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 
 **Interface:** `check-pr.yml` houdt `workflow_call` en de job-id `pipeline`, maar zonder inputs: `HEAD` en `BASE` komen uit `github.event.pull_request.head.ref` en `.base.ref`. Geen checkout. `head-ref` en `base-ref` blijven tijdelijk gedeclareerd als optioneel en ongebruikt, zodat v1-aanroepers op `@v2` niet met `startup_failure` breken; ze verdwijnen in Task 28.
 
-- [ ] Stap 1: voeg in `check-pr.sh` de regels toe: `v[0-9]+` is een geldige head en base; `feature/*`, `hotfix/*` en `revert-<n>-(feature|hotfix)/*` mogen naar `v*`; `v*` zelf mag nergens heen. Zet bovenaan een reeks testgevallen als commentaar: `feature/x → v2 ✅`, `develop → v2 ❌`, `v2 → main ❌`, `v2 → develop ❌`.
-- [ ] Stap 2: draai `./check-pr.sh` met elk van die vier combinaties in `HEAD`/`BASE` en controleer de exitcode (0, 1, 1, 1).
-- [ ] Stap 3: zet dezelfde regels in `check-pr.yml`, vervang de inputs door de event-velden, verwijder de checkout.
-- [ ] Stap 4: `actionlint .github/workflows/check-pr.yml` en `shellcheck check-pr.sh`.
-- [ ] Stap 5: commit `feat(check-pr): allow v* as base and read head/base from the event`.
+- [x] Stap 1: voeg in `check-pr.sh` de regels toe: `v[0-9]+` is een geldige head en base; `feature/*`, `hotfix/*` en `revert-<n>-(feature|hotfix)/*` mogen naar `v*`; `v*` zelf mag nergens heen. Zet bovenaan een reeks testgevallen als commentaar: `feature/x → v2 ✅`, `develop → v2 ❌`, `v2 → main ❌`, `v2 → develop ❌`.
+- [x] Stap 2: draai `./check-pr.sh` met elk van die vier combinaties in `HEAD`/`BASE` en controleer de exitcode (0, 1, 1, 1).
+- [x] Stap 3: zet dezelfde regels in `check-pr.yml`, vervang de inputs door de event-velden, verwijder de checkout.
+- [x] Stap 4: `actionlint .github/workflows/check-pr.yml` en `shellcheck check-pr.sh`.
+- [x] Stap 5: commit `feat(check-pr): allow v* as base and read head/base from the event`.
 
 ### Task 2: eigen CI van deze repo
 
@@ -69,21 +69,21 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 
 **Interface:** de check heet `pipeline` (job-id), dus de verplichte check in Task 3 is `pipeline`. Lokaal en in CI is het commando hetzelfde: `pnpm lint` en `pnpm test`.
 
-- [ ] Stap 1: schrijf `scripts/check-pr-cases.sh` met minstens de vier gevallen van Task 1 plus de bestaande regels (`feature/x → develop ✅`, `hotfix/x → main ✅`, `feature/x → main ❌`, `develop → acceptance ✅`). Het script zet `HEAD`/`BASE` via `sed` in een kopie van `check-pr.sh` in `$RUNNER_TEMP` en vergelijkt de exitcode.
-- [ ] Stap 2: draai het lokaal; verwacht `8 cases, 0 failures`.
-- [ ] Stap 3: `self-ci.yml`: checkout, `pnpm/action-setup` op vaste commit, actionlint installeren via het downloadscript van rhysd op een vaste commit (`shellcheck` staat op de runner), dan `pnpm lint` en `pnpm test`. Een `.github/actionlint.yaml` met het Blacksmith-label onder `self-hosted-runner.labels`, zodat `pnpm lint` schoon is.
-- [ ] Stap 4: open de PR naar `v2`; verwacht één groene check `pipeline`.
-- [ ] Stap 5: commit `ci: lint workflows and test check-pr on every PR`.
+- [x] Stap 1: schrijf `scripts/check-pr-cases.sh` met minstens de vier gevallen van Task 1 plus de bestaande regels (`feature/x → develop ✅`, `hotfix/x → main ✅`, `feature/x → main ❌`, `develop → acceptance ✅`). Het script zet `HEAD`/`BASE` via `sed` in een kopie van `check-pr.sh` in `$RUNNER_TEMP` en vergelijkt de exitcode.
+- [x] Stap 2: draai het lokaal; verwacht `8 cases, 0 failures`.
+- [x] Stap 3: `self-ci.yml`: checkout, `pnpm/action-setup` op vaste commit, actionlint installeren via het downloadscript van rhysd op een vaste commit (`shellcheck` staat op de runner), dan `pnpm lint` en `pnpm test`. Een `.github/actionlint.yaml` met het Blacksmith-label onder `self-hosted-runner.labels`, zodat `pnpm lint` schoon is.
+- [x] Stap 4: open de PR naar `v2`; verwacht één groene check `pipeline`.
+- [x] Stap 5: commit `ci: lint workflows and test check-pr on every PR`.
 
 ### Task 3: bescherming van `v2` (**handwerk**)
 
 **Bron:** [uitrol in detail, Bescherming van v2](naslag/uitrol-in-detail.md#rollout).
 
-- [ ] Stap 1: `CODEOWNERS` in `.github/` met `/.github/ @Pursuit-Amsterdam/platform` en `/scripts/ @Pursuit-Amsterdam/platform` (team naar keuze; één regel per pad).
-- [ ] Stap 2: `.github/dependabot.yml` met `package-ecosystem: github-actions`, `target-branch: v2`, wekelijks.
-- [ ] Stap 3: ruleset in de repo-instellingen voor `refs/heads/v*`: PR verplicht, 1 review, code-owner-review, verplichte check `pipeline` (bron: GitHub Actions), geen force push, geen delete.
-- [ ] Stap 4: test: een push rechtstreeks naar `v2` wordt geweigerd; een PR zonder groene `pipeline` is niet te mergen.
-- [ ] Stap 5: commit `chore: add CODEOWNERS and Dependabot for v2`.
+- [x] Stap 1: `CODEOWNERS` in `.github/` met `/.github/ @Pursuit-Amsterdam/platform` en `/scripts/ @Pursuit-Amsterdam/platform` (team naar keuze; één regel per pad).
+- [x] Stap 2: `.github/dependabot.yml` met `package-ecosystem: github-actions`, `target-branch: v2`, wekelijks.
+- [x] Stap 3: ruleset in de repo-instellingen voor `refs/heads/v*`: PR verplicht, 1 review, code-owner-review, verplichte check `pipeline` (bron: GitHub Actions), geen force push, geen delete.
+- [x] Stap 4: test: een push rechtstreeks naar `v2` wordt geweigerd; een PR zonder groene `pipeline` is niet te mergen.
+- [x] Stap 5: commit `chore: add CODEOWNERS and Dependabot for v2`.
 
 ### Task 4: de voorbeeldrepo `workflows-example` (**handwerk** voor het aanmaken)
 
@@ -95,9 +95,9 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
 - `.github/workflows/check-pr.yml` dat `check-pr.yml@v2` aanroept vanuit job `run-check-pr`, op `pull_request` met `types: [opened, synchronize, reopened, edited]`.
 - `README.md`: "Dit is de testrepo van Pursuit-Amsterdam/workflows; elke workflow op v2 wordt hier eerst bewezen."
 
-- [ ] Stap 1: maak de repo en de bestanden; branchprotectie op `main` en `develop` volgens de [standaardinrichting](naslag/standaardinrichting.md#consumer-config), nog zonder verplichte CI-check (die komt in Task 9).
-- [ ] Stap 2: open een PR `feature/hello → develop`; verwacht `run-check-pr / pipeline` groen.
-- [ ] Stap 3: open een PR `feature/hello → main`; verwacht rood.
+- [x] Stap 1: maak de repo en de bestanden; branchprotectie op `main` en `develop` volgens de [standaardinrichting](naslag/standaardinrichting.md#consumer-config), nog zonder verplichte CI-check (die komt in Task 9).
+- [x] Stap 2: open een PR `feature/hello → develop`; verwacht `run-check-pr / pipeline` groen.
+- [x] Stap 3: open een PR `feature/hello → main`; verwacht rood.
 
 ---
 
@@ -114,11 +114,11 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Interface:** `setup-node-pnpm` krijgt input `working-directory` (default `.`); de install wordt `pnpm install --frozen-lockfile` in die map; `.npmrc` wordt in die map geschreven. `setup-python` draait `uv sync --frozen`. Bestaande inputnamen en outputs blijven.
 
-- [ ] Stap 1: pin elke `uses:` in alle bestaande actions op een commit met versiecommentaar (`pnpm/action-setup`, `actions/setup-node`, `astral-sh/setup-uv`, `1password/*`, `supabase/setup-cli`, `docker/*`).
-- [ ] Stap 2: voeg `working-directory` toe aan `setup-node-pnpm` en zet `--frozen-lockfile`; `uv sync --frozen` in `setup-python`.
-- [ ] Stap 3: `actionlint`; verwacht alleen de runnerlabel-waarschuwing.
-- [ ] Stap 4: test in de voorbeeldrepo met een tijdelijke workflow die `setup-node-pnpm@feature/<taak>` aanroept met `working-directory: backend`; verwacht een install zonder fout en een `.npmrc` in `backend/`. Verwijder de tijdelijke workflow weer.
-- [ ] Stap 5: commit `feat(actions): pin external actions, frozen installs, working-directory for pnpm`.
+- [x] Stap 1: pin elke `uses:` in alle bestaande actions op een commit met versiecommentaar (`pnpm/action-setup`, `actions/setup-node`, `astral-sh/setup-uv`, `1password/*`, `supabase/setup-cli`, `docker/*`).
+- [x] Stap 2: voeg `working-directory` toe aan `setup-node-pnpm` en zet `--frozen-lockfile`; `uv sync --frozen` in `setup-python`.
+- [x] Stap 3: `actionlint`; verwacht alleen de runnerlabel-waarschuwing.
+- [x] Stap 4: test in de voorbeeldrepo met een tijdelijke workflow die `setup-node-pnpm@feature/<taak>` aanroept met `working-directory: backend`; verwacht een install zonder fout en een `.npmrc` in `backend/`. Verwijder de tijdelijke workflow weer.
+- [x] Stap 5: commit `feat(actions): pin external actions, frozen installs, working-directory for pnpm`.
 
 ### Task 6: `setup-services` en `setup-supabase`
 
@@ -128,9 +128,9 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Interface (gebruikt door Task 7, 8, 15, 18, 20):** inputs `database`, `redis`, `supabase-seed`, `supabase-skip-unchanged`, `postgres-*`, `onepassword-vault`, `onepassword-item`, `onepassword-token`, `onepassword-export-for-vercel`, `onepassword-export-build-args`; outputs `database-url`, `supabase-started`, `build-args`.
 
-- [ ] Stap 1: schrijf beide actions; `actionlint` + `shellcheck` op de scripts erin.
-- [ ] Stap 2: test in de voorbeeldrepo met een tijdelijke workflow: `database: postgres` → `psql "$DATABASE_URL" -c 'select 1'` slaagt; `redis: true` → `redis-cli -u "$REDIS_URL" ping` geeft `PONG`; `database: banana` → de validatiestap faalt met de melding; `onepassword-item: x` zonder vault → faalt vóór er iets gestart is.
-- [ ] Stap 3: commit `feat(actions): add setup-services and split setup-supabase from run-supabase-test`.
+- [x] Stap 1: schrijf beide actions; `actionlint` + `shellcheck` op de scripts erin.
+- [x] Stap 2: test in de voorbeeldrepo met een tijdelijke workflow: `database: postgres` → `psql "$DATABASE_URL" -c 'select 1'` slaagt; `redis: true` → `redis-cli -u "$REDIS_URL" ping` geeft `PONG`; `database: banana` → de validatiestap faalt met de melding; `onepassword-item: x` zonder vault → faalt vóór er iets gestart is.
+- [x] Stap 3: commit `feat(actions): add setup-services and split setup-supabase from run-supabase-test`.
 
 ### Task 7: `ci.yml`
 
