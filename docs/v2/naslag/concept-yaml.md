@@ -2132,6 +2132,8 @@ findings=0
 say() { printf '%-34s %-12s %s\n' "$1" "$2" "$3"; findings=$((findings+1)); }
 # Org-level Dependabot secrets; empty when this token is not an org admin.
 org_dep_secrets=$(gh api "orgs/$ORG/dependabot/secrets" --jq '.secrets[].name' 2>/dev/null || true)
+# The people who may review a junior's PR.
+seniors=$(gh api "orgs/$ORG/teams/senior-developers/members" --jq '.[].login' 2>/dev/null || true)
 raw() { gh api -H "Accept: application/vnd.github.raw" "repos/$1/contents/$2" 2>/dev/null; }
 
 # Every repo, not code search: search results are capped and miss files.
@@ -2302,10 +2304,16 @@ for repo in "${repos[@]}"; do
     done
   fi
 
-  # --- CODEOWNERS on the workflows, so a PR cannot strip its own CI unreviewed
+  # --- CODEOWNERS: the senior developers own the whole repo, so a junior's PR
+  # needs a senior's review (with code-owner review required), never a junior's
   co=$(raw "$full" .github/CODEOWNERS || raw "$full" CODEOWNERS || raw "$full" docs/CODEOWNERS || true)
-  grep -qE '^/?\.github/(workflows)?/?(\*\*)?[[:space:]]' <<<"$co" \
-    || say "$repo" codeowners "no CODEOWNERS entry for .github/workflows"
+  grep -qE "^\*[[:space:]].*@$ORG/senior-developers" <<<"$co" \
+    || say "$repo" codeowners "no '* @$ORG/senior-developers' line in CODEOWNERS: any reviewer would do"
+  # Direct admins outside the senior team can merge their own PRs without review.
+  while read -r u; do
+    [ -n "$u" ] || continue
+    grep -qx "$u" <<<"$seniors" || say "$repo" access "$u is a direct admin but not in senior-developers"
+  done < <(gh api "repos/$full/collaborators?affiliation=direct&permission=admin" --jq '.[].login' 2>/dev/null || true)
 
   # --- scripts are the CI contract
   gh api "repos/$full/contents/package.json" >/dev/null 2>&1 || say "$repo" scripts "no package.json: CI runs the repo's scripts"
