@@ -153,10 +153,10 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Interface:** inputs volgens [ci.md](naslag/ci.md#ci-images); jobs `stack`, `images`, `pipeline`.
 
-- [ ] Stap 1: voorbeeldrepo krijgt `docker-stack.base.yml` (één service `web`, image `${WEB_IMAGE:?}`), `web/Dockerfile` (`FROM python:3.12-alpine@sha256:…`, `CMD python -m http.server 8080`), en in `ci.yml` een tweede job `run-ci-images` → `ci-images.yml@feature/<taak>` met `stack-file`, `stack-env: WEB_IMAGE=example`, en één image met `port: 8080`, `health-path: /`, `paths: [web/**]`.
-- [ ] Stap 2: verwacht: `stack` groen, `images` groen met "healthy: /", `pipeline` groen; twee checks `run-ci / pipeline` en `run-ci-images / pipeline`.
+- [x] Stap 1: voorbeeldrepo krijgt `docker-stack.base.yml` (één service `web`, image `${WEB_IMAGE:?}`), `web/Dockerfile` (`FROM python:3.12-alpine@sha256:…`, `CMD python -m http.server 8080`), en in `ci.yml` een tweede job `run-ci-images` → `ci-images.yml@feature/<taak>` met `stack-file`, `stack-env: WEB_IMAGE=example`, en één image met `port: 8080`, `health-path: /`, `paths: [web/**]`.
+- [x] Stap 2: verwacht: `stack` groen, `images` groen met "healthy: /", `pipeline` groen; twee checks `run-ci / pipeline` en `run-ci-images / pipeline`.
 - [ ] Stap 3: negatieve tests: PR die alleen `README.md` wijzigt → images-job meldt "No changes under: web/**" en slaagt; `stack-file` en `images` allebei leeg → rood "Neither stack-file nor images"; `${MISSING:?}` in het stackbestand zonder `stack-env` → `stack` rood.
-- [ ] Stap 4: commit `feat: add ci-images.yml and run-image-smoke`.
+- [x] Stap 4: commit `feat: add ci-images.yml and run-image-smoke`.
 
 ### Task 9: verplichte checks in de voorbeeldrepo (**handwerk**)
 

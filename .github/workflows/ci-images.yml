@@ -202,7 +202,7 @@ jobs:
 
       - name: Smoke test
         if: steps.changed.outputs.build == 'true'
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-image-smoke@feature/ci-images
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-image-smoke@v2
         with:
           image: ${{ matrix.image.name }}:ci
           config: ${{ toJSON(matrix.image) }}
