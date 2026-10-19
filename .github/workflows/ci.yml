@@ -1,0 +1,227 @@
+name: "CI"
+
+# One CI workflow for every repo. The repo's package.json scripts are the contract:
+# this workflow decides when and which checks run; the repo decides what a check does.
+#   runtimes  - node + pnpm always; uv + python when the repo has a pyproject.toml.
+#               Versions come from the repo (.nvmrc, .python-version), else 22.x / 3.12.
+#   checks    - required list of script names. With a turbo.json they run through turbo
+#               (only affected packages on pull requests); otherwise `pnpm run`, in order.
+#   services  - database, 1Password, translations CMS.
+# A requested check the repo does not define fails the job: nothing checked is never green.
+# Supersedes web-ci.yml, backend-ci.yml and fullstack-ci.yml. Developed on the v2 branch; every internal ref pins @v2.
+
+on:
+  workflow_call:
+    inputs:
+      # ── checks ───────────────────────────────────────────────────────────
+      checks:
+        description: "Space-separated script names to run, e.g. `lint typecheck test`. Required, never empty. Codegen is a script too (a turbo dependsOn, or first in the list)."
+        required: true
+        type: string
+      working-directory:
+        description: "Directory holding the root package.json"
+        required: false
+        type: string
+        default: "."
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN (PAT) instead of GITHUB_TOKEN for private npm packages / private git deps"
+        required: false
+        type: boolean
+        default: false
+
+      # ── services ────────────────────────────────────────────────────────
+      database:
+        description: >
+          none | postgres | supabase. Which database to boot before the checks. Both
+          export DATABASE_URL (and supabase also SUPABASE_URL / SUPABASE_ANON_KEY /
+          SUPABASE_SERVICE_ROLE_KEY). When `dbtest` is the only check, supabase is
+          skipped entirely if nothing under supabase/ changed.
+        required: false
+        type: string
+        default: "none"
+      postgres-image:
+        required: false
+        type: string
+        default: "postgres:18-alpine"
+      postgres-user:
+        required: false
+        type: string
+        default: "postgres"
+      postgres-password:
+        required: false
+        type: string
+        default: "postgres"
+      postgres-db:
+        required: false
+        type: string
+        default: "postgres"
+      supabase-seed:
+        required: false
+        type: boolean
+        default: false
+      onepassword-vault:
+        required: false
+        type: string
+        default: ""
+      onepassword-item:
+        description: "Non-empty enables 1Password secret loading"
+        required: false
+        type: string
+        default: ""
+
+      # ── translations CMS ─────────────────────────────────────────────────
+      tms-sync-branch:
+        description: "Branch whose pushes sync translation keys to the CMS (e.g. develop). Empty = no sync."
+        required: false
+        type: string
+        default: ""
+      tms-working-directory:
+        description: "Directory the translations CLI runs in. Empty = working-directory."
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+      TMS_URL:
+        required: false
+      TMS_API_KEY:
+        required: false
+
+jobs:
+  # Job id stays `pipeline` so a caller job `run-ci` keeps the status check name
+  # `run-ci / pipeline` that branch protection already requires.
+  pipeline:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    environment: "integration"
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0   # turbo --affected compares against the base branch
+
+      # Runs from the repo root: a working-directory that does not exist would
+      # otherwise fail every later step with a bare "No such file or directory".
+      - name: Check working-directory
+        working-directory: .
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        run: |
+          [ -f "$WORKING_DIRECTORY/package.json" ] || { echo "::error::no package.json in working-directory '$WORKING_DIRECTORY': the repo's scripts are the CI contract."; exit 1; }
+
+      - name: Validate inputs and read the repo
+        id: repo
+        env:
+          DATABASE: ${{ inputs.database }}
+          CHECKS: ${{ inputs.checks }}
+        run: |
+          set -euo pipefail
+          case "$DATABASE" in none|postgres|supabase) ;; *)
+            echo "::error::database must be none, postgres or supabase (got '$DATABASE')"; exit 1;; esac
+          # One line, single spaces: `checks: |` over several lines must not drop
+          # every check after the first, and `dbtest` alone must still match.
+          checks=$(tr -s '[:space:]' ' ' <<<"$CHECKS" | sed 's/^ //; s/ $//')
+          [ -n "$checks" ] || { echo "::error::checks is empty: this job would pass without running anything."; exit 1; }
+          {
+            echo "checks=$checks"
+            echo "only-dbtest=$([ "$checks" = dbtest ] && echo true || echo false)"
+            echo "turbo=$([ -f turbo.json ] && echo true || echo false)"
+            echo "node-version=$(cat .nvmrc 2>/dev/null || echo 22.x)"
+          } >> "$GITHUB_OUTPUT"
+          # A monorepo keeps its Python project in a subdirectory (backend/). uv is
+          # set up there; `uv run` in the other packages' scripts syncs those itself.
+          pyproject=$(find . -name pyproject.toml -not -path '*/node_modules/*' -not -path '*/.venv/*' | sort | head -n1)
+          if [ -n "$pyproject" ]; then
+            pydir=$(dirname "$pyproject")
+            {
+              echo "python=true"
+              echo "python-dir=$pydir"
+              echo "python-version=$(cat "$pydir/.python-version" 2>/dev/null || echo 3.12)"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Services (database, secrets)
+        id: services
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          working-directory: ${{ inputs.working-directory }}
+          database: ${{ inputs.database }}
+          supabase-seed: ${{ inputs.supabase-seed }}
+          # When dbtest is the only check, the stack only serves it: skip it when supabase/ is untouched.
+          supabase-skip-unchanged: ${{ steps.repo.outputs.only-dbtest }}
+          postgres-image: ${{ inputs.postgres-image }}
+          postgres-user: ${{ inputs.postgres-user }}
+          postgres-password: ${{ inputs.postgres-password }}
+          postgres-db: ${{ inputs.postgres-db }}
+          onepassword-vault: ${{ inputs.onepassword-vault }}
+          onepassword-item: ${{ inputs.onepassword-item }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      # working-directory: pnpm reads packageManager from the package.json it runs
+      # next to, so a Python repo with only backend/package.json needs it.
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.repo.outputs.node-version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Setup Python (uv)
+        if: steps.repo.outputs.python == 'true'
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-python@v2
+        with:
+          python-version: ${{ steps.repo.outputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}/${{ steps.repo.outputs.python-dir }}
+          github-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Turbo cache
+        if: steps.repo.outputs.turbo == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ inputs.working-directory }}/.turbo
+          key: turbo-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ github.ref_name }}-
+            turbo-${{ runner.os }}-
+
+      # One step for every repo shape. A check the repo does not define fails
+      # with its name: nothing checked is never green.
+      - name: Run checks
+        if: ${{ !(inputs.database == 'supabase' && steps.repo.outputs.only-dbtest == 'true' && steps.services.outputs.supabase-started != 'true') }}
+        env:
+          CHECKS: ${{ steps.repo.outputs.checks }}
+          TURBO: ${{ steps.repo.outputs.turbo }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          read -ra checks <<<"$CHECKS"
+          if [ "$TURBO" = true ]; then
+            # turbo runs a task that no package defines as zero tasks, and passes.
+            defined=$(find . -name package.json -not -path '*/node_modules/*' -print0 \
+              | xargs -0 jq -r '.scripts // {} | keys[]' | sort -u)
+            for c in "${checks[@]}"; do
+              grep -qxF -- "$c" <<<"$defined" || { echo "::error::no package defines a '$c' script"; exit 1; }
+            done
+            args=(--cache-dir=.turbo)
+            if [ "$EVENT" = pull_request ]; then args+=(--affected); fi
+            pnpm turbo run "${checks[@]}" "${args[@]}"
+          else
+            for c in "${checks[@]}"; do
+              echo "::group::pnpm run $c"
+              pnpm run "$c"
+              echo "::endgroup::"
+            done
+          fi
+
+      # The translations sync step (tms-sync-branch) arrives with the
+      # run-translations action; until then the inputs are declared and unused.
