@@ -37,6 +37,7 @@ Door twee regels van GitHub Actions kun je op `main` niets veranderen zonder all
 Wat op `v2` staat, draait met de environment-secrets van elke repo die hem aanroept. Een push naar `v2` is daarmee een push naar elke productie-deploy. De branch krijgt daarom vanaf dag één:
 
 - Een ruleset voor `v*`: PR verplicht, één review, review van de code owners, geen force push, geen verwijderen. De eigen CI (principe 8) als verplichte check.
+- **Tijdens de bouw: bypass voor repo-admins, alleen op PR's.** De PR's van de bouw komen allemaal onder één account binnen, en een auteur kan zijn eigen PR niet goedkeuren; zonder bypass wacht elke taak op een collega. De bypass laat een admin een PR mergen zonder review, zichtbaar als "bypassed" in de PR; de check `pipeline` blijft verplicht. PR's die de gate of secrets raken (Taak 11, 19, 24) laat je bewust wél door een andere senior reviewen. De bypass gaat weg bij "v2 is klaar" (Taak 28).
 - `CODEOWNERS` voor `.github/` en `scripts/`.
 - Dependabot met `target-branch: v2` voor `github-actions`, zodat de vastgepinde externe actions bijgewerkt blijven. Zonder die regel kijkt Dependabot alleen naar `main`, en die bevriest.
 - Geen secrets in deze repo behalve wat de voorbeeldrepo en de audit nodig hebben, en die staan op een environment met `v2` als enige toegestane branch.
