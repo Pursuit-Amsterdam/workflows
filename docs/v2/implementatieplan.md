@@ -296,15 +296,24 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 - [x] Stap 4: deploy-vercel terug naar `--environment=staging` en `--target=staging` voor staging; docs bijgewerkt (#51). Test eerst: 5 staging-gevallen rood, daarna alles groen. Opnieuw getest op pursuit-website-2025 via `cd-vercel@v2`, op de head van `develop`: run 39410478488 groen, secrets in `.vercel/.env.staging.local`, health-check 200. Tijdelijke branch verwijderd.
 - [x] Stap 3: commit `feat: add cd-vercel.yml`.
 
-### Task 15: template-nextjs-vercel op `cd-vercel@v2` (**handwerk** voor de environments)
+### Task 15: pursuit-website-2025 op `v2` (eerste echte Vercel-migratie)
 
-**Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration).
+**Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration) en de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). Eerst bedoeld voor template-nextjs-vercel, maar die heeft geen Vercel-project (20 oktober 2026). pursuit-website-2025 hangt niet aan het vertalingen-CMS, dus de ontbrekende `tms`-stappen spelen geen rol. `setup-consumer.sh` bestaat nog niet (Task 25): de inrichting gaat met `gh`.
 
-- [ ] Stap 1: environments: `staging` met branches `develop` en `main`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, dezelfde variabelen en secrets; tag-ruleset op `v*` (alleen admins). Het environment `Preview` verwijderen als het niets meer doet.
-- [ ] Stap 2: PR naar `main`: `cd.yml` volgens het voorbeeld, met `health-path: /`. Merge.
-- [ ] Stap 3: merge iets naar `develop`; verwacht een groene gate en een preview-deploy met de variabelen van `staging`, health-check groen.
-- [ ] Stap 4: een senior publiceert een release; verwacht een `--prod`-deploy. Een junior kan geen `v*`-tag maken.
-- [ ] Stap 5: dispatch vanaf die tag; verwacht dezelfde deploy nog eens.
+Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `release` lezen de workflow van de default branch. `develop` loopt niet voor op `main`, dus de PR `develop` → `main` bevat alleen de migratie; een merge naar `main` deployt niets.
+
+- [x] Stap 1: inrichting (v1 blijft ermee werken): `Staging` mag vanaf `develop` en `main`, `Production` alleen vanaf tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset op `v*` (alleen admins).
+- [x] Stap 2: PR naar `develop` (pursuit-website-2025#106): CI op `ci.yml@v2` (`checks: lint typecheck test build`, `use-custom-token`, triggers volgens de standaard), check-pr op `@v2`, CD met gate + `cd-vercel@v2` (`branch-targets: develop=staging`, `health-path: /`), `CODEOWNERS`. CI groen: lint, typecheck, test (de site heeft geen tests: `--passWithNoTests`) en build, zonder de staging-secrets die v1-CI laadde; gemerged.
+- [x] Stap 3: PR `develop` → `main` (#107); gemerged. De Storybook-deploy (v1) op die commit is rood, maar faalt al sinds 6 augustus: los van de migratie.
+- [x] Stap 4: CD handmatig starten vanaf `develop`; run 39415892050: gate `workflow_dispatch -> staging @ d81cdf9`, deploy naar het custom environment `staging`, health-check 200.
+- [x] Stap 5: branchbescherming: per branch (`main`, `develop`) twee rulesets met `run-check-pr / pipeline` en `run-ci / pipeline`; klassieke protectie weg. Voorheen: geen verplichte checks, force push toegestaan op `develop`, geen code-owner-review.
+- [ ] Stap 6 (bij de volgende release, door een senior): verwacht een `--prod`-deploy via de gate. Een handmatige start vanaf de huidige tag v2026.08.26 kan nog niet: een dispatch leest de workflow van die tag, en daar staat de v1-versie.
+- Nog open, buiten deze stappen:
+  - `VERCEL_TOKEN` en `VERCEL_ORG_ID` staan op org-niveau; de standaard wil `VERCEL_TOKEN` als environment-secret op `Staging` en `Production` (handwerk: de waarde).
+  - Environmentnamen met hoofdletters (`Staging`, `Production`); GitHub negeert hoofdletters, hernoemen kan niet zonder de secrets opnieuw te zetten.
+  - Het lege environment `Preview` kan weg.
+  - Storybook staat nog op v1 (`storybook-cd.yml@main`) en faalt sinds 6 augustus; `cd-pages` is Task 23.
+  - Geen `dependabot.yml`.
 
 ---
 
