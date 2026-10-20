@@ -1,0 +1,172 @@
+name: "CD Packages"
+
+# Publishes a repo's npm packages to GitHub Packages on a release. No source checks
+# here: CI proves the commit, cd-gate proves CI succeeded on it. The repo decides
+# how a package is built (its `build` script); this workflow decides when and what
+# is published. A run that would publish nothing fails: nothing done is never green.
+#   - every workspace package that is not "private": true and whose version is not
+#     in the registry yet is published; already published versions are skipped
+#   - a single-package repo's release tag must match its package.json version
+#   - a prerelease publishes under the `next` dist-tag, a release under `latest`
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment for approvals (cd-gate's target, usually production)"
+        required: true
+        type: string
+      ref:
+        description: "Commit to publish. Empty = github.sha. Pass cd-gate's `sha`."
+        required: false
+        type: string
+        default: ""
+      packages:
+        description: "Space-separated package names to limit publishing to. Empty = every non-private workspace package."
+        required: false
+        type: string
+        default: ""
+      build:
+        description: "Name of the package script that builds before publishing. `none` = no build step."
+        required: false
+        type: string
+        default: "build"
+      codegen:
+        description: "Name of the package script that generates code before the build, e.g. an SDK from an OpenAPI spec. Empty = none."
+        required: false
+        type: string
+        default: ""
+      codegen-check:
+        description: "Script that compares external input codegen fetched with the committed version ($CODEGEN_BASELINE). Empty = none. Needs codegen and codegen-baseline."
+        required: false
+        type: string
+        default: ""
+      codegen-baseline:
+        description: "Space-separated committed files the codegen script overwrites with a fresh fetch (e.g. openapi.json); copied to $CODEGEN_BASELINE first"
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        description: "Directory holding the root package.json. The Node version comes from its .nvmrc (else 22.x)."
+        required: false
+        type: string
+        default: "."
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN to install private dependencies from other repos"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    # One publish per workspace at a time; never cancel one that runs.
+    concurrency:
+      group: cd-packages-${{ inputs.environment }}-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Read the Node version from the repo
+        id: node
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Code generation and its checks
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@v2
+        with:
+          codegen: ${{ inputs.codegen }}
+          codegen-check: ${{ inputs.codegen-check }}
+          codegen-baseline: ${{ inputs.codegen-baseline }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Build
+        if: inputs.build != 'none'
+        env:
+          SCRIPT: ${{ inputs.build }}
+        run: |
+          set -euo pipefail
+          if [ -f turbo.json ]; then pnpm turbo run "$SCRIPT"; else pnpm run "$SCRIPT"; fi
+
+      # Which packages have a version the registry does not know yet?
+      - name: Plan
+        id: plan
+        env:
+          ONLY: ${{ inputs.packages }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          set -euo pipefail
+          all=$(pnpm -r ls --depth -1 --json | jq -c '[.[] | select(.private != true) | {name, version}]')
+          if [ -n "${ONLY// /}" ]; then
+            all=$(jq -c --arg only "$ONLY" '($only | split(" ") | map(select(. != ""))) as $o | [.[] | select(.name as $n | $o | index($n))]' <<<"$all")
+          fi
+          [ "$(jq length <<<"$all")" -gt 0 ] || { echo "::error::No publishable packages (all private, or none match 'packages')."; exit 1; }
+
+          # A single-package release tag must match the version it publishes.
+          if [ "$(jq length <<<"$all")" -eq 1 ] && [ -n "$TAG_NAME" ]; then
+            v=$(jq -r '.[0].version' <<<"$all")
+            [ "${TAG_NAME#v}" = "$v" ] || { echo "::error::Release tag $TAG_NAME does not match package.json version $v"; exit 1; }
+          fi
+
+          # Published, not published (E404), or unknown: an auth or registry
+          # error must not count as "not published yet".
+          todo=()
+          while read -r name version; do
+            if out=$(npm view "$name@$version" version 2>&1); then
+              if [ -n "$out" ]; then echo "skip $name@$version (already published)"; continue; fi
+            elif ! grep -q E404 <<<"$out"; then
+              echo "::error::Cannot tell whether $name@$version is published: $(tail -n1 <<<"$out")"; exit 1
+            fi
+            todo+=("$name")
+            echo "publish $name@$version"
+          done < <(jq -r '.[] | "\(.name) \(.version)"' <<<"$all")
+          [ ${#todo[@]} -gt 0 ] || { echo "::error::Every version is already published: was the version bumped?"; exit 1; }
+
+          echo "filters=${todo[*]}" >> "$GITHUB_OUTPUT"
+          echo "dist-tag=$([ "$PRERELEASE" = true ] && echo next || echo latest)" >> "$GITHUB_OUTPUT"
+
+      # Publishing always uses this repo's GITHUB_TOKEN: a package belongs to the
+      # repo that publishes it. setup-node-pnpm wrote a project .npmrc with the
+      # install token (the PAT, with use-custom-token), and a project .npmrc wins
+      # over NPM_CONFIG_USERCONFIG, so that file is rewritten here, after the
+      # install and right before publish.
+      - name: Publish
+        env:
+          FILTERS: ${{ steps.plan.outputs.filters }}
+          DIST_TAG: ${{ steps.plan.outputs.dist-tag }}
+          OWNER: ${{ github.repository_owner }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "@${OWNER,,}:registry=https://npm.pkg.github.com"
+            echo "//npm.pkg.github.com/:_authToken=${TOKEN}"
+          } > .npmrc
+          read -ra names <<<"$FILTERS"
+          for name in "${names[@]}"; do
+            echo "::group::publish $name"
+            pnpm --filter "$name" publish --no-git-checks --tag "$DIST_TAG"
+            echo "::endgroup::"
+          done
