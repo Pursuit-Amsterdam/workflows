@@ -29,6 +29,8 @@ jobs:
         env:
           HEAD: ${{ github.event.pull_request.head.ref }}
           BASE: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ -z "$HEAD" || -z "$BASE" ]]; then
             echo "❌ No pull_request in the event: call this workflow from a pull_request trigger."
@@ -37,6 +39,18 @@ jobs:
 
           echo "HEAD: $HEAD"
           echo "BASE: $BASE"
+
+          # A repo without develop (a config package) merges feature/* into
+          # main. 404 = no develop; any other error stops the check.
+          if out=$(gh api "repos/$REPO/branches/develop" --jq .name 2>&1); then
+            HAS_DEVELOP=true
+          elif grep -q "HTTP 404" <<<"$out"; then
+            HAS_DEVELOP=false
+          else
+            echo "❌ Cannot tell whether $REPO has a develop branch: $out"
+            exit 1
+          fi
+          echo "develop branch: $HAS_DEVELOP"
 
           # 1. Validate branch naming
           if [[
@@ -75,14 +89,16 @@ jobs:
             fi
           fi
 
-          # hotfix/*, release/*, develop → main
+          # hotfix/*, release/*, develop → main. A repo without develop (a config
+          # package) merges feature/* and dependabot/* into main as well.
           if [[ "$BASE" == "main" ]]; then
             if [[
               "$HEAD" == hotfix/* ||
               "$HEAD" == release/* ||
               "$HEAD" == "develop" ||
               "$HEAD" =~ ^revert-[0-9]+-(hotfix|release)/ ||
-              "$HEAD" =~ ^revert-[0-9]+-develop$
+              "$HEAD" =~ ^revert-[0-9]+-develop$ ||
+              ( "$HAS_DEVELOP" != "true" && ( "$HEAD" == feature/* || "$HEAD" == dependabot/* || "$HEAD" =~ ^revert-[0-9]+-(feature|dependabot)/ ) )
             ]]; then
               echo "✅ Merge allowed: $HEAD → main"
               exit 0

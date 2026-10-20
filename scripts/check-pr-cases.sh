@@ -35,16 +35,23 @@ cases=(
   "v2 develop 1"
   "v2 v3 1"
   "vx main 1"
+  # repos without develop (config packages): feature and dependabot go to main
+  "feature/x main 0 false"
+  "dependabot/npm_and_yarn/x main 0 false"
+  "revert-3-feature/x main 0 false"
+  "hotfix/x main 0 false"
+  "module-develop/x main 1 false"
+  "feature/x main 1 true"
 )
 
 n=0
 failures=0
 for c in "${cases[@]}"; do
-  read -r head base want <<<"$c"
+  read -r head base want has_develop <<<"$c"
   n=$((n + 1))
   {
-    printf 'HEAD=%q\nBASE=%q\n' "$head" "$base"
-    tail -n +3 "$root/check-pr.sh"
+    printf 'HEAD=%q\nBASE=%q\nHAS_DEVELOP=%q\n' "$head" "$base" "${has_develop:-true}"
+    tail -n +4 "$root/check-pr.sh"
   } >"$tmp"
   got=0
   bash "$tmp" >/dev/null 2>&1 || got=$?
