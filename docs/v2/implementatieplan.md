@@ -268,7 +268,7 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
   - [x] baseline-bestand niet gecommit → geweigerd;
   - [x] gewijzigde spec → `cmp` faalt;
   - [x] gelijke spec → groen.
-- [ ] Stap 3: PR naar `v2`, mergen op groene `pipeline`; sluit workflows-example#32 en verwijder de branch.
+- [x] Stap 3: PR naar `v2` (#47), gemerged op groene `pipeline`; workflows-example#32 gesloten, branch verwijderd.
 
 #### Task 13b: `deploy-vercel`
 
