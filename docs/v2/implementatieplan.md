@@ -394,10 +394,11 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 **integrators-website-2025 op `v2`** (20 oktober 2026), van `feature/tms-prototype` (v1):
 
 - [x] Inrichting: `staging` alleen vanaf `develop` en `main`; `Production` alleen tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset op `v*`.
-- [x] PR naar `develop` (#97): CI op `ci.yml@v2` met `tms-sync-branch: develop`; check-pr `@v2`; CD (`web-cd.yml`, de naam die het CMS aanroept) met gate (`branch-targets: develop=staging`) + `cd-vercel@v2` met `tms: true`, `tms-release-id` uit de dispatch-input en `health-path: /`; de inputs `environment` en `release_id` blijven gedeclareerd; `CODEOWNERS`. CI groen zonder de staging-secrets die v1-CI laadde.
+- [x] PR naar `develop` (#97): CI op `ci.yml@v2` met `tms-sync-branch: develop`; check-pr `@v2`; CD (eerst `web-cd.yml`, de naam die het CMS toen aanriep) met gate (`branch-targets: develop=staging`) + `cd-vercel@v2` met `tms: true`, `tms-release-id` uit de dispatch-input en `health-path: /`; de inputs `environment` en `release_id` blijven gedeclareerd; `CODEOWNERS`. CI groen zonder de staging-secrets die v1-CI laadde.
 - [x] PR `develop` → `main` (#98); gemerged. De eerste `tms-sync` op `develop` (run 39437453177): groen, 0 wijzigingen.
 - [x] Staging zoals het CMS hem start (`workflow_dispatch` vanaf `develop`, `environment: staging`), run 39437902354: gate `workflow_dispatch -> staging`, `ack`, `pull` (release #23), deploy, health-check 200, `mark-deployed`.
 - [x] Branchbescherming: rulesets op `develop` (up-to-date aan) en `main` (uit); de klassieke protectie met `ci / pipeline` is weg.
+- [x] Bestandsnamen gelijkgetrokken (#100, #101): `web-ci.yml` → `ci.yml`, `web-cd.yml` → `cd.yml`. Het CMS roept het CD-bestand aan met de naam uit zijn projectinstelling (kolom `github_workflow_file`; leeg = de standaard van het dashboard, `cd.yml` op `main` en `web-cd.yml` op `develop`). Die instelling staat nu op `cd.yml`. Daarna, run 39440036657: CMS-route vanaf `develop` groen (de gate wachtte op CI, `ack`, `pull`, deploy, health 200, `mark-deployed`). pursuit-website-2025 kreeg dezelfde namen (#110, #111).
 - [ ] Eerste productiedeploy via v2: bij de volgende release, door een senior.
 
 ### Task 22: `cd-packages.yml`
