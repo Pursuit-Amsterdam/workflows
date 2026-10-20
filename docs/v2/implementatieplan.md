@@ -224,11 +224,11 @@ Voortgang stap 4 (scenario's in workflows-example, run-id's):
 - [x] S10 handmatig vanaf `feature/x` → rood "no environment for branch" — 39393504131
 - [ ] S11 twee CI-workflowbestanden, beide groen → precies één deploy
 - [ ] S12 twee CI-workflowbestanden, één rood → geen deploy
-- [ ] S13 `required-workflows` met een naam die niet bestaat → rood
+- [x] S13 `required-workflows` met een naam die niet bestaat → rood "no push run of 'Does Not Exist'" — 39397860099
 - [x] S14 `tms-deploy` staging → staging op de head van `develop` — 39393768869
 - [x] S15 `tms-deploy` production → rood — 39393605452
 - [x] S16 `tms-validate` → overgeslagen — 39393655791
-- [ ] S17 gate op een `push`-event → rood
+- [x] S17 gate op een `push`-event → rood "unsupported event 'push'" — 39397820238
 - [x] S18 release-tag op een `develop`-commit → rood "not on main" — 39396952585
 - [x] S19 prerelease → overgeslagen — 39397004378
 - [x] S20 tag `1.0.0` zonder `v` → rood "must match v*" — 39397052697
