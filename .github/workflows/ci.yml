@@ -71,7 +71,7 @@ on:
 
       # ── translations CMS ─────────────────────────────────────────────────
       tms-sync-branch:
-        description: "Branch whose pushes sync translation keys to the CMS (e.g. develop). Empty = no sync."
+        description: "Branch whose pushes sync translation keys to the CMS (e.g. develop). Empty = no sync. Runs as a job in the staging environment, with TMS_URL / TMS_API_KEY from its OP_VAULT / OP_ITEM (or the TMS_* secrets)."
         required: false
         type: string
         default: ""
@@ -245,5 +245,54 @@ jobs:
             done
           fi
 
-      # The translations sync step (tms-sync-branch) arrives with the
-      # run-translations action; until then the inputs are declared and unused.
+  # Keys reach the CMS from here, not from a developer's machine: `sync` scans
+  # the merged codebase, adds new keys, prunes keys nothing references any
+  # more, and leaves existing copy untouched. Only on a push to tms-sync-branch:
+  # a feature branch would register keys from work that may never merge, and
+  # pruning against it would delete keys the rest still uses. After `pipeline`:
+  # a codebase that does not pass its checks is no source of truth for what to
+  # delete.
+  # A job of its own in `staging`: the CMS key sits behind that environment's
+  # branch rules, out of reach of every pull request run in `integration`.
+  # continue-on-error: a CMS that is down must not block the deploy that the
+  # end of this run starts (CD needs CI green); the failed job stays visible.
+  tms-sync:
+    needs: pipeline
+    if: inputs.tms-sync-branch != '' && github.event_name == 'push' && github.ref_name == inputs.tms-sync-branch
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    environment: staging
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the Node version from the repo
+        id: node
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # TMS_URL / TMS_API_KEY from staging's 1Password item, as the deploy uses.
+      - name: Services (secrets)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          onepassword-vault: ${{ vars.OP_VAULT }}
+          onepassword-item: ${{ vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Sync translation keys to the CMS
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
+        with:
+          command: sync
+          working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
+          tms-url: ${{ secrets.TMS_URL }}
+          tms-api-key: ${{ secrets.TMS_API_KEY }}

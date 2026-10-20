@@ -1,0 +1,69 @@
+name: "Translations CMS"
+description: >
+  Runs one @pursuit-amsterdam/translations-management CLI command in the
+  directory that holds the app's dictionaries. Credentials come from the job
+  env when a 1Password item exported TMS_URL / TMS_API_KEY; the tms-url and
+  tms-api-key inputs only fill gaps and never overwrite an exported value.
+  One action, five commands, so ci.yml and every cd-*.yml share the same
+  credential and working-directory handling. Lifted from feature/tms-prototype.
+inputs:
+  command:
+    description: "sync | ack | pull | mark-deployed | mark-failed"
+    required: true
+  release-id:
+    description: "Release the CMS asked to deploy (ack, mark-*). Empty = newest pending release."
+    required: false
+    default: ""
+  reason:
+    description: "Failure reason for mark-failed"
+    required: false
+    default: "deploy failed"
+  working-directory:
+    description: "Directory the CLI runs in: the package holding the app and its dictionaries."
+    required: false
+    default: "."
+  tms-url:
+    description: "Fallback for TMS_URL when the 1Password item did not export it"
+    required: false
+    default: ""
+  tms-api-key:
+    description: "Fallback for TMS_API_KEY when the 1Password item did not export it"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Provide credentials
+      shell: bash
+      env:
+        FALLBACK_URL: ${{ inputs.tms-url }}
+        FALLBACK_KEY: ${{ inputs.tms-api-key }}
+      run: |
+        set -euo pipefail
+        if [ -z "${TMS_URL:-}" ] && [ -n "$FALLBACK_URL" ]; then echo "TMS_URL=$FALLBACK_URL" >> "$GITHUB_ENV"; fi
+        if [ -z "${TMS_API_KEY:-}" ] && [ -n "$FALLBACK_KEY" ]; then echo "::add-mask::$FALLBACK_KEY"; echo "TMS_API_KEY=$FALLBACK_KEY" >> "$GITHUB_ENV"; fi
+        if [ -z "${TMS_URL:-}${FALLBACK_URL}" ] || [ -z "${TMS_API_KEY:-}${FALLBACK_KEY}" ]; then
+          echo "::error::TMS_URL / TMS_API_KEY missing: put them in the 1Password item or pass the TMS_URL / TMS_API_KEY secrets"; exit 1
+        fi
+
+    - name: translations ${{ inputs.command }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        COMMAND: ${{ inputs.command }}
+        RELEASE_ID: ${{ inputs.release-id }}
+        REASON: ${{ inputs.reason }}
+      # The command comes from the environment, never interpolated into the script.
+      # `ack` exits 0 even when the CMS is unreachable: losing the long window is a
+      # far better outcome than failing a deploy over bookkeeping (CLI behaviour).
+      run: |
+        set -euo pipefail
+        case "$COMMAND" in
+          sync)          pnpm exec translations sync ;;
+          pull)          pnpm exec translations pull ;;
+          ack)           pnpm exec translations release ack --release-id "$RELEASE_ID" ;;
+          mark-deployed) pnpm exec translations release mark-deployed --release-id "$RELEASE_ID" ;;
+          mark-failed)   pnpm exec translations release mark-failed --release-id "$RELEASE_ID" --reason "$REASON" ;;
+          *) echo "::error::unknown command '$COMMAND'"; exit 1 ;;
+        esac

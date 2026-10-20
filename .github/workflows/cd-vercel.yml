@@ -7,8 +7,10 @@ name: "CD Vercel"
 # Per-environment values come from the GitHub
 # environment: an empty onepassword-vault/-item falls back to the environment
 # variables OP_VAULT / OP_ITEM, so one caller job serves staging and production.
-# The translations CMS steps (tms) arrive with the run-translations action;
-# until then the tms inputs are declared and tms: true is refused.
+# With tms, the translations CMS is told about the deploy (ack, then
+# mark-deployed or mark-failed), and its published copy is pulled before the
+# build. The CMS starts staging deploys itself (workflow_dispatch from develop,
+# with environment and release_id); production gets the copy with each release.
 
 on:
   workflow_call:
@@ -88,7 +90,7 @@ on:
         type: string
         default: ""
       tms-release-id:
-        description: "Release the CMS asked to deploy. Pass github.event.client_payload.release_id; empty on every other event."
+        description: "Release the CMS asked to deploy. Pass github.event.inputs.release_id (the CMS sends it with its workflow_dispatch); empty on every other event."
         required: false
         type: string
         default: ""
@@ -146,18 +148,12 @@ jobs:
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           BUILD_MODE: ${{ inputs.build-mode }}
-          TMS: ${{ inputs.tms }}
         run: |
           set -euo pipefail
           case "$ENVIRONMENT" in staging|production) ;; *)
             echo "::error::Vercel deploys to staging (the custom environment of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
           case "$BUILD_MODE" in github|vercel) ;; *)
             echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
-          # Until run-translations exists, tms would deploy without the
-          # published translations and never tell the CMS.
-          if [ "$TMS" = true ]; then
-            echo "::error::tms is not available yet: it arrives with the run-translations action"; exit 1
-          fi
 
   deploy:
     needs: validate
@@ -199,6 +195,19 @@ jobs:
           onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
           onepassword-export-for-vercel: "true"
 
+      # A release the CMS is waiting on expires after 3 minutes unless a deploy
+      # acknowledges it, which buys 30. Everything above counts against that
+      # window, so this goes as early as the CLI is usable.
+      - name: Tell the translations CMS a deploy is running
+        if: inputs.tms
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
+        with:
+          command: ack
+          release-id: ${{ inputs.tms-release-id }}
+          working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
+          tms-url: ${{ secrets.TMS_URL }}
+          tms-api-key: ${{ secrets.TMS_API_KEY }}
+
       # `next`, not `nextjs`: setup-version only prefixes NEXT_PUBLIC_ for the
       # value `next`, so web-cd never actually set NEXT_PUBLIC_VERSION.
       - name: Version
@@ -207,6 +216,16 @@ jobs:
           version: $(git describe --tags --abbrev=0 --always)
           framework: "next"
           environment: ${{ inputs.environment }}
+
+      # Before codegen and the typecheck: pull rewrites the dictionaries and
+      # regenerates settings.ts / types.ts, so the deploy ships the copy the CMS
+      # published, and the typecheck sees it.
+      - name: Pull published translations
+        if: inputs.tms
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
+        with:
+          command: pull
+          working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
 
       # The only checks CD runs on source: code generated after CI never went
       # through CI's typecheck, and an external input (an OpenAPI spec of another
@@ -253,3 +272,23 @@ jobs:
             echo "attempt $i: $code"; sleep 6
           done
           echo "::error::${URL%/}${HEALTH_PATH} did not answer 2xx"; exit 1
+
+      # The CMS cannot observe this deploy, so it has to be told. Without these
+      # a release that went live is expired as failed. mark-deployed also sends
+      # the key manifest the CMS's production publish gate checks against.
+      - name: Mark the release deployed
+        if: inputs.tms && success()
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
+        with:
+          command: mark-deployed
+          release-id: ${{ inputs.tms-release-id }}
+          working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
+
+      - name: Mark the release failed
+        if: inputs.tms && failure()
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
+        with:
+          command: mark-failed
+          release-id: ${{ inputs.tms-release-id }}
+          reason: "${{ inputs.environment }} deploy failed"
+          working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
