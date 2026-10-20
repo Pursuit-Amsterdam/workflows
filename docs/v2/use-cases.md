@@ -42,7 +42,7 @@ Use case 21, het event en waar het heen gaat:
 | `workflow_run` | CI is klaar na een push op `develop` (of `acceptance`) | staging (acceptance), de commit van die CI-run. De enige manier waarop een push tot een deploy leidt: CD start nooit rechtstreeks op `push` ([besloten](beslissingen.md#decided)). |
 | `release` | release gepubliceerd | production, de commit van de tag |
 | `workflow_dispatch` | handmatig gestart vanaf een branch of tag | volgt uit die keuze: `develop` → staging, `acceptance` → acceptance, de tag van de nieuwste release → production. Zo deploy je een release opnieuw, bijvoorbeeld na een wijziging in 1Password. Een oudere tag is rood: [geen rollbacks](beslissingen.md#decided). |
-| `repository_dispatch` | verzoek van het vertalingen-CMS | alleen staging of acceptance ([besloten](beslissingen.md#decided)); de head van de branch van die environment |
+| `workflow_dispatch` met `environment` | verzoek van het vertalingen-CMS | staging, de head van `develop`; productie alleen met `cms-production`, en dan de nieuwste release ([besloten](beslissingen.md#decided)) |
 
 Zonder principe: 22 en 23 regelt de [standaardinrichting](naslag/standaardinrichting.md#consumer-config) of het stabiel houden van de actions; 24 is het [auditscript](naslag/standaardinrichting.md#consumer-config). Genoemd maar nog niet uitgewerkt: `tms-validate`, vertalingen voor Swarm-projecten, en een typecheck van Deno edge functions ([detailbeslissingen](naslag/detailbeslissingen.md#decisions-detail)).
 

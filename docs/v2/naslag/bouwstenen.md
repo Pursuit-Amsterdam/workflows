@@ -32,7 +32,8 @@ Eerst: welk environment en welke commit? Dan: is CI daarop geslaagd? Het event b
 | `workflow_run`: CI klaar na een push op `develop` of `acceptance` | uit `branch-targets`, op de head-branch van die CI-run | de `head_sha` van die CI-run |
 | `release: published` | production | de commit van de tag |
 | `workflow_dispatch` | uit de ref waarvan je start: een branch uit `branch-targets`, of een tag → production | de commit van die ref |
-| `repository_dispatch: tms-deploy` | uit het CMS-verzoek; alleen staging of acceptance ([besloten](../beslissingen.md#decided)) | de head van de branch die bij dat environment hoort |
+| `workflow_dispatch` van het vertalingen-CMS (input `environment`) | staging vanaf `develop`; productie vanaf `main` alleen met `cms-production` ([besloten](../beslissingen.md#decided)) | staging: de head van `develop`; productie: de commit van de nieuwste release |
+| `repository_dispatch: tms-deploy` | niet meer gebruikt door het CMS; blijft voor een eventuele andere aanroeper: staging of acceptance | de head van de branch die bij dat environment hoort |
 | `push` | — | geen trigger voor CD ([besloten](../beslissingen.md#decided)); de gate faalt met de melding dat CD op `workflow_run` start |
 
 Daarna zoekt de gate per naam in `required-workflows` de nieuwste **push-run** op die commit (`event: push`; een `pull_request`-run test een andere merge en telt niet; re-runs winnen). Elke run moet `success` zijn. Dat werkt voor elk event hetzelfde: bij een release is het de CI-run van de push naar `main`, bij een dispatch vanaf de tag ook.
@@ -40,7 +41,7 @@ Daarna zoekt de gate per naam in `required-workflows` de nieuwste **push-run** o
 - **`required-workflows`** staat standaard op `Continuous Integration`: de ene CI-workflow die elke repo heeft ([standaardinrichting](standaardinrichting.md#consumer-config)). Eén naam per regel voor wie afwijkt. Leeg wordt geweigerd: een gate die niets eist, laat alles door.
 - **`branch-targets`** staat standaard op `develop=staging acceptance=acceptance`. `main` staat er bewust niet in: een merge naar `main` deployt niets, productie gaat alleen bij een release live ([besloten](../beslissingen.md#decided)). Een repo die wél bij elke merge live wil, zet `main=production` erbij.
 - **Handmatig starten:** het doel komt uit de ref waarvan je start, niet uit een keuzelijst. "Use workflow from" → `develop` deployt staging; → tag `v1.4.0` deployt productie, mits dat de nieuwste release is. Een oudere tag is rood ([geen rollbacks](../beslissingen.md#decided)); een branch zonder environment ook. Zo kan het gedeployde environment nooit afwijken van wat je koos, en sluit het aan bij de branchregels van de environments: `production` laat alleen tags toe. Dit is de manier om de nieuwste release opnieuw te deployen, bijvoorbeeld na een wijziging in 1Password; *Re-run all jobs* op de laatste CD-run doet hetzelfde.
-- **Het CMS deployt alleen naar staging.** Een `repository_dispatch` draait op de default branch, en `production` laat alleen tags toe; een CMS-deploy naar productie zou GitHub dus weigeren. Vertalingen gaan live met de volgende release. Andere CMS-acties, zoals `tms-validate`, slaat de gate over.
+- **Het CMS deployt standaard alleen naar staging.** Het dashboard dispatcht productie alleen als `GITHUB_DISPATCH_ENVIRONMENTS` dat zegt; doet het dat toch zonder `cms-production` in de gate, dan weigert de gate met uitleg. Met `cms-production` redeployt het de nieuwste release met de gepubliceerde vertalingen. Vraagt het CMS een environment dat niet bij de branch hoort, dan faalt de gate. Andere CMS-acties, zoals `tms-validate`, slaat de gate over.
 - **Na `workflow_run` wacht de gate nooit**: CI is dan klaar, hij leest één keer af en is in seconden klaar. **Bij een release of een handmatige start wacht hij op CI die nog loopt** (elke 30 seconden, hooguit `ci-wait-minutes`, standaard 20; een run die nog niet bestaat krijgt 2 minuten), omdat je een release direct na de merge naar `main` publiceert. Hoe het altijd na groene CI komt: [hieronder](#gate-outcomes).
 
 <a id="gate-outcomes"></a>
@@ -74,9 +75,10 @@ on:
     branches: [develop, acceptance]      # head-branch van de CI-run; een PR-run vuurt zo nooit
   release:
     types: [published]
-  workflow_dispatch:                     # geen inputs: het doel komt uit de gekozen branch of tag
-  repository_dispatch:                   # alleen repo's met het vertalingen-CMS
-    types: [tms-deploy]
+  workflow_dispatch:                     # het doel komt uit de gekozen branch of tag
+    inputs:                              # alleen repo's met het vertalingen-CMS: dat stuurt ze mee
+      environment: { type: string, required: false }
+      release_id: { type: string, required: false }
 
 permissions: { contents: read, actions: read }
 
@@ -160,9 +162,10 @@ De branch `feature/tms-prototype` koppelt `@pursuit-amsterdam/translations-manag
 
 - **`tms_sync` + `tms_sync_branch` worden `tms-sync-branch`.** Leeg betekent niet synchroniseren. De waarde is de branch, en de branch ís de hele configuratie.
 - **`tms_enabled` wordt `tms`, nog steeds een boolean.** Een waarde kan de keuze hier niet dragen: het release-id is bij `workflow_run`- en release-runs terecht leeg, en de CLI kiest dan de nieuwste openstaande release. De beschrijving van de input legt dat uit.
-- **`release_id` wordt `tms-release-id`.** Aanroepers geven `github.event.client_payload.release_id` mee. Het CMS stuurt hem bij `repository_dispatch`; bij elk ander event is hij leeg en kiest de CLI de nieuwste openstaande release.
+- **`release_id` wordt `tms-release-id`.** Aanroepers geven `github.event.inputs.release_id` mee. Het CMS stuurt hem bij zijn `workflow_dispatch`; bij elk ander event is hij leeg en kiest de CLI de nieuwste openstaande release.
 - **De logica voor credentials staat één keer in de action,** in plaats van twee keer per workflow. De reservesleutel wordt gemaskeerd.
-- **De gate handelt de CMS-trigger af, en alleen naar staging.** De huidige tms-test-aanroeper stuurt `repository_dispatch` naar de juiste job, maar bouwt de code van de default branch. cd-gate bepaalt `sha` aan de hand van de branch van de environment. Productie kan het CMS niet vragen ([besloten](../beslissingen.md#decided)): zo'n run draait op `main`, en `production` laat alleen tags toe. Vertalingen voor productie gaan mee met de volgende release.
+- **De gate handelt de CMS-trigger af.** Staging vanaf `develop`; productie alleen met `cms-production`, en dan de commit van de nieuwste release ([besloten](../beslissingen.md#decided)). Zonder die input gaan vertalingen voor productie mee met de volgende release.
+- **`sync` draait in ci.yml als eigen job `tms-sync`** in het environment `staging`, alleen bij een push op `tms-sync-branch`, na `pipeline`. De CMS-sleutel staat zo achter de branchregels van staging, buiten bereik van elke PR-run in `integration`. Met `continue-on-error`: een CMS dat plat ligt, houdt de deploy niet tegen.
 - **cd-swarm kan dezelfde vier stappen krijgen**, met `pull` vóór de image-build en `mark-*` in de deploy-job. Niet uitgewerkt; nog geen Swarm-project gebruikt het CMS.
 
 De branch wordt niet zelf gemerged. De functionaliteit wordt in v2 opnieuw gebouwd via de action; de README-tekst verhuist naar de v2-README. De branch blijft als referentie staan tot v2 klaar is, en kan daarna weg.
