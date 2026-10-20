@@ -1,7 +1,9 @@
 HEAD="module-develop/datepick"
 BASE="develop"
+HAS_DEVELOP="true"
 # Local mirror of the script in .github/workflows/check-pr.yml: edit both.
-# Set HEAD and BASE above and run it, or run scripts/check-pr-cases.sh for
+# Set HEAD, BASE and HAS_DEVELOP (does the repo have a develop branch?) above
+# and run it, or run scripts/check-pr-cases.sh for
 # the whole table. Cases for the version branches:
 #   feature/x → v2 ✅   develop → v2 ❌   v2 → main ❌   v2 → develop ❌
 
@@ -45,14 +47,16 @@ else
 fi
 fi
 
-# hotfix/*, release/*, develop → main
+# hotfix/*, release/*, develop → main. A repo without develop (a config
+# package) merges feature/* and dependabot/* into main as well.
 if [[ "$BASE" == "main" ]]; then
 if [[
     "$HEAD" == hotfix/* ||
     "$HEAD" == release/* ||
     "$HEAD" == "develop" ||
     "$HEAD" =~ ^revert-[0-9]+-(hotfix|release)/ ||
-    "$HEAD" =~ ^revert-[0-9]+-develop$
+    "$HEAD" =~ ^revert-[0-9]+-develop$ ||
+    ( "$HAS_DEVELOP" != "true" && ( "$HEAD" == feature/* || "$HEAD" == dependabot/* || "$HEAD" =~ ^revert-[0-9]+-(feature|dependabot)/ ) )
 ]]; then
     echo "✅ Merge allowed: $HEAD → main"
     exit 0
