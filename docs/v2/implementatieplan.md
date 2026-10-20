@@ -202,13 +202,43 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
 
 **Interface (gebruikt door elke cd-aanroeper):** inputs `required-workflows` (default `Continuous Integration`), `branch-targets` (default `develop=staging acceptance=acceptance`), `allow-prerelease` (boolean, default `false`); outputs `proceed`, `target`, `sha`; job-id `gate`; permissions `actions: read`, `contents: read`.
 
-- [ ] Stap 1: schrijf de workflow; het script uit het concept, aangevuld met:
+- [x] Stap 1: schrijf de workflow; het script uit het concept, aangevuld met:
   - `release`: `if (p.release.prerelease && !ALLOW_PRERELEASE) return skip('prerelease …')`; tag moet `/^v\d/` matchen, anders `fail('tag must match v*: production only allows those tags')`; `compareCommits({basehead: 'main...' + sha}).status` moet `identical` of `behind` zijn, anders `fail('tag … is not on main')`.
   - `repository_dispatch`: `getBranch` in `try/catch` → `fail('branch … does not exist in this repo')`.
-- [ ] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
-- [ ] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
-- [ ] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
+- [x] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
+- [x] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
+- [x] Stap 4: loop 21 scenario's af en noteer per scenario de run-id: de 17 uit het [testplan](naslag/uitrol-in-detail.md#gate-tests) (S1–S17) plus vier nieuwe (S18–S21, Task 12 zet ze in het testplan): tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
 - [ ] Stap 5: commit `feat: add cd-gate.yml`.
+
+Voortgang stap 4 (scenario's in workflows-example, run-id's):
+
+- [x] S1 merge naar `develop` → `workflow_run` → staging op de merge-commit — 39395523841
+- [x] S2 CI afgebroken → CD overgeslagen (grijs); CI re-run groen → staging — 39397368935, 39397533319
+- [x] S3 PR geopend → geen CD-run
+- [x] S4 merge naar `main` → CI groen, geen CD-run
+- [x] S5 release `v0.1.0` op groene `main` → productie — 39395710059
+- [x] S6 release vóór CI klaar → rood "CI not finished"; re-run na groene CI → productie — 39396424750
+- [x] S7 handmatig vanaf de tag van de nieuwste release → productie — 39395784079
+- [x] S8 handmatig vanaf een oudere tag → rood "not the latest release" — 39396611026
+- [x] S9 handmatig vanaf `develop` → staging — 39393426886; vanaf `main` → rood — 39393838510
+- [x] S10 handmatig vanaf `feature/x` → rood "no environment for branch" — 39393504131
+- [x] S11 twee CI-workflowbestanden, beide groen → precies één deploy; de eerst klare slaat over ("still running … its completion starts its own gate") — 39398626512, 39398676195
+- [x] S12 twee CI-workflowbestanden, één rood → geen deploy: één run grijs, één met waarschuwing "CI Second did not succeed" — 39398963648, 39399020028
+- [x] S13 `required-workflows` met een naam die niet bestaat → rood "no push run of 'Does Not Exist'" — 39397860099
+- [x] S14 `tms-deploy` staging → staging op de head van `develop` — 39393768869
+- [x] S15 `tms-deploy` production → rood — 39393605452
+- [x] S16 `tms-validate` → overgeslagen — 39393655791
+- [x] S17 gate op een `push`-event → rood "unsupported event 'push'" — 39397820238
+- [x] S18 release-tag op een `develop`-commit → rood "not on main" — 39396952585
+- [x] S19 prerelease → overgeslagen — 39397004378
+- [x] S20 tag `1.0.0` zonder `v` → rood "must match v*" — 39397052697
+- [x] S21 `tms-deploy` acceptance zonder branch → rood "does not exist" — 39397147338
+
+Gevonden tijdens stap 3 en 4:
+
+- Verplichte reviewers op een environment bestaan voor privé-repo's alleen in Enterprise; productie is daarom senior-only via een tag-ruleset op `v*` ([besloten](beslissingen.md#decided)).
+- De branchregel van een environment toetst de ref van de run. Bij `workflow_run` en `repository_dispatch` is dat altijd de default branch (`main`), dus "staging: alleen `develop`" blokkeerde de gewone deploy na een merge en het CMS (eerste S14-poging: "Branch main is not allowed to deploy to staging"). `staging` en `acceptance` laten daarom ook `main` toe: die runs draaien de beschermde `cd.yml` van `main`, en welke commit live gaat bepaalt de gate.
+
 
 ### Task 12: gate-documentatie bijwerken
 
