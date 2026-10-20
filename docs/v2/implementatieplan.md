@@ -411,7 +411,8 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
   - release v0.4.0, run 39422480657: de gate wachtte op CI, daarna `+ @pursuit-amsterdam/example-lib@0.4.0` onder `latest`;
   - dezelfde run opnieuw: rood, "Every version is already published: was the version bumped?";
   - prerelease v0.5.0-rc.1, run 39423049361: gepubliceerd onder `next`.
-- [ ] Stap 3: translations-management op `v2` (**handwerk** voor `packages: write`); eerste echte publicatie.
+- [x] Stap 3: translations-management-js op `v2` (#92 naar `develop`, #93 naar `main`): CI met dezelfde zes controles als voorheen, nu als `package.json`-scripts (`lint typecheck test build check-exports typecheck:fixtures`; de twee inline-stappen zijn het script `check-exports`); publiceren via gate + `cd-packages`; `production` alleen tags `v*`, tag-ruleset; rulesets op `develop` (up-to-date aan) en `main` (uit), waar eerst geen bescherming was. `packages: write` zat al in de aanroeper, geen handwerk nodig.
+  - [ ] Eerste echte publicatie: bij de volgende release.
 - [x] Stap 4: commit `feat: add cd-packages.yml`.
 
 ### Task 22b: de configpakketten op `v2`
@@ -430,7 +431,7 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] web-essentials-cli (#5): zoals de configpakketten, met `lint typecheck build` en `build: build`. Privépakketten met de eigen `GITHUB_TOKEN` (CI krijgt `packages: read`), zoals de oude release. `pnpm lint` faalde ook lokaal ("eslint: command not found"): `eslint` en `eslint-plugin-simple-import-sort` toegevoegd als devDependency.
 - [x] web-essentials-js (#8, pnpm 11): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/web-essentials`. CI faalde eerst met een 401 op de privépakketten: de `CUSTOM_GITHUB_TOKEN` van de repo (gezet op 7 mei) was verlopen. Lokaal installeerde pnpm 11 met dezelfde `.npmrc` en een geldige token zonder problemen. Met een nieuwe PAT groen; gemerged, CI op `main` groen, rulesets op `main`. pnpm 11 werkt dus met v2.
 - [x] text-extract (#8 naar `develop`, #9 naar `main`): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/text-extract`. De deploy van de demo-app is weg: die draaide nooit (geen Vercel-project). De default branch is nu `main` (was `develop`). `main` had "include administrators" aan, waardoor ook een admin niet zonder review kon mergen; vervangen door de rulesets (up-to-date uit op `main`, aan op `develop`).
-- Later: web-essentials-py (Python, wheel bij de release; cd-packages is alleen npm) en translations-management-js (Task 22 stap 3).
+- Later: web-essentials-py (Python, wheel bij de release; cd-packages is alleen npm). translations-management-js staat bij Task 22 stap 3.
 
 ### Task 23: `cd-pages.yml`
 
