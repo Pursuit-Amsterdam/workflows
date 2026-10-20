@@ -1824,6 +1824,7 @@ permissions:
 jobs:
   deploy:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     environment: ${{ inputs.environment }}
     # One publish per workspace at a time; never cancel one that runs.
     concurrency:
@@ -1886,14 +1887,17 @@ jobs:
             [ "${TAG_NAME#v}" = "$v" ] || { echo "::error::Release tag $TAG_NAME does not match package.json version $v"; exit 1; }
           fi
 
+          # Published, not published (E404), or unknown: an auth or registry
+          # error must not count as "not published yet".
           todo=()
           while read -r name version; do
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "skip $name@$version (already published)"
-            else
-              todo+=("$name")
-              echo "publish $name@$version"
+            if out=$(npm view "$name@$version" version 2>&1); then
+              if [ -n "$out" ]; then echo "skip $name@$version (already published)"; continue; fi
+            elif ! grep -q E404 <<<"$out"; then
+              echo "::error::Cannot tell whether $name@$version is published: $(tail -n1 <<<"$out")"; exit 1
             fi
+            todo+=("$name")
+            echo "publish $name@$version"
           done < <(jq -r '.[] | "\(.name) \(.version)"' <<<"$all")
           [ ${#todo[@]} -gt 0 ] || { echo "::error::Every version is already published: was the version bumped?"; exit 1; }
 
