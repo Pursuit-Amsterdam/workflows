@@ -305,9 +305,15 @@ Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `relea
 - [x] Stap 1: inrichting (v1 blijft ermee werken): `Staging` mag vanaf `develop` en `main`, `Production` alleen vanaf tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset op `v*` (alleen admins).
 - [x] Stap 2: PR naar `develop` (pursuit-website-2025#106): CI op `ci.yml@v2` (`checks: lint typecheck test build`, `use-custom-token`, triggers volgens de standaard), check-pr op `@v2`, CD met gate + `cd-vercel@v2` (`branch-targets: develop=staging`, `health-path: /`), `CODEOWNERS`. CI groen: lint, typecheck, test (de site heeft geen tests: `--passWithNoTests`) en build, zonder de staging-secrets die v1-CI laadde; gemerged.
 - [x] Stap 3: PR `develop` → `main` (#107); gemerged. De Storybook-deploy (v1) op die commit is rood, maar faalt al sinds 6 augustus: los van de migratie.
-- [ ] Stap 4: CD handmatig starten vanaf `develop`; verwacht een groene gate en een staging-deploy met health-check 200.
-- [ ] Stap 5: branchbescherming: per branch (`main`, `develop`) twee rulesets met `run-check-pr / pipeline` en `run-ci / pipeline`; klassieke protectie weg.
-- [ ] Stap 6 (bij de volgende release, door een senior): verwacht een `--prod`-deploy via de gate.
+- [x] Stap 4: CD handmatig starten vanaf `develop`; run 39415892050: gate `workflow_dispatch -> staging @ d81cdf9`, deploy naar het custom environment `staging`, health-check 200.
+- [x] Stap 5: branchbescherming: per branch (`main`, `develop`) twee rulesets met `run-check-pr / pipeline` en `run-ci / pipeline`; klassieke protectie weg. Voorheen: geen verplichte checks, force push toegestaan op `develop`, geen code-owner-review.
+- [ ] Stap 6 (bij de volgende release, door een senior): verwacht een `--prod`-deploy via de gate. Een handmatige start vanaf de huidige tag v2026.08.26 kan nog niet: een dispatch leest de workflow van die tag, en daar staat de v1-versie.
+- Nog open, buiten deze stappen:
+  - `VERCEL_TOKEN` en `VERCEL_ORG_ID` staan op org-niveau; de standaard wil `VERCEL_TOKEN` als environment-secret op `Staging` en `Production` (handwerk: de waarde).
+  - Environmentnamen met hoofdletters (`Staging`, `Production`); GitHub negeert hoofdletters, hernoemen kan niet zonder de secrets opnieuw te zetten.
+  - Het lege environment `Preview` kan weg.
+  - Storybook staat nog op v1 (`storybook-cd.yml@main`) en faalt sinds 6 augustus; `cd-pages` is Task 23.
+  - Geen `dependabot.yml`.
 
 ---
 
