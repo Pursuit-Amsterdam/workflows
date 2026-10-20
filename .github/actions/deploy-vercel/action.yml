@@ -11,7 +11,7 @@ inputs:
     description: "Vercel project ID"
     required: true
   environment:
-    description: "GitHub environment: staging (a preview deploy, the preview of develop) or production (--prod). Anything else is refused."
+    description: "GitHub environment: staging (the Vercel custom environment `staging`, --target=staging) or production (--prod). Anything else is refused."
     required: false
     default: "staging"
   vercel-env-args-file:
@@ -54,7 +54,7 @@ runs:
   steps:
     # An unknown build-mode would skip both deploy steps below and turn the
     # run green without deploying anything. Only staging and production are
-    # decided for Vercel: acceptance, or a typo, must not land on preview.
+    # decided for Vercel: acceptance, or a typo, must not deploy anywhere.
     - name: Validate inputs
       id: validate
       shell: bash
@@ -65,7 +65,7 @@ runs:
         case "$BUILD_MODE" in github|vercel) ;; *)
           echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
         case "$ENVIRONMENT" in staging|production) ;; *)
-          echo "::error::Vercel deploys to staging (the preview of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
+          echo "::error::Vercel deploys to staging (the custom environment of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
 
     # Some environment variables are consumed by the Vercel platform itself,
     # not by the deployed app. Cron is the case that bites: Vercel only
@@ -95,6 +95,9 @@ runs:
       run: |
         set -euo pipefail
 
+        # Staging writes to preview, as in v1: the custom environment
+        # `staging` is not a target this API takes by name, and Vercel runs
+        # crons on production only, so CRON_SECRET does nothing elsewhere.
         if [[ "${ENVIRONMENT}" == "production" ]]; then
           target="production"
         else
@@ -159,10 +162,10 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: ${{ inputs.build-command }}
 
-    # Vercel knows two environments here: production and preview. Staging is
-    # the preview deploy of develop (decided in docs/v2), so staging pulls and
-    # deploys as preview; --target=staging would ask for a custom environment
-    # that does not exist. The validate step allows nothing else.
+    # Staging is the Vercel custom environment `staging`: the develop branch,
+    # with its own URL and its own Vercel variables (decided in docs/v2). It is
+    # pulled, built and deployed with that name; production is --prod. The
+    # validate step allows nothing else.
     - name: Deploy with GitHub Build (Prebuilt)
       id: deploy-github
       if: inputs.build-mode == 'github'
@@ -176,21 +179,21 @@ runs:
       run: |
         set -euo pipefail
         if [[ "${ENVIRONMENT}" == "production" ]]; then
-          vercel_env="production"; prod=("--prod")
+          target=("--prod")
         else
-          vercel_env="preview"; prod=()
+          target=("--target=${ENVIRONMENT}")
         fi
-        echo "Building for ${ENVIRONMENT} (Vercel ${vercel_env}, GitHub build mode)..."
+        echo "Building for ${ENVIRONMENT} (GitHub build mode)..."
 
         # Pull Vercel project settings
-        vercel pull --yes --environment="${vercel_env}" --token="${VERCEL_TOKEN}"
+        vercel pull --yes --environment="${ENVIRONMENT}" --token="${VERCEL_TOKEN}"
 
         # Inject 1Password secrets into .vercel/.env.<env>.local so they are
         # available both at build time and bundled into the prebuilt output
         # for runtime serverless functions. --env on `vercel deploy --prebuilt`
         # is largely a no-op, so the env file is the only reliable channel.
         if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
-          echo "Injecting 1Password secrets into .vercel/.env.${vercel_env}.local..."
+          echo "Injecting 1Password secrets into .vercel/.env.${ENVIRONMENT}.local..."
           python3 -c '
         import os
         data = open(os.environ["VERCEL_ENV_ARGS_BIN"], "rb").read().split(b"\0")
@@ -210,14 +213,14 @@ runs:
             else:
                 i += 1
         print("\n".join(out))
-        ' >> ".vercel/.env.${vercel_env}.local"
+        ' >> ".vercel/.env.${ENVIRONMENT}.local"
         fi
 
         # Build project artifacts
-        vercel build "${prod[@]}" --token="${VERCEL_TOKEN}"
+        vercel build "${target[@]}" --token="${VERCEL_TOKEN}"
 
-        echo "Deploying prebuilt artifacts to Vercel (${vercel_env})..."
-        deploy_args=("--prebuilt" "--archive=tgz" "--token=${VERCEL_TOKEN}" "${prod[@]}")
+        echo "Deploying prebuilt artifacts to Vercel (${ENVIRONMENT})..."
+        deploy_args=("--prebuilt" "--archive=tgz" "--token=${VERCEL_TOKEN}" "${target[@]}")
 
         if [[ -n "${VERCEL_ENV_ARGS_BIN:-}" && -f "${VERCEL_ENV_ARGS_BIN}" ]]; then
           echo "Loading environment variables from 1Password export..."
@@ -246,9 +249,11 @@ runs:
         echo "Deploying to Vercel with Vercel build (${ENVIRONMENT})..."
 
         deploy_args=("--archive=tgz" "--token=${VERCEL_TOKEN}")
-        # production is --prod; staging is a preview deploy (no flag).
+        # production is --prod; staging is the custom environment `staging`.
         if [[ "${ENVIRONMENT}" == "production" ]]; then
           deploy_args+=("--prod")
+        else
+          deploy_args+=("--target=${ENVIRONMENT}")
         fi
 
         # Add environment variables from 1Password if available
