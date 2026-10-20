@@ -910,7 +910,7 @@ jobs:
           done
 ```
 
-.github/workflows/cd-gate.yml workflow_call · 1 job · de gate van gp-map, generiek gemaakt en volledig uitgeschreven
+.github/workflows/cd-gate.yml workflow_call · 1 job · gelijk aan het bestand op `v2` (Task 11)
 
 ```yaml
 name: "CD gate"
@@ -920,7 +920,9 @@ name: "CD gate"
 # cd-swarm or cd-packages. Based on gp-map-webapp's gate job.
 #
 #   workflow_run (CI done after a push)  -> branch-targets[head_branch]; sha = head_sha
-#   release published                    -> production; sha = the tag's commit
+#   release published                    -> production; sha = the tag's commit, which must be on the
+#                                           default branch; tag must match v*; prerelease skipped
+#                                           unless allow-prerelease
 #   workflow_dispatch                    -> from the ref it was started from: a branch in
 #                                           branch-targets, or a tag, which must be the
 #                                           latest release (no rollbacks) -> production
@@ -953,6 +955,11 @@ on:
         required: false
         type: string
         default: "develop=staging acceptance=acceptance"
+      allow-prerelease:
+        description: "Let a published prerelease deploy to production (cd-packages publishes it under the `next` dist-tag). Default: a prerelease is skipped."
+        required: false
+        type: boolean
+        default: false
     outputs:
       proceed:
         description: "'true' when exactly this run should deploy"
@@ -982,6 +989,7 @@ jobs:
         env:
           REQUIRED: ${{ inputs.required-workflows }}
           BRANCH_TARGETS: ${{ inputs.branch-targets }}
+          ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
         with:
           script: |
             const required = process.env.REQUIRED.split('\n').map(s => s.trim()).filter(Boolean);
@@ -1004,8 +1012,18 @@ jobs:
               if (!target) return skip(`no environment for branch ${run.head_branch} in branch-targets`);
               sha = run.head_sha;
             } else if (ev === 'release') {
-              target = 'production';
+              const tag = p.release.tag_name;
+              if (p.release.prerelease && process.env.ALLOW_PRERELEASE !== 'true') return skip(`release ${tag} is a prerelease`);
+              // production only accepts v* tags; say so here rather than let the
+              // environment refuse the deploy job with a less obvious message.
+              if (!/^v\d/.test(tag)) return fail(`tag ${tag} must match v*: production only allows those tags`);
               sha = context.sha; // the tag's commit
+              // A release tagged on develop (or any branch) would ship code that
+              // never went through main. The tag's commit must be on the default branch.
+              const base = p.repository.default_branch;
+              const { status } = (await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${base}...${sha}` })).data;
+              if (status !== 'identical' && status !== 'behind') return fail(`tag ${tag} (${short(sha)}) is not on ${base}: release from ${base} only`);
+              target = 'production';
             } else if (ev === 'workflow_dispatch') {
               if (context.ref.startsWith('refs/tags/')) {
                 const tag = context.ref.slice('refs/tags/'.length);
@@ -1024,7 +1042,12 @@ jobs:
               const branch = Object.entries(map).find(([, e]) => e === env)?.[0];
               if (!branch) return fail(`the CMS asked for environment '${env}', which has no branch: the CMS deploys to ${Object.values(map).join('/')} only; production ships on a release`);
               target = env;
-              sha = (await github.rest.repos.getBranch({ ...context.repo, branch })).data.commit.sha;
+              try {
+                sha = (await github.rest.repos.getBranch({ ...context.repo, branch })).data.commit.sha;
+              } catch (e) {
+                if (e.status === 404) return fail(`the CMS asked for ${env}, but branch ${branch} does not exist in this repo`);
+                throw e;
+              }
             } else {
               return fail(`unsupported event '${ev}': CD starts on workflow_run, release or workflow_dispatch, never on push`);
             }
