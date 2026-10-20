@@ -207,7 +207,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
   - `repository_dispatch`: `getBranch` in `try/catch` → `fail('branch … does not exist in this repo')`.
 - [x] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
 - [x] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
-- [x] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
+- [x] Stap 4: loop 21 scenario's af en noteer per scenario de run-id: de 17 uit het [testplan](naslag/uitrol-in-detail.md#gate-tests) (S1–S17) plus vier nieuwe (S18–S21, Task 12 zet ze in het testplan): tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
 - [ ] Stap 5: commit `feat: add cd-gate.yml`.
 
 Voortgang stap 4 (scenario's in workflows-example, run-id's):
