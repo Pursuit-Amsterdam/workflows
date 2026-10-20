@@ -25,9 +25,16 @@ De keuzes die de principes of de beveiliging raken, met per keuze wat besloten i
 - **`staging` en `acceptance` laten ook `main` toe.** GitHub toetst de branchregel van een environment tegen de ref van de run, en bij `workflow_run` (de gewone deploy na een merge) en `repository_dispatch` (het CMS) is dat altijd de default branch. Met alleen `develop` kwam geen enkele automatische deploy door (gevonden bij het testen van de gate). Die runs draaien de beschermde `cd.yml` van `main`; welke commit live gaat, bepaalt de gate, en een handmatige start vanaf `main` weigert hij.
 - **Branchprotectie per repo, niet centraal.** Zo kan een repo afwijken als dat nodig is. Het is op het Team-plan ook de enige optie: rulesets op org-niveau voor private repo's, "Require workflows to pass" en de merge queue zijn Enterprise-functies. De standaard staat in de [standaardinrichting](naslag/standaardinrichting.md#consumer-config); `setup-consumer.sh` zet hem, en de wekelijkse audit meldt elke afwijking, zodat een bewuste afwijking bekend is en een onbewuste opvalt. De checknamen blijven `run-ci / pipeline` en `run-check-pr / pipeline`.
 
+<a id="open"></a>
+
 ## Open
 
-Geen. Alle punten zijn besloten op 15 oktober 2026; nieuwe vragen die tijdens de bouw opkomen, komen hier terug.
+De punten van 15 oktober 2026 zijn allemaal besloten. Wat tijdens de bouw opkomt:
+
+- **Vercel-projecten met een custom environment `staging`** (20 oktober 2026). pursuit-website-2025 deployt in v1 met `vercel pull --environment=staging` en `--target=staging`, en dat werkt: het project heeft een custom environment `staging`. cd-vercel deployt staging als preview, dus:
+  - de domeinen van het custom environment worden niet meer bijgewerkt;
+  - de Vercel-variabelen van het custom environment gelden niet meer (de 1Password-variabelen wel, die gaan in het env-bestand).
+  Te bepalen: hoeveel van de 29 sites zo'n environment hebben, en of cd-vercel dan `--target=staging` moet gebruiken, of dat die sites overstappen op preview.
 
 ---
 

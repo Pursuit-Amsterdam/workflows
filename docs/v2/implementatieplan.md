@@ -288,9 +288,12 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 **Bestanden:**
 - Maak: `.github/workflows/cd-vercel.yml` uit het concept-blok, zonder de drie `run-translations`-stappen (Task 21); laat de `tms*`-inputs gedeclareerd.
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: test op template-nextjs-vercel (Task 15), want de voorbeeldrepo heeft geen Vercel-project.
-- [ ] Stap 3: commit `feat: add cd-vercel.yml`.
+- [x] Stap 1: schrijf en lint.
+  - Bijgesteld: de validatie staat in een eigen job `validate` vóór `deploy`, en weigert naast een onbekende `build-mode` ook een `environment` anders dan `staging` of `production`. Een job die een niet-bestaand environment noemt, maakt het aan, zonder branchregels of secrets; een check in die job zelf komt dus te laat.
+  - Bijgesteld: het concept heeft vier `run-translations`-stappen (ack, pull, mark-deployed, mark-failed), niet drie; alle vier eruit. `tms: true` faalt in `validate` tot Task 21: zonder die stappen zou de deploy zonder gepubliceerde vertalingen gaan en het CMS niets horen.
+- [x] Stap 2: getest op pursuit-website-2025 (de template heeft geen Vercel-project), met een tijdelijke aanroeper op een feature-branch: `environment: staging`, de bestaande 1Password-vault, `health-path: /`. Run 39406268739: groen; `vercel pull --environment=preview`, secrets in `.vercel/.env.preview.local`, preview-deploy, output `url`, health-check 200. Branch daarna verwijderd.
+  - Bevinding: de v1-deploy van die site gaf `--target=staging` mee en dat werkte, dus het Vercel-project heeft een custom environment `staging`. De beslissing ging ervan uit dat die niet bestaat. Open: zie [beslissingen](beslissingen.md#open).
+- [x] Stap 3: commit `feat: add cd-vercel.yml`.
 
 ### Task 15: template-nextjs-vercel op `cd-vercel@v2` (**handwerk** voor de environments)
 

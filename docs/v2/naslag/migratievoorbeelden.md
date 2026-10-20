@@ -58,7 +58,9 @@ on:
 
 gate:
   if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-  uses: …/cd-gate.yml@v2   # required-workflows en branch-targets: standaardwaarden
+  uses: …/cd-gate.yml@v2   # required-workflows: standaardwaarde
+  with:
+    branch-targets: develop=staging   # Vercel kent geen acceptance; cd-vercel weigert die
 deploy:
   needs: gate
   if: needs.gate.outputs.proceed == 'true'
