@@ -167,9 +167,12 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Bron:** [migratievoorbeelden](naslag/migratievoorbeelden.md#migration). **Handwerk:** branchprotectie van de template volgens de standaard (nu: geen verplichte checks, force push toegestaan).
 
-- [ ] Stap 1: PR in template-nextjs-vercel: `web-ci.yml@main` → `ci.yml@v2` met `checks: lint typecheck test build`, `use-custom-token: true`; `check-pr` naar `@v2` zonder `head-ref`/`base-ref`; `name: Continuous Integration`.
-- [ ] Stap 2: verwacht groen; controleer dat de vier scripts echt draaien (log) en dat de duur niet hoger is dan de laatste v1-run.
-- [ ] Stap 3: verplichte checks en bescherming zetten; merge.
+- [x] Stap 1: PR in template-nextjs-vercel: `web-ci.yml@main` → `ci.yml@v2` met `checks: lint typecheck build` (zonder `test`, zie hieronder), `use-custom-token: true`; `check-pr` naar `@v2` zonder `head-ref`/`base-ref`; `name: Continuous Integration`.
+- [x] Stap 2: verwacht groen; controleer dat de scripts echt draaien (log). Er was geen v1-run om de duur mee te vergelijken: de v1-CI was sinds februari rood bij de install.
+- [x] Stap 3: verplichte checks en bescherming zetten; merge.
+
+Gevonden in de template (PR #24): `CUSTOM_GITHUB_TOKEN` ontbrak, waardoor de install al sinds februari met een 403 faalde; daarna een echte lintfout (importvolgorde). `test` staat nog niet in `checks`: de template heeft geen tests, en `@pursuit-amsterdam/jest-config` 1.0.0 kan zijn eigen `setup.js` (ESM in `node_modules`) niet laden. Aparte klus buiten dit plan: `setup.js` in Pursuit-Amsterdam/jest-config naar CommonJS, 1.0.1 publiceren, en dan `@types/jest`, `@testing-library/{react,dom,jest-dom}` en een starttest in de template.
+
 
 ---
 
