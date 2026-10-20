@@ -401,8 +401,8 @@ jest-config, eslint-config, prettier-config en typescript-config (20 oktober 202
 
 - [x] check-pr: een repo zonder `develop` mag `feature/*` en `dependabot/*` naar `main` mergen (#58); check-pr kijkt via de API of `develop` bestaat.
 - [x] Inrichting: environment `production` met alleen tags `v*`; tag-ruleset op `v*` (alleen admins).
-- [ ] PR per repo: CI op `ci.yml@v2` met `check-pack` (elk item in `files` bestaat, dan `pnpm pack --dry-run`), typescript-config ook `test` en zijn matrix als niet-verplichte job `compat`; check-pr `@v2`; CD met gate (`allow-prerelease: true`) + `cd-packages@v2` (`build: none`); `packageManager`; `CODEOWNERS`; `release-package.yml` weg. eslint-config negeerde `pnpm-lock.yaml` in `.gitignore`; de lockfile staat er nu in. PR's: jest-config#5, eslint-config#19, prettier-config#2, typescript-config#2.
-- [ ] Branchbescherming op `main`: twee rulesets (checks met up-to-date, want er is geen `develop`; review met bypass voor admins); klassieke protectie weg.
+- [x] PR per repo: CI op `ci.yml@v2` met `check-pack` (elk item in `files` bestaat, dan `pnpm pack --dry-run`), typescript-config ook `test` en zijn matrix als niet-verplichte job `compat`; check-pr `@v2`; CD met gate (`allow-prerelease: true`) + `cd-packages@v2` (`build: none`); `packageManager`; `CODEOWNERS`; `release-package.yml` weg. eslint-config negeerde `pnpm-lock.yaml` in `.gitignore`; de lockfile staat er nu in. PR's: jest-config#5, eslint-config#19, prettier-config#2, typescript-config#2, gemerged; CI op `main` daarna groen in alle vier. check-pr gaf op alle vier `feature/workflows-v2 → main` groen: de echte test van de regel zonder `develop`. In typescript-config faalde `compat` eerst: `pnpm/action-setup` weigert een `version` naast `packageManager`.
+- [x] Branchbescherming op `main`: twee rulesets (checks met up-to-date, want er is geen `develop`; review met bypass voor admins); klassieke protectie weg.
 - [ ] Eerste publicatie via cd-packages: bij de volgende release van elk pakket.
 
 ### Task 23: `cd-pages.yml`
