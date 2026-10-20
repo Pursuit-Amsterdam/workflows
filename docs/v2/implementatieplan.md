@@ -12,17 +12,40 @@
 
 **Spec:** [docs/v2](README.md), vooral [beslissingen](beslissingen.md#decided), [ci](naslag/ci.md), [cd](naslag/cd.md), [bouwstenen](naslag/bouwstenen.md), [standaardinrichting](naslag/standaardinrichting.md), [uitrol in detail](naslag/uitrol-in-detail.md) en de [concept-YAML](naslag/concept-yaml.md).
 
-## Stand van zaken (20 oktober 2026)
+## Stand van zaken (20 oktober 2026, einde dag)
 
-- **Plak 0 en 1 zijn af** (Task 1–10). `v2` is beschermd en test zichzelf; `ci.yml` en `ci-images.yml` draaien in de voorbeeldrepo, en template-nextjs-vercel draait CI op `ci.yml@v2` met `lint typecheck test build`.
-- **Plak 2 is af** (Task 11–12): de gate staat op `v2` en is met 21 scenario's getest.
-- **Volgende:** Plak 3, CD naar Vercel (Task 13–15).
-- **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)): seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); `ci.yml` telt bij turbo alleen workspace-pakketten en geeft turbo de remote base voor `--affected`; `use-custom-token` zonder secret faalt met een melding.
-- **Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4): `setup.js` laadt weer, peers `@testing-library/jest-dom` en jest 30.
-- **Buiten het plan, nog open:**
-  - TypeScript 6 laadt `@types/*` niet meer vanzelf; projecten met tests hebben `"types": ["jest", "@testing-library/jest-dom"]` nodig. Kandidaat voor `@pursuit-amsterdam/typescript-config`.
-  - `@pursuit-amsterdam/jest-config` declareert `identity-obj-proxy` en `jest-transform-stub` niet, terwijl de `react`-preset ze gebruikt; `ts-jest` 29 wil `typescript <6`.
-  - Pursuit-Amsterdam/jest-config heeft 34 Dependabot-meldingen op `main`.
+**Af:**
+
+- **Plak 0–2** (Task 1–12): `v2` is beschermd en test zichzelf; `ci.yml`, `ci-images.yml` en de gate staan erop; de gate is met 21 scenario's getest.
+- **Plak 3, CD naar Vercel** (Task 13–15): `run-codegen`, `deploy-vercel`, `cd-vercel`; pursuit-website-2025 draait op `v2`, ook in productie (release v2026.10.20).
+- **Vertalingen-CMS** (Task 21): `run-translations`, de job `tms-sync` in CI, de CMS-stappen in cd-vercel, de CMS-dispatch in de gate (productie opt-in met `cms-production`). Op `v2`: integrators-website-2025, tms-test en het CLI-pakket translations-management-js.
+- **Pakketten** (Task 22, 22b): `cd-packages`; op `v2`: jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js.
+
+**Open:**
+
+- **Plak 4, CD naar Swarm** (Task 16–18): `deploy-swarm` met `pre-deploy`, `cd-swarm`, gp-container-tracking-webapp en gp-map-webapp.
+- **Plak 5, de rest** (Task 19, 20, 23): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI, `cd-pages` (Storybook).
+- **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
+- **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
+- **Nog op v1:** template-nextjs-vercel (CD; geen Vercel-project), translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
+
+**Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)):
+
+- seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); up-to-date verplicht op `develop`, niet op `main` (anders blokkeert elke `develop` → `main`);
+- staging op Vercel is het custom environment `staging` (`--target=staging`); deploy-vercel weigert alles behalve `staging` en `production`;
+- de gate wacht bij een release of handmatige start op CI die nog loopt (hooguit 20 minuten);
+- het CMS start deploys met `workflow_dispatch` (`environment`, `release_id`) op het CD-bestand uit zijn projectinstelling; de standaardnamen zijn `ci.yml` en `cd.yml`;
+- check-pr laat in een repo zonder `develop` `feature/*` en `dependabot/*` naar `main`; cd-packages negeert `+N` in de tag;
+- `ci.yml` telt bij turbo alleen workspace-pakketten en geeft turbo de remote base voor `--affected`; `use-custom-token` zonder secret faalt met een melding.
+
+**Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4); `lint` in web-essentials-cli (eslint ontbrak als dependency); verlopen `CUSTOM_GITHUB_TOKEN`s in web-essentials-js en tms-test vervangen.
+
+**Buiten het plan, nog open:**
+
+- TypeScript 6 laadt `@types/*` niet meer vanzelf; projecten met tests hebben `"types": ["jest", "@testing-library/jest-dom"]` nodig. Kandidaat voor `@pursuit-amsterdam/typescript-config`.
+- `@pursuit-amsterdam/jest-config` declareert `identity-obj-proxy` en `jest-transform-stub` niet, terwijl de `react`-preset ze gebruikt; `ts-jest` 29 wil `typescript <6`.
+- Pursuit-Amsterdam/jest-config heeft 34 Dependabot-meldingen op `main`.
+- `CUSTOM_GITHUB_TOKEN` is een PAT per repo die verloopt; leestoegang per pakket met de eigen `GITHUB_TOKEN` (zoals web-essentials-cli) zou hem overbodig maken ([detailbeslissing](naslag/detailbeslissingen.md#decisions-detail)).
 
 ## Vaste regels voor elke taak
 
