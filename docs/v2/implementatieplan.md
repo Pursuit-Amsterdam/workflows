@@ -472,10 +472,10 @@ De andere pakketrepo's (20 oktober 2026):
 
 **Bestanden:** maak `.github/workflows/cd-pages.yml`: `storybook-cd.yml` als basis, met `build-command` (default `build-storybook`), `output-directory` (default `storybook-static`), `codegen*`, Node uit `.nvmrc`, job `deploy` in environment `github-pages`, `run-codegen` vóór de build.
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: voorbeeldrepo: `pages.yml` met `build-command: build` en `output-directory: dist` (het `build`-script schrijft `dist/index.html`); verwacht een gepubliceerde Pages-site.
+- [x] Stap 1: schrijf en lint. De Pages-actions op hun huidige versie, vastgezet op een commit: `configure-pages` v6.0.0, `upload-pages-artifact` v5.0.0, `deploy-pages` v5.0.1 (v1 gebruikte v5, v3 en v4). De build faalt met een duidelijke melding als `output-directory` geen `index.html` bevat.
+- [x] Stap 2: voorbeeldrepo: `pages.yml` met `build-command: build` en `output-directory: dist` (het `build`-script schrijft `dist/index.html`); verwacht een gepubliceerde Pages-site. Pages eerst aangezet (bron: GitHub Actions); `pages.yml` met `working-directory: web`. Run 39446208947 groen, `pursuit-amsterdam.github.io/workflows-example/` geeft 200.
 - [ ] Stap 3: één storybook-repo op `@v2` zonder extra inputs; verwacht gelijk gedrag aan v1.
-- [ ] Stap 4: commit `feat: add cd-pages.yml`.
+- [x] Stap 4: commit `feat: add cd-pages.yml`.
 
 ---
 

@@ -1,0 +1,117 @@
+name: "CD Pages"
+
+# Builds a static site with a script from the repo and publishes it to GitHub
+# Pages. Storybook is the default (build-storybook -> storybook-static), so the
+# storybook-cd callers need no inputs; any other static site sets build-command
+# and output-directory. Pages has one site per repo, so there is no
+# environment input, ref or 1Password here; the job runs in the environment
+# github-pages, which GitHub creates and Pages requires.
+# The caller declares `pages: write` and `id-token: write`.
+# Supersedes storybook-cd.yml.
+
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        description: "Name of the package script that builds the site"
+        required: false
+        type: string
+        default: "build-storybook"
+      output-directory:
+        description: "Directory the build writes, relative to working-directory"
+        required: false
+        type: string
+        default: "storybook-static"
+      working-directory:
+        description: "Directory holding package.json. The Node version comes from its .nvmrc (else 22.x)."
+        required: false
+        type: string
+        default: "."
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN for private @pursuit-amsterdam packages"
+        required: false
+        type: boolean
+        default: false
+      codegen:
+        description: "Name of the package script that generates code before the build, e.g. an API client. Empty = none."
+        required: false
+        type: string
+        default: ""
+      codegen-check:
+        description: "Script that compares external input codegen fetched with the committed version ($CODEGEN_BASELINE). Empty = none. Needs codegen and codegen-baseline."
+        required: false
+        type: string
+        default: ""
+      codegen-baseline:
+        description: "Space-separated committed files the codegen script overwrites with a fresh fetch; copied to $CODEGEN_BASELINE first"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    # One Pages deploy at a time; never cancel one that runs.
+    concurrency:
+      group: cd-pages
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the Node version from the repo
+        id: node
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Code generation and its checks
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@v2
+        with:
+          codegen: ${{ inputs.codegen }}
+          codegen-check: ${{ inputs.codegen-check }}
+          codegen-baseline: ${{ inputs.codegen-baseline }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # A build that writes nowhere (a wrong output-directory) would otherwise
+      # fail in the upload with a message about an empty artifact.
+      - name: Build
+        env:
+          SCRIPT: ${{ inputs.build-command }}
+          OUTPUT: ${{ inputs.output-directory }}
+        run: |
+          set -euo pipefail
+          pnpm run "$SCRIPT"
+          [ -f "$OUTPUT/index.html" ] || { echo "::error::$SCRIPT wrote no $OUTPUT/index.html: check output-directory"; exit 1; }
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ inputs.working-directory }}/${{ inputs.output-directory }}
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
