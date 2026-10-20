@@ -303,8 +303,8 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `release` lezen de workflow van de default branch. `develop` loopt niet voor op `main`, dus de PR `develop` → `main` bevat alleen de migratie; een merge naar `main` deployt niets.
 
 - [x] Stap 1: inrichting (v1 blijft ermee werken): `Staging` mag vanaf `develop` en `main`, `Production` alleen vanaf tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset op `v*` (alleen admins).
-- [ ] Stap 2: PR naar `develop`: CI op `ci.yml@v2` (`checks: lint typecheck test build`, `use-custom-token`, triggers volgens de standaard), check-pr op `@v2`, CD met gate + `cd-vercel@v2` (`branch-targets: develop=staging`, `health-path: /`), `CODEOWNERS`. CI groen; merge.
-- [ ] Stap 3: PR `develop` → `main`; merge.
+- [x] Stap 2: PR naar `develop` (pursuit-website-2025#106): CI op `ci.yml@v2` (`checks: lint typecheck test build`, `use-custom-token`, triggers volgens de standaard), check-pr op `@v2`, CD met gate + `cd-vercel@v2` (`branch-targets: develop=staging`, `health-path: /`), `CODEOWNERS`. CI groen: lint, typecheck, test (de site heeft geen tests: `--passWithNoTests`) en build, zonder de staging-secrets die v1-CI laadde; gemerged.
+- [x] Stap 3: PR `develop` → `main` (#107); gemerged. De Storybook-deploy (v1) op die commit is rood, maar faalt al sinds 6 augustus: los van de migratie.
 - [ ] Stap 4: CD handmatig starten vanaf `develop`; verwacht een groene gate en een staging-deploy met health-check 200.
 - [ ] Stap 5: branchbescherming: per branch (`main`, `develop`) twee rulesets met `run-check-pr / pipeline` en `run-ci / pipeline`; klassieke protectie weg.
 - [ ] Stap 6 (bij de volgende release, door een senior): verwacht een `--prod`-deploy via de gate.
