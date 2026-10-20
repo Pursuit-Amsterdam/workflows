@@ -4,7 +4,7 @@
 
 De workflowbestanden komen door `actionlint` en `shellcheck`, op één waarschuwing na die de bestaande workflows ook geven (actionlint kent het Blacksmith-runnerlabel niet). Het auditscript komt schoon door `shellcheck`. Op 15 oktober zijn de bestanden ook gecontroleerd tegen de interfaces van de bestaande actions op `main`, en de fouten daaruit zijn verwerkt. Wat nog niet bestaat, kon niet gecontroleerd worden: `setup-supabase`, de output `url` van deploy-vercel, en de inputs `pre-deploy`, `environment` en `version` van deploy-swarm. Externe actions staan op een vaste commit, met de versie als commentaar. Elke interne verwijzing gebruikt `@v2`. Niets hiervan is gecommit. De YAML is in het Engels, zoals alle code in de repo.
 
-Op 15 oktober zijn na een review verwerkt: geen `dispatch-ref` en geen `dispatch-target` meer in de gate (het doel komt uit de ref waarvan je start), `main` uit de standaard-branchmapping, en de gate-logica volledig uitgeschreven op basis van gp-map ([besloten](../beslissingen.md#decided)); `working-directory` in elke concurrency-groep en in elke aanroep van `setup-node-pnpm`; `migrate-image` krijgt in cd-swarm weer de versietag; `framework: next` in cd-vercel; validatie van `build-mode`; de wijzigingsdetectie in ci-images vergelijkt met de merge-base; `build-env` per image in ci-images; cd-packages publiceert met `GITHUB_TOKEN` door de `.npmrc` van de install te overschrijven. De wijzigingen aan de bestaande actions (`working-directory` en `--frozen-lockfile` in setup-node-pnpm, de preview-target en de vaste CLI-versie in deploy-vercel, vastgepinde externe actions) staan in [bouwstenen](bouwstenen.md#shared) en zijn hier niet als YAML uitgeschreven.
+Op 15 oktober zijn na een review verwerkt: geen `dispatch-ref` en geen `dispatch-target` meer in de gate (het doel komt uit de ref waarvan je start), `main` uit de standaard-branchmapping, en de gate-logica volledig uitgeschreven op basis van gp-map ([besloten](../beslissingen.md#decided)); `working-directory` in elke concurrency-groep en in elke aanroep van `setup-node-pnpm`; `migrate-image` krijgt in cd-swarm weer de versietag; `framework: next` in cd-vercel; validatie van `build-mode`; de wijzigingsdetectie in ci-images vergelijkt met de merge-base; `build-env` per image in ci-images; cd-packages publiceert met `GITHUB_TOKEN` door de `.npmrc` van de install te overschrijven. De wijzigingen aan de bestaande actions (`working-directory` en `--frozen-lockfile` in setup-node-pnpm, `--target=staging` en de vaste CLI-versie in deploy-vercel, vastgepinde externe actions) staan in [bouwstenen](bouwstenen.md#shared) en zijn hier niet als YAML uitgeschreven.
 
 .github/workflows/ci.yml workflow_call · 1 job · draait de scripts van de repo
 
@@ -421,7 +421,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => a preview deploy (staging is the preview of develop; decided)."
+        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => --target=staging (the Vercel custom environment of develop, with its own URL; decided)."
         required: true
         type: string
       ref:
@@ -533,7 +533,7 @@ on:
       TMS_API_KEY:
         required: false
       VERCEL_AUTOMATION_BYPASS_SECRET:
-        description: "Only for health-path on previews behind Vercel Deployment Protection"
+        description: "Only for health-path on a staging deployment behind Vercel Deployment Protection"
         required: false
 
 permissions:
@@ -632,9 +632,8 @@ jobs:
           codegen-baseline: ${{ inputs.codegen-baseline }}
           working-directory: ${{ inputs.working-directory }}
 
-      # staging is a preview deploy, production --prod: staging is the preview of
-      # develop (decided). deploy-vercel@v2 maps staging to
-      # --environment=preview and no --target, and refuses anything else.
+      # staging is the Vercel custom environment `staging` (develop, its own
+      # URL), production --prod (decided). deploy-vercel@v2 refuses anything else.
       - name: Deploy to Vercel
         id: vercel
         uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@v2

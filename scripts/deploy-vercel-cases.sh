@@ -61,8 +61,8 @@ run_step() {
 printf -- '--env\0API_KEY=secret\0' >"$tmp/env-args"
 
 # 1. build-mode and environment are validated before anything runs. Vercel
-#    knows staging (the preview of develop) and production; nothing else was
-#    decided, and a typo must not land on preview.
+#    knows staging (the custom environment of develop) and production; nothing
+#    else was decided, and a typo must not deploy anywhere.
 for m in github vercel; do check "build-mode $m accepted" run_step validate BUILD_MODE=$m ENVIRONMENT=staging; done
 for m in azure ""; do refute "build-mode '$m' refused" run_step validate BUILD_MODE=$m ENVIRONMENT=staging; done
 for e in staging production; do check "environment $e accepted" run_step validate BUILD_MODE=github ENVIRONMENT=$e; done
@@ -71,26 +71,30 @@ for e in acceptance prod ""; do refute "environment '$e' refused" run_step valid
 # 2. The CLI is pinned.
 check "CLI pinned to an exact version" grep -Eq 'vercel@[0-9]+\.[0-9]+\.[0-9]+' "$tmp/step-install.sh"
 
-# 3. staging is a preview deploy; production is --prod.
+# 3. staging is the Vercel custom environment `staging` (the develop branch,
+#    with its own URL): pulled, built and deployed with --target=staging.
+#    production is --prod and never has a --target.
 for mode in github vercel; do
   for env in staging production; do
-    if [ "$env" = production ]; then vercel_env=production; else vercel_env=preview; fi
     name="$mode/$env"
     if ! run_step "deploy-$mode" ENVIRONMENT=$env VERCEL_ENV_ARGS_BIN="$tmp/env-args"; then
       fail "$name: step failed: $(tail -3 "$tmp/stdout")"; continue
     fi
-    refute "$name: no --target" grep -q -- '--target' "$tmp/log"
     if [ "$env" = production ]; then
       check "$name: deploy --prod" grep -q '^vercel deploy .*--prod' "$tmp/log"
+      refute "$name: no --target" grep -q -- '--target' "$tmp/log"
     else
+      check "$name: deploy --target=staging" grep -q '^vercel deploy .*--target=staging' "$tmp/log"
       refute "$name: no --prod" grep -q -- '--prod' "$tmp/log"
     fi
     check "$name: url output" grep -qx 'url=https://app-abc123.vercel.app' "$tmp/out"
     if [ "$mode" = github ]; then
-      check "$name: pulls $vercel_env" grep -q -- "^vercel pull .*--environment=$vercel_env" "$tmp/log"
-      check "$name: secrets in .vercel/.env.$vercel_env.local" grep -qsx 'API_KEY="secret"' "$tmp/work/.vercel/.env.$vercel_env.local"
+      check "$name: pulls $env" grep -q -- "^vercel pull .*--environment=$env" "$tmp/log"
+      check "$name: secrets in .vercel/.env.$env.local" grep -qsx 'API_KEY="secret"' "$tmp/work/.vercel/.env.$env.local"
       if [ "$env" = production ]; then
         check "$name: build --prod" grep -q '^vercel build .*--prod' "$tmp/log"
+      else
+        check "$name: build --target=staging" grep -q '^vercel build .*--target=staging' "$tmp/log"
       fi
     fi
   done

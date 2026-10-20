@@ -14,7 +14,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => a preview deploy (staging is the preview of develop; decided)."
+        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => --target=staging (the Vercel custom environment of develop, with its own URL; decided)."
         required: true
         type: string
       ref:
@@ -126,7 +126,7 @@ on:
       TMS_API_KEY:
         required: false
       VERCEL_AUTOMATION_BYPASS_SECRET:
-        description: "Only for health-path on previews behind Vercel Deployment Protection"
+        description: "Only for health-path on a staging deployment behind Vercel Deployment Protection"
         required: false
 
 permissions:
@@ -150,7 +150,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$ENVIRONMENT" in staging|production) ;; *)
-            echo "::error::Vercel deploys to staging (the preview of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
+            echo "::error::Vercel deploys to staging (the custom environment of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
           case "$BUILD_MODE" in github|vercel) ;; *)
             echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
           # Until run-translations exists, tms would deploy without the
@@ -220,9 +220,8 @@ jobs:
           codegen-baseline: ${{ inputs.codegen-baseline }}
           working-directory: ${{ inputs.working-directory }}
 
-      # staging is a preview deploy, production --prod: staging is the preview of
-      # develop (decided). deploy-vercel@v2 maps staging to
-      # --environment=preview and no --target, and refuses anything else.
+      # staging is the Vercel custom environment `staging` (develop, its own
+      # URL), production --prod (decided). deploy-vercel@v2 refuses anything else.
       - name: Deploy to Vercel
         id: vercel
         uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@v2

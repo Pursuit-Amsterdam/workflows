@@ -54,7 +54,7 @@ Nog niet uitgewerkt. De laatste kolom toont welke principes van toepassing zoude
 
 | # | Use case | Voorbeeld | Principes |
 | --- | --- | --- | --- |
-| 25 | ~~Preview-deploy per pull request~~ Vervalt: staging is de enige preview ([besloten](beslissingen.md#decided)). | — | — |
+| 25 | ~~Preview-deploy per pull request~~ Vervalt: geen deploy per pull request; staging is de enige omgeving naast productie ([besloten](beslissingen.md#decided)). | — | — |
 | 26 | Geplande runs: controle op drift, dependency-audit, het wekelijkse auditscript | nieuw | [2](principes.md#p-green) [5](principes.md#p-cd) |
 | 27 | Melding bij een mislukte deploy naar productie | nieuw | [5](principes.md#p-cd) |
 | 28 | Infra as code: plan in CI, precies dat plan toepassen in CD (uitwerking hieronder) | Azure, Swarm-VM's, DNS | [1](principes.md#vocab) [3](principes.md#p-env) [4](principes.md#p-gate) [5](principes.md#p-cd) [7](principes.md#p-scripts) |
