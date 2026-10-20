@@ -290,7 +290,7 @@ jobs:
           onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Sync translation keys to the CMS
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@feature/run-translations
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: sync
           working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}

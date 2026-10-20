@@ -200,7 +200,7 @@ jobs:
       # window, so this goes as early as the CLI is usable.
       - name: Tell the translations CMS a deploy is running
         if: inputs.tms
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@feature/run-translations
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: ack
           release-id: ${{ inputs.tms-release-id }}
@@ -222,7 +222,7 @@ jobs:
       # published, and the typecheck sees it.
       - name: Pull published translations
         if: inputs.tms
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@feature/run-translations
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: pull
           working-directory: ${{ inputs.tms-working-directory || inputs.working-directory }}
@@ -278,7 +278,7 @@ jobs:
       # the key manifest the CMS's production publish gate checks against.
       - name: Mark the release deployed
         if: inputs.tms && success()
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@feature/run-translations
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: mark-deployed
           release-id: ${{ inputs.tms-release-id }}
@@ -286,7 +286,7 @@ jobs:
 
       - name: Mark the release failed
         if: inputs.tms && failure()
-        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@feature/run-translations
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: mark-failed
           release-id: ${{ inputs.tms-release-id }}
