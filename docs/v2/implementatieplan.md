@@ -12,6 +12,17 @@
 
 **Spec:** [docs/v2](README.md), vooral [beslissingen](beslissingen.md#decided), [ci](naslag/ci.md), [cd](naslag/cd.md), [bouwstenen](naslag/bouwstenen.md), [standaardinrichting](naslag/standaardinrichting.md), [uitrol in detail](naslag/uitrol-in-detail.md) en de [concept-YAML](naslag/concept-yaml.md).
 
+## Stand van zaken (20 oktober 2026)
+
+- **Plak 0 en 1 zijn af** (Task 1–10). `v2` is beschermd en test zichzelf; `ci.yml` en `ci-images.yml` draaien in de voorbeeldrepo, en template-nextjs-vercel draait CI op `ci.yml@v2` met `lint typecheck test build`.
+- **Volgende:** Plak 2, de gate (Task 11–12), in de voorbeeldrepo.
+- **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)): seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); `ci.yml` telt bij turbo alleen workspace-pakketten en geeft turbo de remote base voor `--affected`; `use-custom-token` zonder secret faalt met een melding.
+- **Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4): `setup.js` laadt weer, peers `@testing-library/jest-dom` en jest 30.
+- **Buiten het plan, nog open:**
+  - TypeScript 6 laadt `@types/*` niet meer vanzelf; projecten met tests hebben `"types": ["jest", "@testing-library/jest-dom"]` nodig. Kandidaat voor `@pursuit-amsterdam/typescript-config`.
+  - `@pursuit-amsterdam/jest-config` declareert `identity-obj-proxy` en `jest-transform-stub` niet, terwijl de `react`-preset ze gebruikt; `ts-jest` 29 wil `typescript <6`.
+  - Pursuit-Amsterdam/jest-config heeft 34 Dependabot-meldingen op `main`.
+
 ## Vaste regels voor elke taak
 
 - Werk op `v2`: een branch `feature/<taak>` vanaf `v2`, PR naar `v2`. Nooit naar `main`.
@@ -167,11 +178,15 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 
 **Bron:** [migratievoorbeelden](naslag/migratievoorbeelden.md#migration). **Handwerk:** branchprotectie van de template volgens de standaard (nu: geen verplichte checks, force push toegestaan).
 
-- [x] Stap 1: PR in template-nextjs-vercel: `web-ci.yml@main` → `ci.yml@v2` met `checks: lint typecheck build` (zonder `test`, zie hieronder), `use-custom-token: true`; `check-pr` naar `@v2` zonder `head-ref`/`base-ref`; `name: Continuous Integration`.
+- [x] Stap 1: PR in template-nextjs-vercel: `web-ci.yml@main` → `ci.yml@v2` met `checks: lint typecheck test build` (eerst zonder `test`, zie hieronder), `use-custom-token: true`; `check-pr` naar `@v2` zonder `head-ref`/`base-ref`; `name: Continuous Integration`.
 - [x] Stap 2: verwacht groen; controleer dat de scripts echt draaien (log). Er was geen v1-run om de duur mee te vergelijken: de v1-CI was sinds februari rood bij de install.
 - [x] Stap 3: verplichte checks en bescherming zetten; merge.
 
-Gevonden in de template (PR #24): `CUSTOM_GITHUB_TOKEN` ontbrak, waardoor de install al sinds februari met een 403 faalde; daarna een echte lintfout (importvolgorde). `test` staat nog niet in `checks`: de template heeft geen tests, en `@pursuit-amsterdam/jest-config` 1.0.0 kan zijn eigen `setup.js` (ESM in `node_modules`) niet laden. Aparte klus buiten dit plan: `setup.js` in Pursuit-Amsterdam/jest-config naar CommonJS, 1.0.1 publiceren, en dan `@types/jest`, `@testing-library/{react,dom,jest-dom}` en een starttest in de template.
+Gevonden in de template:
+
+- PR #24: `CUSTOM_GITHUB_TOKEN` ontbrak, waardoor de install al sinds februari met een 403 faalde; daarna een echte lintfout (importvolgorde). `test` bleef eerst buiten `checks`: de template had geen tests, en `@pursuit-amsterdam/jest-config` 1.0.0 kon zijn eigen `setup.js` (ESM in `node_modules`) niet laden.
+- Pursuit-Amsterdam/jest-config#4, gepubliceerd als 1.0.1: `setup.js` in CommonJS, `@testing-library/jest-dom` als peer, jest 30 toegestaan.
+- PR #25: jest-config 1.0.1, `@testing-library/{react,dom,jest-dom}`, `@types/jest`, een starttest voor `page.tsx`, en `"types": ["jest", "@testing-library/jest-dom"]` in `tsconfig.json` (TypeScript 6 laadt `@types` niet meer vanzelf). `test` staat weer in `checks`; de push-run op `main` is groen met 2 tests.
 
 
 ---
@@ -338,7 +353,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ### Task 25: `scripts/setup-consumer.sh`
 
-**Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), branchprotectie op `main`/`develop` met de verplichte checks, en meldt welke secrets de beheerder nog moet zetten. Idempotent: een tweede run verandert niets.
+**Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), per beschermde branch (`main`, en `develop` en `acceptance` als ze bestaan) twee rulesets: checks zonder bypass, en review (code owners, geen force push of verwijderen) met bypass voor admins alleen op PR's; daarna haalt het de klassieke branchprotectie weg, pas als de rulesets staan. Het zet `.github/CODEOWNERS` niet (dat doet Task 26) en meldt welke secrets de beheerder nog moet zetten, ook `CUSTOM_GITHUB_TOKEN` als de CI `use-custom-token` gebruikt. Idempotent: een tweede run verandert niets.
 
 - [ ] Stap 1: `pnpm lint`; `pnpm setup-consumer -- <verse testrepo>`; daarna `pnpm audit:consumers -- <die repo>`: verwacht alleen bevindingen over secrets en variabelen zonder waarde.
 - [ ] Stap 2: tweede run; verwacht geen wijzigingen (vergelijk `gh api` vóór en na).
@@ -346,17 +361,16 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ### Task 26: migratiescript
 
-**Bestanden:** maak `scripts/migrate-consumer.sh <repo>`: kloont de repo, zet `.github/CODEOWNERS` op `* @Pursuit-Amsterdam/senior-developers` als die regel ontbreekt, herschrijft `.github/workflows/*.yml` volgens de tabellen in [ci.md](naslag/ci.md), [cd.md](naslag/cd.md) en de [migratievoorbeelden](naslag/migratievoorbeelden.md) (`@main` → `@v2`, `run-*` → `checks`, `onepassword_*` weg, twee deploy-jobs → gate + deploy, trigger `push` → `workflow_run`, `head-ref`/`base-ref` weg), draait `setup-consumer.sh`, en opent een PR naar `main` met een checklist van wat handmatig blijft (secrets verplaatsen, `package.json`-scripts, verplichte checks vlak vóór de merge).
+**Bestanden:** maak `scripts/migrate-consumer.sh <repo>`: kloont de repo, zet `.github/CODEOWNERS` op `* @Pursuit-Amsterdam/senior-developers` als die regel ontbreekt, herschrijft `.github/workflows/*.yml` volgens de tabellen in [ci.md](naslag/ci.md), [cd.md](naslag/cd.md) en de [migratievoorbeelden](naslag/migratievoorbeelden.md) (`@main` → `@v2`, `run-*` → `checks`, `onepassword_*` weg, twee deploy-jobs → gate + deploy, trigger `push` → `workflow_run`, `head-ref`/`base-ref` weg), draait `setup-consumer.sh`, en opent een PR naar `main` met een checklist van wat handmatig blijft (secrets verplaatsen, `package.json`-scripts, verplichte checks vlak vóór de merge). Lessen uit de template, als controles in het script of als punten op die checklist: `CUSTOM_GITHUB_TOKEN` moet de repo kunnen zien als de aanroep `use-custom-token` zet; een CI die lang rood was, laat na de install verborgen fouten zien (reken op een lint- of testfix in dezelfde PR); repo's met tests en de `react`/`next`-preset hebben `@pursuit-amsterdam/jest-config` ≥ 1.0.1 en `@testing-library/jest-dom` nodig; op TypeScript 6 horen de testtypes in `types` van `tsconfig.json`.
 
 - [ ] Stap 1: draai op een kopie van een Vercel-repo met twee deploy-jobs; vergelijk het resultaat met het migratievoorbeeld; `actionlint` op de output.
 - [ ] Stap 2: draai op een kopie van gp-groot-automations (Python zonder hoofdschakelaar); verwacht een `backend/package.json` met `lint` en `format` en een waarschuwing in de PR-tekst dat CI rood zal zijn.
 - [ ] Stap 3: commit `feat: add migrate-consumer script`.
 
-### Task 27: README op `v2`, banner op `main`
+### Task 27: README op `v2`
 
 - [ ] Stap 1: herschrijf `README.md` op `v2`: per workflow en action de inputs uit de naslag, de standaardinrichting, en de drie scripts. Verwijder `framework` uit elk voorbeeld.
-- [ ] Stap 2: PR naar `main` (hotfix) met alleen een banner bovenaan de README: "`main` is end of life; nieuwe repo's gebruiken `@v2`, zie docs/v2", en `framework` uit de voorbeelden.
-- [ ] Stap 3: commit `docs: rewrite README for v2` en `docs: point main to v2`.
+- [ ] Stap 2: commit `docs: rewrite README for v2`. (Geen banner of tekstcorrectie op `main`: `main` van deze repo blijft onaangeroerd.)
 
 ### Task 28: v1 weg op `v2`
 
@@ -374,7 +388,7 @@ De afspraak geldt als dit allemaal waar is:
 - De zeven testrepo's draaien CI en CD op `@v2` en hebben elk via `v2` naar al hun environments gedeployd, met minstens één herdeploy via dispatch vanaf de tag.
 - Het gate-testplan (21 scenario's) is in de voorbeeldrepo groen gedraaid en de run-URL's staan in de PR van Task 11.
 - `audit-consumers.sh` geeft 0 bevindingen op de testrepo's.
-- De README op `v2` beschrijft elke input; `main` wijst naar `v2`.
+- De README op `v2` beschrijft elke input.
 - Dependabot heeft minstens één PR op `v2` geopend en die is via de eigen CI gemerged.
 - `v2` is de default branch, en de wekelijkse audit heeft minstens één keer vanzelf gedraaid.
 
