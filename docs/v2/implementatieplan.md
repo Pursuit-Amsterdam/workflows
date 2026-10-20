@@ -206,7 +206,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
   - `release`: `if (p.release.prerelease && !ALLOW_PRERELEASE) return skip('prerelease …')`; tag moet `/^v\d/` matchen, anders `fail('tag must match v*: production only allows those tags')`; `compareCommits({basehead: 'main...' + sha}).status` moet `identical` of `behind` zijn, anders `fail('tag … is not on main')`.
   - `repository_dispatch`: `getBranch` in `try/catch` → `fail('branch … does not exist in this repo')`.
 - [ ] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
-- [ ] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`, één reviewer) en `acceptance` (branch `acceptance`) aanmaken (**handwerk**).
+- [ ] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
 - [ ] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
 - [ ] Stap 5: commit `feat: add cd-gate.yml`.
 
@@ -248,10 +248,10 @@ Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 
 **Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration).
 
-- [ ] Stap 1: environments: `staging` met branch `develop`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, één reviewer, dezelfde variabelen en secrets. Het environment `Preview` verwijderen als het niets meer doet.
+- [ ] Stap 1: environments: `staging` met branch `develop`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, dezelfde variabelen en secrets; tag-ruleset op `v*` (alleen admins). Het environment `Preview` verwijderen als het niets meer doet.
 - [ ] Stap 2: PR naar `main`: `cd.yml` volgens het voorbeeld, met `health-path: /`. Merge.
 - [ ] Stap 3: merge iets naar `develop`; verwacht een groene gate en een preview-deploy met de variabelen van `staging`, health-check groen.
-- [ ] Stap 4: publiceer een release; verwacht goedkeuring gevraagd, daarna een `--prod`-deploy.
+- [ ] Stap 4: een senior publiceert een release; verwacht een `--prod`-deploy. Een junior kan geen `v*`-tag maken.
 - [ ] Stap 5: dispatch vanaf die tag; verwacht dezelfde deploy nog eens.
 
 ---
@@ -282,7 +282,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 - [ ] Stap 1: container-tracking: `ci.yml` → één bestand met `run-ci` (ci-images, alleen stack); `cd.yml` met gate + cd-swarm; `VM_SSH_HOST`/`VM_SSH_USER`/`OP_*` op `staging`; `pre-deploy` met de map-controles. Merge naar `develop`; verwacht een deploy op de staging-VM, `health-url` groen.
 - [ ] Stap 2: gp-map: `ci.yml` met `run-ci` (turbo, Postgres) en `run-ci-images`; `cd.yml` met gate + cd-swarm met `migrate-image` zonder tag; verplichte checks aanpassen vlak vóór de merge ([job-id's](naslag/uitrol-in-detail.md#job-ids)). Merge naar `develop`; verwacht: build met smoketest, migratie op `:<versie>`, deploy, health groen.
-- [ ] Stap 3: release op gp-map; verwacht twee goedkeuringen (build, deploy) en een productiedeploy.
+- [ ] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy.
 
 ---
 
@@ -353,7 +353,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ### Task 25: `scripts/setup-consumer.sh`
 
-**Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), per beschermde branch (`main`, en `develop` en `acceptance` als ze bestaan) twee rulesets: checks zonder bypass, en review (code owners, geen force push of verwijderen) met bypass voor admins alleen op PR's; daarna haalt het de klassieke branchprotectie weg, pas als de rulesets staan. Het zet `.github/CODEOWNERS` niet (dat doet Task 26) en meldt welke secrets de beheerder nog moet zetten, ook `CUSTOM_GITHUB_TOKEN` als de CI `use-custom-token` gebruikt. Idempotent: een tweede run verandert niets.
+**Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), per beschermde branch (`main`, en `develop` en `acceptance` als ze bestaan) twee rulesets: checks zonder bypass, en review (code owners, geen force push of verwijderen) met bypass voor admins alleen op PR's; daarna haalt het de klassieke branchprotectie weg, pas als de rulesets staan. Het zet ook de tag-ruleset op `v*` (aanmaken, wijzigen, verwijderen alleen voor admins). Het zet `.github/CODEOWNERS` niet (dat doet Task 26) en meldt welke secrets de beheerder nog moet zetten, ook `CUSTOM_GITHUB_TOKEN` als de CI `use-custom-token` gebruikt. Idempotent: een tweede run verandert niets.
 
 - [ ] Stap 1: `pnpm lint`; `pnpm setup-consumer -- <verse testrepo>`; daarna `pnpm audit:consumers -- <die repo>`: verwacht alleen bevindingen over secrets en variabelen zonder waarde.
 - [ ] Stap 2: tweede run; verwacht geen wijzigingen (vergelijk `gh api` vóór en na).
