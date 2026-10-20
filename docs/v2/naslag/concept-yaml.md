@@ -1764,6 +1764,7 @@ name: "CD Packages"
 #   - every workspace package that is not "private": true and whose version is not
 #     in the registry yet is published; already published versions are skipped
 #   - a single-package repo's release tag must match its package.json version
+#     (build metadata ignored: v1.2.3+1 matches 1.2.3)
 #   - a prerelease publishes under the `next` dist-tag, a release under `latest`
 
 on:
@@ -1882,9 +1883,12 @@ jobs:
           [ "$(jq length <<<"$all")" -gt 0 ] || { echo "::error::No publishable packages (all private, or none match 'packages')."; exit 1; }
 
           # A single-package release tag must match the version it publishes.
+          # Build metadata (v3.5.0+2, the old way to re-release a version) is
+          # ignored; publishing an existing version still fails below.
           if [ "$(jq length <<<"$all")" -eq 1 ] && [ -n "$TAG_NAME" ]; then
             v=$(jq -r '.[0].version' <<<"$all")
-            [ "${TAG_NAME#v}" = "$v" ] || { echo "::error::Release tag $TAG_NAME does not match package.json version $v"; exit 1; }
+            tag=${TAG_NAME#v}
+            [ "${tag%%+*}" = "$v" ] || { echo "::error::Release tag $TAG_NAME does not match package.json version $v"; exit 1; }
           fi
 
           # Published, not published (E404), or unknown: an auth or registry
