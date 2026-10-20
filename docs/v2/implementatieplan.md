@@ -268,7 +268,7 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
   - [x] baseline-bestand niet gecommit → geweigerd;
   - [x] gewijzigde spec → `cmp` faalt;
   - [x] gelijke spec → groen.
-- [ ] Stap 3: PR naar `v2`, mergen op groene `pipeline`; sluit workflows-example#32 en verwijder de branch.
+- [x] Stap 3: PR naar `v2` (#47), gemerged op groene `pipeline`; workflows-example#32 gesloten, branch verwijderd.
 
 #### Task 13b: `deploy-vercel`
 
@@ -276,8 +276,11 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 
 **Interface:** bestaande inputs; `environment != production` → `vercel pull --environment=preview` en `vercel deploy` zonder `--target`; `vercel@<vaste versie>`; nieuwe output `url` (uit de laatste regel van `vercel deploy`); een eerste stap die faalt als `build-mode` niet `github` of `vercel` is. De project-env-sync blijft `preview` voor alles behalve productie.
 
-- [ ] Stap 1: pas deploy-vercel aan; `actionlint` + `shellcheck`.
-- [ ] Stap 2: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel`; PR naar `v2`, mergen op groene `pipeline`.
+- [x] Stap 1: pas deploy-vercel aan; `actionlint` + `shellcheck`. Getest met `scripts/deploy-vercel-cases.sh` (in `pnpm test`): de `run:`-scripts van de action draaien tegen een nep-`vercel` op `PATH`. Tegen de oude action 19 rood, tegen de nieuwe 32 groen.
+  - Bijgesteld: alle `${{ inputs.* }}` in de scripts staan nu in `env:`, zodat de test ze kan draaien.
+  - Bijgesteld: nieuwe input `working-directory` (standaard `.`). cd-vercel (Task 14) heeft hem nodig: de `defaults.run.working-directory` van een job bereikt de stappen van een composite action niet.
+  - CLI vast op `vercel@62.5.0` (6 oktober 2026, de nieuwste van minstens twee weken oud).
+- [x] Stap 2: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel`; PR naar `v2` (#48), gemerged op groene `pipeline`.
 
 ### Task 14: `cd-vercel.yml`
 
