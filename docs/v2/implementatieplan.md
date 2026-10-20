@@ -371,15 +371,17 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ### Task 21: `run-translations` en de CMS-stappen
 
-**Bestanden:**
-- Maak: `.github/actions/run-translations/action.yml` (concept-blok).
-- Wijzig: `ci.yml` (stap `sync` op `tms-sync-branch`), `cd-vercel.yml` (`ack`, `pull`, `generated-elsewhere: ${{ inputs.tms }}`, `mark-deployed`, `mark-failed`).
+**Bestanden:** `.github/actions/run-translations/action.yml` (concept-blok); `ci.yml` (job `tms-sync`), `cd-vercel.yml` (`ack`, `pull`, `mark-deployed`, `mark-failed`), `cd-gate.yml` (de `workflow_dispatch` van het CMS, `cms-production`).
 
-**Bron:** `feature/tms-prototype` in deze repo, voor de exacte CLI-aanroepen.
+**Bron:** `feature/tms-prototype` en de v1-opzet van integrators-website-2025. Bijgesteld op 20 oktober 2026 ([beslissingen](beslissingen.md#decided)):
+- het CMS start een deploy met `workflow_dispatch` (`environment`, `release_id`), niet met `repository_dispatch: tms-deploy`; dat blijft zo;
+- de bewaking zit in het dashboard (`GITHUB_DISPATCH_ENVIRONMENTS`, standaard alleen staging); v2 laat productie toe als opt-in (`cms-production`), en dan de nieuwste release, nooit de head van `main`;
+- `sync` draait als eigen job in `staging`, niet in `integration`, met `continue-on-error`.
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: tms-test op `v2`: CI met `tms-sync-branch: develop`; CD met `tms: true` en `repository_dispatch: [tms-deploy]`. Merge naar `develop`; verwacht `sync` in CI, en in CD `ack` → `pull` → typecheck → deploy → `mark-deployed`. Een `tms-deploy` met `environment: production` vanuit het CMS → rood met de staging-melding.
-- [ ] Stap 3: commit `feat: add run-translations and wire the CMS into ci and cd-vercel`.
+- [x] Stap 1: schrijf en lint (commits op `feature/run-translations`).
+- [ ] Stap 2: gate-scenario's voor de CMS-dispatch in de voorbeeldrepo: `develop` + `staging` → staging; `main` + `production` zonder `cms-production` → rood; mét → productie op de commit van de nieuwste release; `develop` + `production` → rood.
+- [ ] Stap 3: integrators-website-2025, staging, via een tijdelijke branch: CI met `tms-sync-branch` op die branch → `sync` in de job `tms-sync`; CD via `cd-vercel@feature/run-translations` met `tms: true` → `ack` → `pull` → typecheck → deploy → `mark-deployed`, health-check groen.
+- [ ] Stap 4: PR naar `v2`, mergen op groene `pipeline`.
 
 ### Task 22: `cd-packages.yml`
 
