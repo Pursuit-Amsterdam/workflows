@@ -385,10 +385,15 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 **Bestanden:** maak `.github/workflows/cd-packages.yml` uit het concept-blok (met de `.npmrc`-overschrijving vóór `publish`).
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: voorbeeldrepo: een workspace-pakket `@pursuit-amsterdam/example-lib` met versie `0.1.0`; `cd-packages.yml` met gate (`allow-prerelease: true`) + cd-packages. Release `v0.1.0`: verwacht publicatie onder `latest`; nogmaals dezelfde release → rood "already published"; prerelease `v0.2.0-rc.1` na een versiebump → onder `next`.
+- [x] Stap 1: schrijf en lint.
+  - Bijgesteld: "al gepubliceerd?" maakt onderscheid tussen gevonden (overslaan), E404 (publiceren) en elke andere fout (rood). In het concept telde een auth- of registryfout als "nog niet gepubliceerd".
+  - Bijgesteld: `timeout-minutes: 30`; zonder stopt GitHub een vastgelopen publish pas na 6 uur, en de concurrency-groep houdt de volgende zolang vast.
+- [x] Stap 2: voorbeeldrepo: een workspace-pakket `@pursuit-amsterdam/example-lib` met versie `0.1.0`; `cd-packages.yml` met gate (`allow-prerelease: true`) + cd-packages. Release `v0.1.0`: verwacht publicatie onder `latest`; nogmaals dezelfde release → rood "already published"; prerelease `v0.2.0-rc.1` na een versiebump → onder `next`. Gedaan met 0.4.0 en 0.5.0-rc.1 (de voorbeeldrepo had al tags tot v0.3.0):
+  - release v0.4.0, run 39422480657: de gate wachtte op CI, daarna `+ @pursuit-amsterdam/example-lib@0.4.0` onder `latest`;
+  - dezelfde run opnieuw: rood, "Every version is already published: was the version bumped?";
+  - prerelease v0.5.0-rc.1, run 39423049361: gepubliceerd onder `next`.
 - [ ] Stap 3: translations-management op `v2` (**handwerk** voor `packages: write`); eerste echte publicatie.
-- [ ] Stap 4: commit `feat: add cd-packages.yml`.
+- [x] Stap 4: commit `feat: add cd-packages.yml`.
 
 ### Task 23: `cd-pages.yml`
 
