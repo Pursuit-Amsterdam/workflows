@@ -55,7 +55,7 @@ De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8
 | Pull request geopend | CI draait, geen CD-run |
 | Merge naar `main` | CI draait, geen deploy |
 | Release gepubliceerd nadat CI op `main` groen is | deploy naar productie op de commit van de tag |
-| Release gepubliceerd vóór CI op `main` klaar is; daarna re-run van de CD-run | eerst rood met "CI not finished"; de re-run deployt |
+| Release gepubliceerd vóór CI op `main` klaar is | de gate wacht ("Waiting for CI") en deployt zodra CI groen is |
 | Dispatch vanaf de tag van de nieuwste release | deploy naar productie |
 | Dispatch vanaf een oudere tag | rood: "not the latest release" |
 | Dispatch vanaf `develop` | deploy naar staging op de head van `develop` |

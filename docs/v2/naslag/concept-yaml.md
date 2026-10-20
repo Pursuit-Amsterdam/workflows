@@ -932,8 +932,11 @@ name: "CD gate"
 #
 # Then every workflow in `required-workflows` must have a PUSH run on that sha
 # that concluded success (pull_request runs test another merge and do not
-# count; the newest run per workflow wins, so re-runs count). The gate never
-# waits or polls.
+# count; the newest run per workflow wins, so re-runs count). On workflow_run
+# the gate never waits: CI is done by definition. On a release or a manual
+# start it waits for CI that is still running (every 30s, at most
+# ci-wait-minutes), because publishing a release right after the merge to
+# main is the normal flow and would otherwise fail by seconds.
 #
 # Outcomes: proceed=false with a green run means "not this run" (another CI
 # workflow still running, a duplicate trigger, a CMS action that is not a
@@ -960,6 +963,11 @@ on:
         required: false
         type: boolean
         default: false
+      ci-wait-minutes:
+        description: "On a release or a manual start: how long to wait for CI that is still running on the commit, 0 to 50. 0 = fail at once. A CI run that does not exist yet gets at most 2 minutes to appear."
+        required: false
+        type: number
+        default: 20
     outputs:
       proceed:
         description: "'true' when exactly this run should deploy"
@@ -978,7 +986,9 @@ permissions:
 jobs:
   gate:
     runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 5
+    # Room for the wait for CI on a release or a manual start (ci-wait-minutes,
+    # at most 50). Expressions have no arithmetic, so a fixed ceiling.
+    timeout-minutes: 60
     outputs:
       proceed: ${{ steps.decide.outputs.proceed }}
       target: ${{ steps.decide.outputs.target }}
@@ -990,6 +1000,7 @@ jobs:
           REQUIRED: ${{ inputs.required-workflows }}
           BRANCH_TARGETS: ${{ inputs.branch-targets }}
           ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
+          CI_WAIT_MINUTES: ${{ inputs.ci-wait-minutes }}
         with:
           script: |
             const required = process.env.REQUIRED.split('\n').map(s => s.trim()).filter(Boolean);
@@ -1001,6 +1012,8 @@ jobs:
             const fail = (why) => core.setFailed(`Gate: ${why}`);
 
             if (required.length === 0) return fail('required-workflows is empty: a gate that requires nothing lets every commit deploy.');
+            const waitMinutes = Number(process.env.CI_WAIT_MINUTES);
+            if (!(waitMinutes >= 0 && waitMinutes <= 50)) return fail(`ci-wait-minutes must be 0 to 50 (got ${process.env.CI_WAIT_MINUTES}): the gate job stops after 60 minutes.`);
 
             // 1. Which environment, which commit?
             const ev = context.eventName, p = context.payload;
@@ -1054,16 +1067,38 @@ jobs:
             core.info(`Gate: ${ev} -> ${target} @ ${short(sha)}; required: ${required.join(', ')}`);
 
             // 2. Did every required CI workflow succeed on that commit? Push runs only.
-            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
-              { ...context.repo, head_sha: sha, event: 'push', per_page: 100 });
-            const latest = Object.fromEntries(required.map(name => [name,
-              runs.filter(r => r.name === name).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null]));
+            const check = async () => {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
+                { ...context.repo, head_sha: sha, event: 'push', per_page: 100 });
+              const latest = Object.fromEntries(required.map(name => [name,
+                runs.filter(r => r.name === name).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null]));
+              return {
+                latest,
+                missing: required.filter(n => !latest[n]),
+                pending: required.filter(n => latest[n] && latest[n].status !== 'completed'),
+                failed: required.filter(n => latest[n] && latest[n].status === 'completed' && latest[n].conclusion !== 'success'),
+              };
+            };
+            let { latest, missing, pending, failed } = await check();
+
+            // A release or a manual start right after the merge finds CI still
+            // running, or not even started yet. Wait for it; stop at the first
+            // failure. workflow_run never waits: its own CI run is done.
+            if (ev !== 'workflow_run') {
+              const waitMs = waitMinutes * 60000;
+              const missingMs = Math.min(2 * 60000, waitMs);
+              const start = Date.now();
+              while ((pending.length || missing.length) && !failed.length) {
+                const waited = Date.now() - start;
+                if (waited >= waitMs || (missing.length && waited >= missingMs)) break;
+                core.info(`Waiting for CI on ${short(sha)}: ${[...missing, ...pending].join(', ')} (${Math.round(waited / 1000)}s)`);
+                await new Promise(r => setTimeout(r, 30000));
+                ({ latest, missing, pending, failed } = await check());
+              }
+            }
             core.info(required.map(n => `  ${n}: ${latest[n] ? `${latest[n].status}/${latest[n].conclusion ?? '-'} (run ${latest[n].id})` : 'missing'}`).join('\n'));
 
-            const missing = required.filter(n => !latest[n]);
             if (missing.length) return fail(`no push run of '${missing.join("', '")}' on ${short(sha)}: wrong name in required-workflows, or a paths: filter on that workflow`);
-            const pending = required.filter(n => latest[n].status !== 'completed');
-            const failed = required.filter(n => latest[n].status === 'completed' && latest[n].conclusion !== 'success');
 
             if (ev === 'workflow_run') {
               if (pending.length) return skip(`still running on ${short(sha)}: ${pending.join(', ')}; its completion starts its own gate`);
@@ -1075,7 +1110,7 @@ jobs:
               if (decider.id !== p.workflow_run.id) return skip(`duplicate trigger: run ${decider.id} (${decider.name}) completed last and owns the deploy`);
             } else {
               // Nothing retries a release or a manual run on its own: fail loudly.
-              if (pending.length) return fail(`CI not finished on ${short(sha)}: ${pending.join(', ')}. Wait for green, then re-run this workflow.`);
+              if (pending.length) return fail(`CI still not finished on ${short(sha)} after ${waitMinutes} minutes: ${pending.join(', ')}. Wait for green, then re-run this workflow.`);
               if (failed.length) return fail(`CI did not succeed on ${short(sha)}: ${failed.join(', ')}`);
             }
 
