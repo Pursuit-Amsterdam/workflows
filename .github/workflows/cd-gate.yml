@@ -1,0 +1,170 @@
+name: "CD gate"
+
+# Decides whether a deploy may run, which GitHub environment it targets and
+# which commit. Target-agnostic: put it in front of cd-vercel, cd-supabase,
+# cd-swarm or cd-packages. Based on gp-map-webapp's gate job.
+#
+#   workflow_run (CI done after a push)  -> branch-targets[head_branch]; sha = head_sha
+#   release published                    -> production; sha = the tag's commit, which must be on the
+#                                           default branch; tag must match v*; prerelease skipped
+#                                           unless allow-prerelease
+#   workflow_dispatch                    -> from the ref it was started from: a branch in
+#                                           branch-targets, or a tag, which must be the
+#                                           latest release (no rollbacks) -> production
+#   repository_dispatch (tms-deploy)     -> client_payload.environment, staging/acceptance
+#                                           only; sha = head of that environment's branch
+#   push                                 -> fails: CD starts on workflow_run, never on push
+#
+# Then every workflow in `required-workflows` must have a PUSH run on that sha
+# that concluded success (pull_request runs test another merge and do not
+# count; the newest run per workflow wins, so re-runs count). The gate never
+# waits or polls.
+#
+# Outcomes: proceed=false with a green run means "not this run" (another CI
+# workflow still running, a duplicate trigger, a CMS action that is not a
+# deploy); a warning when another required workflow failed; setFailed for
+# configuration errors and for a release/dispatch whose CI is not green, because
+# nothing else will retry those. The caller skips the whole run when the CI run
+# that triggered it did not succeed (see the example in bouwstenen.md).
+
+on:
+  workflow_call:
+    inputs:
+      required-workflows:
+        description: "CI workflow names that must have a successful push run on the commit, one per line. Default: the one CI workflow every repo has. Empty fails the gate."
+        required: false
+        type: string
+        default: "Continuous Integration"
+      branch-targets:
+        description: "Space-separated branch=environment pairs. main is deliberately absent: production ships on a release."
+        required: false
+        type: string
+        default: "develop=staging acceptance=acceptance"
+      allow-prerelease:
+        description: "Let a published prerelease deploy to production (cd-packages publishes it under the `next` dist-tag). Default: a prerelease is skipped."
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      proceed:
+        description: "'true' when exactly this run should deploy"
+        value: ${{ jobs.gate.outputs.proceed }}
+      target:
+        description: "GitHub environment to deploy to"
+        value: ${{ jobs.gate.outputs.target }}
+      sha:
+        description: "Commit to deploy; pass to cd-*.yml as `ref`"
+        value: ${{ jobs.gate.outputs.sha }}
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gate:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.decide.outputs.proceed }}
+      target: ${{ steps.decide.outputs.target }}
+      sha: ${{ steps.decide.outputs.sha }}
+    steps:
+      - id: decide
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REQUIRED: ${{ inputs.required-workflows }}
+          BRANCH_TARGETS: ${{ inputs.branch-targets }}
+          ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
+        with:
+          script: |
+            const required = process.env.REQUIRED.split('\n').map(s => s.trim()).filter(Boolean);
+            const map = Object.fromEntries(process.env.BRANCH_TARGETS.split(/\s+/).filter(Boolean).map(p => p.split('=')));
+            const short = (sha) => sha.slice(0, 7);
+            core.setOutput('proceed', 'false');
+            const skip = async (why) => { core.info(`Gate: skipped - ${why}`); await core.summary.addRaw(`Gate: skipped - ${why}`).write(); };
+            const warn = async (why) => { core.warning(`Gate: not deploying - ${why}`); await core.summary.addRaw(`Gate: not deploying - ${why}`).write(); };
+            const fail = (why) => core.setFailed(`Gate: ${why}`);
+
+            if (required.length === 0) return fail('required-workflows is empty: a gate that requires nothing lets every commit deploy.');
+
+            // 1. Which environment, which commit?
+            const ev = context.eventName, p = context.payload;
+            let target, sha;
+            if (ev === 'workflow_run') {
+              const run = p.workflow_run;
+              if (run.event !== 'push') return skip(`CI run ${run.id} was a ${run.event} run, not a push`);
+              target = map[run.head_branch];
+              if (!target) return skip(`no environment for branch ${run.head_branch} in branch-targets`);
+              sha = run.head_sha;
+            } else if (ev === 'release') {
+              const tag = p.release.tag_name;
+              if (p.release.prerelease && process.env.ALLOW_PRERELEASE !== 'true') return skip(`release ${tag} is a prerelease`);
+              // production only accepts v* tags; say so here rather than let the
+              // environment refuse the deploy job with a less obvious message.
+              if (!/^v\d/.test(tag)) return fail(`tag ${tag} must match v*: production only allows those tags`);
+              sha = context.sha; // the tag's commit
+              // A release tagged on develop (or any branch) would ship code that
+              // never went through main. The tag's commit must be on the default branch.
+              const base = p.repository.default_branch;
+              const { status } = (await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${base}...${sha}` })).data;
+              if (status !== 'identical' && status !== 'behind') return fail(`tag ${tag} (${short(sha)}) is not on ${base}: release from ${base} only`);
+              target = 'production';
+            } else if (ev === 'workflow_dispatch') {
+              if (context.ref.startsWith('refs/tags/')) {
+                const tag = context.ref.slice('refs/tags/'.length);
+                const latest = await github.rest.repos.getLatestRelease(context.repo).then(r => r.data.tag_name).catch(() => null);
+                if (tag !== latest) return fail(`tag ${tag} is not the latest release (${latest ?? 'none'}): rollbacks are not supported, start from ${latest ?? 'a release tag'}`);
+                target = 'production';
+              } else if (context.ref.startsWith('refs/heads/')) {
+                const branch = context.ref.slice('refs/heads/'.length);
+                target = map[branch];
+                if (!target) return fail(`no environment for branch ${branch}: start this workflow from ${Object.keys(map).join(' or ')}, or from the tag of the latest release for production`);
+              } else return fail(`unexpected ref ${context.ref}`);
+              sha = context.sha;
+            } else if (ev === 'repository_dispatch') {
+              if (p.action !== 'tms-deploy') return skip(`repository_dispatch '${p.action}' is not a deploy`);
+              const env = p.client_payload?.environment;
+              const branch = Object.entries(map).find(([, e]) => e === env)?.[0];
+              if (!branch) return fail(`the CMS asked for environment '${env}', which has no branch: the CMS deploys to ${Object.values(map).join('/')} only; production ships on a release`);
+              target = env;
+              try {
+                sha = (await github.rest.repos.getBranch({ ...context.repo, branch })).data.commit.sha;
+              } catch (e) {
+                if (e.status === 404) return fail(`the CMS asked for ${env}, but branch ${branch} does not exist in this repo`);
+                throw e;
+              }
+            } else {
+              return fail(`unsupported event '${ev}': CD starts on workflow_run, release or workflow_dispatch, never on push`);
+            }
+            core.info(`Gate: ${ev} -> ${target} @ ${short(sha)}; required: ${required.join(', ')}`);
+
+            // 2. Did every required CI workflow succeed on that commit? Push runs only.
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
+              { ...context.repo, head_sha: sha, event: 'push', per_page: 100 });
+            const latest = Object.fromEntries(required.map(name => [name,
+              runs.filter(r => r.name === name).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null]));
+            core.info(required.map(n => `  ${n}: ${latest[n] ? `${latest[n].status}/${latest[n].conclusion ?? '-'} (run ${latest[n].id})` : 'missing'}`).join('\n'));
+
+            const missing = required.filter(n => !latest[n]);
+            if (missing.length) return fail(`no push run of '${missing.join("', '")}' on ${short(sha)}: wrong name in required-workflows, or a paths: filter on that workflow`);
+            const pending = required.filter(n => latest[n].status !== 'completed');
+            const failed = required.filter(n => latest[n].status === 'completed' && latest[n].conclusion !== 'success');
+
+            if (ev === 'workflow_run') {
+              if (pending.length) return skip(`still running on ${short(sha)}: ${pending.join(', ')}; its completion starts its own gate`);
+              if (failed.length) return warn(`${failed.join(', ')} did not succeed on ${short(sha)}`);
+              // 3. Both green => both completion events started a gate. Only the one
+              //    started by the last-completing CI run deploys; the other sees the
+              //    same winner and skips. Deterministic, no gate-vs-gate race.
+              const decider = required.map(n => latest[n]).sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id - a.id)[0];
+              if (decider.id !== p.workflow_run.id) return skip(`duplicate trigger: run ${decider.id} (${decider.name}) completed last and owns the deploy`);
+            } else {
+              // Nothing retries a release or a manual run on its own: fail loudly.
+              if (pending.length) return fail(`CI not finished on ${short(sha)}: ${pending.join(', ')}. Wait for green, then re-run this workflow.`);
+              if (failed.length) return fail(`CI did not succeed on ${short(sha)}: ${failed.join(', ')}`);
+            }
+
+            core.setOutput('proceed', 'true');
+            core.setOutput('target', target);
+            core.setOutput('sha', sha);
+            await core.summary.addRaw(`Gate: deploying ${short(sha)} to ${target}`).write();
