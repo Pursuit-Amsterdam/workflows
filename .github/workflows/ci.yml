@@ -114,8 +114,15 @@ jobs:
         working-directory: .
         env:
           WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          USE_CUSTOM_TOKEN: ${{ inputs.use-custom-token }}
+          HAS_CUSTOM_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN != '' }}
         run: |
           [ -f "$WORKING_DIRECTORY/package.json" ] || { echo "::error::no package.json in working-directory '$WORKING_DIRECTORY': the repo's scripts are the CI contract."; exit 1; }
+          # Without this, a missing secret falls back to GITHUB_TOKEN and the
+          # install fails later with a bare 403 on the private packages.
+          if [ "$USE_CUSTOM_TOKEN" = true ] && [ "$HAS_CUSTOM_TOKEN" != true ]; then
+            echo "::error::use-custom-token is true but CUSTOM_GITHUB_TOKEN is not available to this workflow: set it on the repo (or the org, for this repo) and pass it with 'secrets: inherit'."; exit 1
+          fi
 
       - name: Validate inputs and read the repo
         id: repo
