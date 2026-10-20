@@ -6,7 +6,7 @@ Eén per target. Eerst de gedeelde inputs, dan die van het target zelf. Wat CD c
 
 | Gedeelde input | Standaard | Betekenis |
 | --- | --- | --- |
-| `environment` | verplicht | GitHub-environment. Bepaalt welke `vars` en environment-secrets gelden, en welke branches erin mogen ([standaardinrichting](standaardinrichting.md#consumer-config)). cd-vercel maakt van `production` een `--prod`-deploy en van al het andere een preview-deploy: staging is de preview van `develop` ([besloten](../beslissingen.md#decided)). deploy-vercel geeft nu `--target=<environment>` mee, een custom environment die voor `staging` niet bestaat; in v2 wordt dat `preview`. |
+| `environment` | verplicht | GitHub-environment. Bepaalt welke `vars` en environment-secrets gelden, en welke branches erin mogen ([standaardinrichting](standaardinrichting.md#consumer-config)). cd-vercel maakt van `production` een `--prod`-deploy en van `staging` een preview-deploy: staging is de preview van `develop` ([besloten](../beslissingen.md#decided)). Elke andere waarde, ook `acceptance`, wordt geweigerd. deploy-vercel geeft nu `--target=<environment>` mee, een custom environment die voor `staging` niet bestaat; in v2 wordt dat `preview`. |
 | `ref` | `""` = github.sha | De commit die gedeployd wordt. Geef de `sha`-output van de gate mee. Altijd de head van een branch of een release; een oudere commit kiezen kan niet ([geen rollbacks](../beslissingen.md#decided)). |
 | `working-directory` `use-custom-token` | als in CI | Dezelfde betekenis als in ci.yml. In cd-swarm geldt `working-directory` alleen voor de deploy-job, zoals in vm-cd; paden in `images` zijn relatief aan de root. |
 | *geen input* | uit `.nvmrc` | Node-versie voor de build, net als in CI; zonder `.nvmrc` 22.x. Vervangt `node-version`. |

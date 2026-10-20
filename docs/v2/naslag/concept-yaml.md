@@ -421,7 +421,7 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "GitHub environment to deploy (production, staging, acceptance, ...). Drives the Vercel target: production => --prod, anything else => a preview deploy (staging is the preview of develop; decided)."
+        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => a preview deploy (staging is the preview of develop; decided)."
         required: true
         type: string
       ref:
@@ -632,9 +632,9 @@ jobs:
           codegen-baseline: ${{ inputs.codegen-baseline }}
           working-directory: ${{ inputs.working-directory }}
 
-      # Everything but production is a preview deploy: staging is the preview of
-      # develop (decided). deploy-vercel@v2 maps environment != production to
-      # --environment=preview and no --target.
+      # staging is a preview deploy, production --prod: staging is the preview of
+      # develop (decided). deploy-vercel@v2 maps staging to
+      # --environment=preview and no --target, and refuses anything else.
       - name: Deploy to Vercel
         id: vercel
         uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@v2

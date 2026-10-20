@@ -60,16 +60,20 @@ run_step() {
 # A 1Password export as setup-onepassword writes it: NUL-delimited --env args.
 printf -- '--env\0API_KEY=secret\0' >"$tmp/env-args"
 
-# 1. build-mode is validated before anything runs.
-for m in github vercel; do check "build-mode $m accepted" run_step validate BUILD_MODE=$m; done
-for m in azure ""; do refute "build-mode '$m' refused" run_step validate BUILD_MODE=$m; done
+# 1. build-mode and environment are validated before anything runs. Vercel
+#    knows staging (the preview of develop) and production; nothing else was
+#    decided, and a typo must not land on preview.
+for m in github vercel; do check "build-mode $m accepted" run_step validate BUILD_MODE=$m ENVIRONMENT=staging; done
+for m in azure ""; do refute "build-mode '$m' refused" run_step validate BUILD_MODE=$m ENVIRONMENT=staging; done
+for e in staging production; do check "environment $e accepted" run_step validate BUILD_MODE=github ENVIRONMENT=$e; done
+for e in acceptance prod ""; do refute "environment '$e' refused" run_step validate BUILD_MODE=github ENVIRONMENT=$e; done
 
 # 2. The CLI is pinned.
 check "CLI pinned to an exact version" grep -Eq 'vercel@[0-9]+\.[0-9]+\.[0-9]+' "$tmp/step-install.sh"
 
-# 3. Every environment but production is a preview deploy; production is --prod.
+# 3. staging is a preview deploy; production is --prod.
 for mode in github vercel; do
-  for env in staging acceptance production; do
+  for env in staging production; do
     if [ "$env" = production ]; then vercel_env=production; else vercel_env=preview; fi
     name="$mode/$env"
     if ! run_step "deploy-$mode" ENVIRONMENT=$env VERCEL_ENV_ARGS_BIN="$tmp/env-args"; then

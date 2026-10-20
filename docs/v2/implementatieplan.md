@@ -280,6 +280,7 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
   - Bijgesteld: alle `${{ inputs.* }}` in de scripts staan nu in `env:`, zodat de test ze kan draaien.
   - Bijgesteld: nieuwe input `working-directory` (standaard `.`). cd-vercel (Task 14) heeft hem nodig: de `defaults.run.working-directory` van een job bereikt de stappen van een composite action niet.
   - CLI vast op `vercel@62.5.0` (6 oktober 2026, de nieuwste van minstens twee weken oud).
+- [x] Stap 3 (bijgesteld 20 oktober 2026): alleen `staging` (preview) en `production` (`--prod`); elke andere `environment`, ook `acceptance` of een typfout, faalt in de eerste stap. Eerst "alles behalve production wordt preview", maar besloten is alleen develop → preview. Test: 3 nieuwe gevallen rood, daarna alles groen.
 - [x] Stap 2: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel`; PR naar `v2` (#48), gemerged op groene `pipeline`.
 
 ### Task 14: `cd-vercel.yml`

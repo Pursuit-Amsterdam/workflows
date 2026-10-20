@@ -11,7 +11,7 @@ inputs:
     description: "Vercel project ID"
     required: true
   environment:
-    description: "GitHub environment. production is a --prod deploy; every other environment (staging, acceptance) is a preview deploy."
+    description: "GitHub environment: staging (a preview deploy, the preview of develop) or production (--prod). Anything else is refused."
     required: false
     default: "staging"
   vercel-env-args-file:
@@ -53,15 +53,19 @@ runs:
   using: "composite"
   steps:
     # An unknown build-mode would skip both deploy steps below and turn the
-    # run green without deploying anything.
-    - name: Validate build-mode
+    # run green without deploying anything. Only staging and production are
+    # decided for Vercel: acceptance, or a typo, must not land on preview.
+    - name: Validate inputs
       id: validate
       shell: bash
       env:
         BUILD_MODE: ${{ inputs.build-mode }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
         case "$BUILD_MODE" in github|vercel) ;; *)
           echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
+        case "$ENVIRONMENT" in staging|production) ;; *)
+          echo "::error::Vercel deploys to staging (the preview of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
 
     # Some environment variables are consumed by the Vercel platform itself,
     # not by the deployed app. Cron is the case that bites: Vercel only
@@ -156,9 +160,9 @@ runs:
       run: ${{ inputs.build-command }}
 
     # Vercel knows two environments here: production and preview. Staging is
-    # the preview deploy of develop (decided in docs/v2), so every GitHub
-    # environment but production pulls and deploys as preview; --target=staging
-    # would ask for a custom environment that does not exist.
+    # the preview deploy of develop (decided in docs/v2), so staging pulls and
+    # deploys as preview; --target=staging would ask for a custom environment
+    # that does not exist. The validate step allows nothing else.
     - name: Deploy with GitHub Build (Prebuilt)
       id: deploy-github
       if: inputs.build-mode == 'github'
@@ -242,7 +246,7 @@ runs:
         echo "Deploying to Vercel with Vercel build (${ENVIRONMENT})..."
 
         deploy_args=("--archive=tgz" "--token=${VERCEL_TOKEN}")
-        # production is --prod; everything else is a preview deploy (no flag).
+        # production is --prod; staging is a preview deploy (no flag).
         if [[ "${ENVIRONMENT}" == "production" ]]; then
           deploy_args+=("--prod")
         fi
