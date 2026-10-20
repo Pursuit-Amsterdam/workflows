@@ -385,7 +385,10 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
   - [x] `develop` + `production` zonder `cms-production` → rood, zelfde melding — 39433996221
   - [x] `main` + `production` mét `cms-production` → productie op d10c219, de commit van de nieuwste release `v0.6.0+1` (ook een tag met `+` werkt) — 39434052152. `production` stond daarvoor tijdelijk ook `main` toe.
   - [x] `develop` + `production` mét `cms-production` → rood "starts from main, not develop" — 39434166919
-- [ ] Stap 3: integrators-website-2025, staging, via een tijdelijke branch: CI met `tms-sync-branch` op die branch → `sync` in de job `tms-sync`; CD via `cd-vercel@feature/run-translations` met `tms: true` → `ack` → `pull` → typecheck → deploy → `mark-deployed`, health-check groen.
+- [x] Stap 3: integrators-website-2025, staging, via een tijdelijke branch: CI met `tms-sync-branch` op die branch, daarna `cd-vercel` met `tms: true`. Run 39434349950, groen:
+  - `tms-sync` (in `staging`): "Synced, 0 values uploaded, 280 skipped";
+  - deploy: `ack` ("No pending release to acknowledge"), `pull` (staging release #23, 20 bestanden), build, deploy naar het custom environment `staging`, health-check 200, `mark-deployed` ("recorded the deployed code against release …").
+  - Eerst rood: (1) `run-translations@v2` bestond nog niet op `v2`; voor de test tijdelijk naar deze branch gewezen en daarna teruggedraaid. (2) De action eiste `TMS_URL`, maar het 1Password-item levert `NEXT_PUBLIC_TMS_URL`, dat de CLI ook accepteert. De action controleert nu niets meer zelf; de CLI meldt wat ontbreekt.
 - [ ] Stap 4: PR naar `v2`, mergen op groene `pipeline`.
 
 ### Task 22: `cd-packages.yml`

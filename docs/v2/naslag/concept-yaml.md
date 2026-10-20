@@ -2223,8 +2223,9 @@ name: "Translations CMS"
 description: >
   Runs one @pursuit-amsterdam/translations-management CLI command in the
   directory that holds the app's dictionaries. Credentials come from the job
-  env when a 1Password item exported TMS_URL / TMS_API_KEY; the tms-url and
-  tms-api-key inputs only fill gaps and never overwrite an exported value.
+  env when a 1Password item exported them (TMS_URL or NEXT_PUBLIC_TMS_URL,
+  TMS_API_KEY); the tms-url and tms-api-key inputs only fill gaps and never
+  overwrite an exported value. The CLI itself reports what is missing.
   One action, five commands, so ci.yml and every cd-*.yml share the same
   credential and working-directory handling. Lifted from feature/tms-prototype.
 inputs:
@@ -2262,10 +2263,14 @@ runs:
         FALLBACK_KEY: ${{ inputs.tms-api-key }}
       run: |
         set -euo pipefail
-        if [ -z "${TMS_URL:-}" ] && [ -n "$FALLBACK_URL" ]; then echo "TMS_URL=$FALLBACK_URL" >> "$GITHUB_ENV"; fi
-        if [ -z "${TMS_API_KEY:-}" ] && [ -n "$FALLBACK_KEY" ]; then echo "::add-mask::$FALLBACK_KEY"; echo "TMS_API_KEY=$FALLBACK_KEY" >> "$GITHUB_ENV"; fi
-        if [ -z "${TMS_URL:-}${FALLBACK_URL}" ] || [ -z "${TMS_API_KEY:-}${FALLBACK_KEY}" ]; then
-          echo "::error::TMS_URL / TMS_API_KEY missing: put them in the 1Password item or pass the TMS_URL / TMS_API_KEY secrets"; exit 1
+        # The same names the CLI reads, in its order; it validates them itself
+        # and says what is missing. The fallbacks only fill a gap.
+        if [ -z "${TMS_URL:-}${NEXT_PUBLIC_TMS_URL:-}${NEXT_PUBLIC_CMS_URL:-}" ] && [ -n "$FALLBACK_URL" ]; then
+          echo "TMS_URL=$FALLBACK_URL" >> "$GITHUB_ENV"
+        fi
+        if [ -z "${TMS_API_KEY:-}${CMS_SYNC_API_KEY:-}" ] && [ -n "$FALLBACK_KEY" ]; then
+          echo "::add-mask::$FALLBACK_KEY"
+          echo "TMS_API_KEY=$FALLBACK_KEY" >> "$GITHUB_ENV"
         fi
 
     - name: translations ${{ inputs.command }}
