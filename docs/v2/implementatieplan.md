@@ -311,7 +311,7 @@ Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `relea
 - [x] Storybook-deploy verwijderd (pursuit-website-2025#108): Storybook wordt in deze repo niet gebruikt, de deploy faalde sinds 6 augustus. Die merge gaf de eerste automatische staging-deploy via `workflow_run`: run 39418492212, gate `workflow_run -> staging @ b38c0ba`, health-check 200.
 - [x] Stap 6: release v2026.10.20 door een senior. De eerste CD-run faalde: de release was 17 seconden vóór CI op `main` klaar gepubliceerd, en de gate wachtte niet. Na een re-run: run 39419766766, gate `release -> production @ bbe519c`, `--prod`-deploy, health-check 200.
   - Bijgesteld: de gate wacht bij een release of een handmatige start op CI die nog loopt (elke 30 seconden, hooguit `ci-wait-minutes`, standaard 20; een run die nog niet bestaat krijgt 2 minuten; een gefaalde run faalt meteen). Na `workflow_run` verandert niets.
-  - [ ] Test in de voorbeeldrepo: release v0.3.0 direct na de merge naar `main`; verwacht "Waiting for CI" en daarna een deploy.
+  - [x] Test in de voorbeeldrepo: release v0.3.0 direct na de merge naar `main`. Run 39421035554: drie keer "Waiting for CI on 329aa1c", na 90 seconden CI groen, daarna de deploy.
 - Nog open, buiten deze stappen:
   - `VERCEL_TOKEN` en `VERCEL_ORG_ID` staan op org-niveau; de standaard wil `VERCEL_TOKEN` als environment-secret op `Staging` en `Production` (handwerk: de waarde).
   - Environmentnamen met hoofdletters (`Staging`, `Production`); GitHub negeert hoofdletters, hernoemen kan niet zonder de secrets opnieuw te zetten.
