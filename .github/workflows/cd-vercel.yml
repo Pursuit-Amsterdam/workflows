@@ -1,0 +1,256 @@
+name: "CD Vercel"
+
+# Deploys a Node project to Vercel. Source checks (lint, format, test) are not
+# repeated: CI proves the SHA, cd-gate proves CI succeeded on it. What CD adds
+# itself is checked here: code generated after CI (codegen, translations pull)
+# is typechecked before the build, and the deployed URL must answer.
+# Per-environment values come from the GitHub
+# environment: an empty onepassword-vault/-item falls back to the environment
+# variables OP_VAULT / OP_ITEM, so one caller job serves staging and production.
+# The translations CMS steps (tms) arrive with the run-translations action;
+# until then the tms inputs are declared and tms: true is refused.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment to deploy: staging or production; anything else fails. Drives the Vercel target: production => --prod, staging => a preview deploy (staging is the preview of develop; decided)."
+        required: true
+        type: string
+      ref:
+        description: "Commit to deploy. Empty = github.sha. workflow_run callers must pass cd-gate's `sha` output."
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        description: "Directory holding package.json. The Node version comes from its .nvmrc (else 22.x)."
+        required: false
+        type: string
+        default: "."
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN for private @pursuit-amsterdam packages"
+        required: false
+        type: boolean
+        default: false
+
+      # ── build ───────────────────────────────────────────────────────────
+      codegen:
+        description: "Name of the package script that generates code before the build (e.g. `codegen`). Empty = none."
+        required: false
+        type: string
+        default: ""
+      build-mode:
+        description: "github (build here, deploy --prebuilt) | vercel (build on Vercel)"
+        required: false
+        type: string
+        default: "github"
+      vercel-build-command:
+        required: false
+        type: string
+        default: ""
+      prepare-package:
+        description: "Strip \"type\": \"module\" from package.json for the Vercel runtime"
+        required: false
+        type: boolean
+        default: false
+      vercel-project-env-keys:
+        description: "Env var names also written to Vercel's project-level env store"
+        required: false
+        type: string
+        default: "CRON_SECRET"
+
+      # ── checks on what CD adds (never a repeat of CI) ───────────────────
+      # The `typecheck` script runs automatically after codegen / translations pull.
+      health-path:
+        description: "Path that must answer 2xx on the deployment URL after the deploy (e.g. /api/health). Empty = no check."
+        required: false
+        type: string
+        default: ""
+
+      # ── translations CMS ────────────────────────────────────────────────
+      tms:
+        description: >
+          Pull published translations before the build and report this deploy to
+          the translations CMS (release ack / mark-deployed / mark-failed). A
+          boolean by necessity: the release id is empty on workflow_run and
+          release runs and the CLI then picks the newest pending release.
+        required: false
+        type: boolean
+        default: false
+      codegen-check:
+        description: "Name of the package script that compares the external input codegen fetched just now with the committed version (in $CODEGEN_BASELINE), e.g. an oasdiff breaking-change check. Empty = none. Needs codegen and codegen-baseline."
+        required: false
+        type: string
+        default: ""
+      codegen-baseline:
+        description: "Space-separated committed files the codegen script overwrites with a fresh fetch (e.g. openapi.json); copied to $CODEGEN_BASELINE first"
+        required: false
+        type: string
+        default: ""
+      tms-release-id:
+        description: "Release the CMS asked to deploy. Pass github.event.client_payload.release_id; empty on every other event."
+        required: false
+        type: string
+        default: ""
+      tms-working-directory:
+        description: "Directory the translations CLI runs in. Empty = working-directory."
+        required: false
+        type: string
+        default: ""
+
+      # ── services ────────────────────────────────────────────────────────
+      onepassword-vault:
+        description: "Empty = vars.OP_VAULT of the environment"
+        required: false
+        type: string
+        default: ""
+      onepassword-item:
+        description: "Empty = vars.OP_ITEM of the environment. Empty after fallback = no secrets."
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: true
+      VERCEL_PROJECT_ID:
+        required: true
+      TMS_URL:
+        required: false
+      TMS_API_KEY:
+        required: false
+      VERCEL_AUTOMATION_BYPASS_SECRET:
+        description: "Only for health-path on previews behind Vercel Deployment Protection"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # A job of its own, before `deploy`: a job that names an environment that
+  # does not exist creates it, without branch rules or secrets. So an unknown
+  # environment is refused before any job names it.
+  validate:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      # An unknown build-mode would skip both deploy steps in deploy-vercel and
+      # turn the run green: the `platform: azure-asp` mistake, again.
+      - name: Validate inputs
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          BUILD_MODE: ${{ inputs.build-mode }}
+          TMS: ${{ inputs.tms }}
+        run: |
+          set -euo pipefail
+          case "$ENVIRONMENT" in staging|production) ;; *)
+            echo "::error::Vercel deploys to staging (the preview of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
+          case "$BUILD_MODE" in github|vercel) ;; *)
+            echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
+          # Until run-translations exists, tms would deploy without the
+          # published translations and never tell the CMS.
+          if [ "$TMS" = true ]; then
+            echo "::error::tms is not available yet: it arrives with the run-translations action"; exit 1
+          fi
+
+  deploy:
+    needs: validate
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    # One deploy per app and environment at a time; never cancel one that runs.
+    # working-directory in the group: two apps in one monorepo must not queue
+    # behind (and cancel) each other.
+    concurrency:
+      group: cd-vercel-${{ inputs.environment }}-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Read the Node version from the repo
+        id: node
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Services (secrets)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          onepassword-vault: ${{ inputs.onepassword-vault || vars.OP_VAULT }}
+          onepassword-item: ${{ inputs.onepassword-item || vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          onepassword-export-for-vercel: "true"
+
+      # `next`, not `nextjs`: setup-version only prefixes NEXT_PUBLIC_ for the
+      # value `next`, so web-cd never actually set NEXT_PUBLIC_VERSION.
+      - name: Version
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@v2
+        with:
+          version: $(git describe --tags --abbrev=0 --always)
+          framework: "next"
+          environment: ${{ inputs.environment }}
+
+      # The only checks CD runs on source: code generated after CI never went
+      # through CI's typecheck, and an external input (an OpenAPI spec of another
+      # service) may have changed since this commit.
+      - name: Code generation and its checks
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@v2
+        with:
+          codegen: ${{ inputs.codegen }}
+          generated-elsewhere: ${{ inputs.tms }}
+          codegen-check: ${{ inputs.codegen-check }}
+          codegen-baseline: ${{ inputs.codegen-baseline }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # staging is a preview deploy, production --prod: staging is the preview of
+      # develop (decided). deploy-vercel@v2 maps staging to
+      # --environment=preview and no --target, and refuses anything else.
+      - name: Deploy to Vercel
+        id: vercel
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-vercel@v2
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          environment: ${{ inputs.environment }}
+          build-mode: ${{ inputs.build-mode }}
+          prepare-package: ${{ inputs.prepare-package }}
+          build-command: ${{ inputs.vercel-build-command }}
+          vercel-project-env-keys: ${{ inputs.vercel-project-env-keys }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # An upload that succeeded says nothing about an app that answers.
+      - name: Health check
+        if: inputs.health-path != ''
+        env:
+          URL: ${{ steps.vercel.outputs.url }}
+          HEALTH_PATH: ${{ inputs.health-path }}
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          set -euo pipefail
+          [ -n "$URL" ] || { echo "::error::deploy-vercel returned no url"; exit 1; }
+          hdr=(); [ -z "$BYPASS" ] || hdr=(-H "x-vercel-protection-bypass: $BYPASS")
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${hdr[@]}" "${URL%/}${HEALTH_PATH}" || true)
+            case "$code" in 2??) echo "healthy ($code)"; exit 0 ;; esac
+            echo "attempt $i: $code"; sleep 6
+          done
+          echo "::error::${URL%/}${HEALTH_PATH} did not answer 2xx"; exit 1

@@ -288,7 +288,9 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 **Bestanden:**
 - Maak: `.github/workflows/cd-vercel.yml` uit het concept-blok, zonder de drie `run-translations`-stappen (Task 21); laat de `tms*`-inputs gedeclareerd.
 
-- [ ] Stap 1: schrijf en lint.
+- [x] Stap 1: schrijf en lint.
+  - Bijgesteld: de validatie staat in een eigen job `validate` vóór `deploy`, en weigert naast een onbekende `build-mode` ook een `environment` anders dan `staging` of `production`. Een job die een niet-bestaand environment noemt, maakt het aan, zonder branchregels of secrets; een check in die job zelf komt dus te laat.
+  - Bijgesteld: het concept heeft vier `run-translations`-stappen (ack, pull, mark-deployed, mark-failed), niet drie; alle vier eruit. `tms: true` faalt in `validate` tot Task 21: zonder die stappen zou de deploy zonder gepubliceerde vertalingen gaan en het CMS niets horen.
 - [ ] Stap 2: test op template-nextjs-vercel (Task 15), want de voorbeeldrepo heeft geen Vercel-project.
 - [ ] Stap 3: commit `feat: add cd-vercel.yml`.
 
