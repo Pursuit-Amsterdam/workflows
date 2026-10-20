@@ -184,7 +184,7 @@ Publiceert de npm-pakketten van een repo bij een release, achter dezelfde gate a
 ### Wat cd-packages weigert
 
 - **Niets te publiceren.** Alle pakketten privé, of elke versie staat er al. Vaak betekent dat: de versie is niet opgehoogd.
-- **Een tag die niet klopt.** In een repo met één pakket moet de release-tag gelijk zijn aan de versie in `package.json` (`v1.2.3` bij `1.2.3`).
+- **Een tag die niet klopt.** In een repo met één pakket moet de release-tag gelijk zijn aan de versie in `package.json` (`v1.2.3` bij `1.2.3`). Build-metadata telt niet mee: `v1.2.3+1` past ook bij `1.2.3` (zo releasten sommige pakketten dezelfde versie opnieuw; een versie die al gepubliceerd is, faalt nog steeds).
 
 ---
 
