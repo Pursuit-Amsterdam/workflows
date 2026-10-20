@@ -252,19 +252,32 @@ Gevonden tijdens stap 3 en 4:
 
 Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 
-### Task 13: `deploy-vercel` en `run-codegen`
+### Task 13: `run-codegen` en `deploy-vercel`
 
-**Bestanden:**
-- Wijzig: `.github/actions/deploy-vercel/action.yml`
-- Vervang: `.github/actions/run-codegen/action.yml` door het concept-blok.
+Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te maken.
 
-**Interface deploy-vercel:** bestaande inputs; `environment != production` → `vercel pull --environment=preview` en `vercel deploy` zonder `--target`; `vercel@<vaste versie>`; nieuwe output `url` (uit de laatste regel van `vercel deploy`); een eerste stap die faalt als `build-mode` niet `github` of `vercel` is. De project-env-sync blijft `preview` voor alles behalve productie.
+#### Task 13a: `run-codegen`
 
-**Interface run-codegen:** inputs `codegen`, `generated-elsewhere`, `codegen-check`, `codegen-baseline`, `working-directory`; exporteert `CODEGEN_BASELINE`.
+**Bestanden:** vervang `.github/actions/run-codegen/action.yml` door het concept-blok.
+
+**Interface:** inputs `codegen`, `generated-elsewhere`, `codegen-check`, `codegen-baseline`, `working-directory`; exporteert `CODEGEN_BASELINE`.
+
+- [x] Stap 1: schrijf de action (commit `feat(actions): new run-codegen: repo script, typecheck, compare with the committed spec`).
+- [x] Stap 2: test in de voorbeeldrepo (tijdelijke PR workflows-example#32) met scripts `codegen` (schrijft `openapi.json` en `generated.ts`), `typecheck` en `codegen-check` (vergelijkt `$CODEGEN_BASELINE/openapi.json` met `openapi.json` via `cmp`). Eerst met de oude action: alle vier rood. Met de nieuwe, run 39401169158:
+  - [x] `codegen-check` zonder `codegen-baseline` → geweigerd;
+  - [x] baseline-bestand niet gecommit → geweigerd;
+  - [x] gewijzigde spec → `cmp` faalt;
+  - [x] gelijke spec → groen.
+- [ ] Stap 3: PR naar `v2`, mergen op groene `pipeline`; sluit workflows-example#32 en verwijder de branch.
+
+#### Task 13b: `deploy-vercel`
+
+**Bestanden:** wijzig `.github/actions/deploy-vercel/action.yml`.
+
+**Interface:** bestaande inputs; `environment != production` → `vercel pull --environment=preview` en `vercel deploy` zonder `--target`; `vercel@<vaste versie>`; nieuwe output `url` (uit de laatste regel van `vercel deploy`); een eerste stap die faalt als `build-mode` niet `github` of `vercel` is. De project-env-sync blijft `preview` voor alles behalve productie.
 
 - [ ] Stap 1: pas deploy-vercel aan; `actionlint` + `shellcheck`.
-- [ ] Stap 2: run-codegen: schrijf de action; test in de voorbeeldrepo met scripts `codegen` (schrijft `generated.ts`), `typecheck`, en `codegen-check` (vergelijkt `$CODEGEN_BASELINE/openapi.json` met `openapi.json` via `cmp`); test: `codegen-check` zonder `codegen-baseline` → rood; ongecommit baseline-bestand → rood; gelijk bestand → groen.
-- [ ] Stap 3: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel; new run-codegen`.
+- [ ] Stap 2: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel`; PR naar `v2`, mergen op groene `pipeline`.
 
 ### Task 14: `cd-vercel.yml`
 
