@@ -379,7 +379,12 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - `sync` draait als eigen job in `staging`, niet in `integration`, met `continue-on-error`.
 
 - [x] Stap 1: schrijf en lint (commits op `feature/run-translations`).
-- [ ] Stap 2: gate-scenario's voor de CMS-dispatch in de voorbeeldrepo: `develop` + `staging` → staging; `main` + `production` zonder `cms-production` → rood; mét → productie op de commit van de nieuwste release; `develop` + `production` → rood.
+- [x] Stap 2: gate-scenario's voor de CMS-dispatch in de voorbeeldrepo:
+  - [x] `develop` + `staging` → staging op de head van `develop` — 39433689340
+  - [x] `main` + `production` zonder `cms-production` → rood "does not let the CMS deploy production" — 39433935075
+  - [x] `develop` + `production` zonder `cms-production` → rood, zelfde melding — 39433996221
+  - [x] `main` + `production` mét `cms-production` → productie op d10c219, de commit van de nieuwste release `v0.6.0+1` (ook een tag met `+` werkt) — 39434052152. `production` stond daarvoor tijdelijk ook `main` toe.
+  - [x] `develop` + `production` mét `cms-production` → rood "starts from main, not develop" — 39434166919
 - [ ] Stap 3: integrators-website-2025, staging, via een tijdelijke branch: CI met `tms-sync-branch` op die branch → `sync` in de job `tms-sync`; CD via `cd-vercel@feature/run-translations` met `tms: true` → `ack` → `pull` → typecheck → deploy → `mark-deployed`, health-check groen.
 - [ ] Stap 4: PR naar `v2`, mergen op groene `pipeline`.
 
