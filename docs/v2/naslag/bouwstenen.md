@@ -100,7 +100,7 @@ Eén deploy-job voor alle environments; de gate vult in waarheen en wat.
 - Hij controleert geen code. Dat doet CI; de gate controleert alleen dát CI op deze commit geslaagd is.
 - Hij weet niets van Vercel, Swarm of Supabase, en werkt daardoor vóór elke cd-workflow.
 - Hij bepaalt niet wie mag deployen. Dat doen de branchregels van de environment en, voor productie, de tag-ruleset op `v*`: alleen een senior maakt een release-tag.
-- Hij dwingt zelf niets af. De gate staat in de YAML van de repo, en een branch kan die YAML veranderen of de gate weglaten. Wat de deploy echt tegenhoudt, zijn de branchregels van de environment ([standaardinrichting](standaardinrichting.md#consumer-config)): GitHub weigert een job in `production` vanaf een ref die er niet in mag, en de secrets blijven dicht. De gate zorgt dat een toegestane ref ook nog gecontroleerd is.
+- Hij dwingt zelf niets af. De gate staat in de YAML van de repo, en een branch kan die YAML veranderen of de gate weglaten. Wat de deploy echt tegenhoudt, zijn de branchregels van de environment ([standaardinrichting](standaardinrichting.md#consumer-config)): GitHub weigert een job in `production` vanaf een ref die er niet in mag, en de secrets blijven dicht. Let op: GitHub toetst de ref van de run, en dat is bij `workflow_run` en `repository_dispatch` altijd de default branch; daarom laten `staging` en `acceptance` ook `main` toe. De gate zorgt dat een toegestane ref ook nog gecontroleerd is.
 
 ### Twee dingen om te weten
 

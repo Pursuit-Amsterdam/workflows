@@ -15,7 +15,8 @@
 ## Stand van zaken (20 oktober 2026)
 
 - **Plak 0 en 1 zijn af** (Task 1–10). `v2` is beschermd en test zichzelf; `ci.yml` en `ci-images.yml` draaien in de voorbeeldrepo, en template-nextjs-vercel draait CI op `ci.yml@v2` met `lint typecheck test build`.
-- **Volgende:** Plak 2, de gate (Task 11–12), in de voorbeeldrepo.
+- **Plak 2 is af** (Task 11–12): de gate staat op `v2` en is met 21 scenario's getest.
+- **Volgende:** Plak 3, CD naar Vercel (Task 13–15).
 - **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)): seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); `ci.yml` telt bij turbo alleen workspace-pakketten en geeft turbo de remote base voor `--affected`; `use-custom-token` zonder secret faalt met een melding.
 - **Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4): `setup.js` laadt weer, peers `@testing-library/jest-dom` en jest 30.
 - **Buiten het plan, nog open:**
@@ -208,7 +209,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
 - [x] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
 - [x] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
 - [x] Stap 4: loop 21 scenario's af en noteer per scenario de run-id: de 17 uit het [testplan](naslag/uitrol-in-detail.md#gate-tests) (S1–S17) plus vier nieuwe (S18–S21, Task 12 zet ze in het testplan): tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
-- [ ] Stap 5: commit `feat: add cd-gate.yml`.
+- [x] Stap 5: commit `feat: add cd-gate.yml`. (PR #45, gemerged; de voorbeeldrepo gebruikt nu `cd-gate.yml@v2`, run 39400403750.)
 
 Voortgang stap 4 (scenario's in workflows-example, run-id's):
 
@@ -242,8 +243,8 @@ Gevonden tijdens stap 3 en 4:
 
 ### Task 12: gate-documentatie bijwerken
 
-- [ ] Stap 1: zet de concept-YAML van cd-gate gelijk aan het bestand (`allow-prerelease`, de drie extra controles) en neem de vier scenario's op in het testplan.
-- [ ] Stap 2: commit `docs: sync cd-gate reference with the implementation`.
+- [x] Stap 1: zet de concept-YAML van cd-gate gelijk aan het bestand (`allow-prerelease`, de drie extra controles) en neem de vier scenario's op in het testplan.
+- [x] Stap 2: commit `docs: sync cd-gate reference with the implementation`.
 
 ---
 
@@ -278,7 +279,7 @@ Na deze plak deployt template-nextjs-vercel staging en productie via `v2`.
 
 **Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration).
 
-- [ ] Stap 1: environments: `staging` met branch `develop`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, dezelfde variabelen en secrets; tag-ruleset op `v*` (alleen admins). Het environment `Preview` verwijderen als het niets meer doet.
+- [ ] Stap 1: environments: `staging` met branches `develop` en `main`, `OP_VAULT`/`OP_ITEM`, secrets `VERCEL_TOKEN` en `OP_SERVICE_ACCOUNT_TOKEN`; `production` met tags `v*`, dezelfde variabelen en secrets; tag-ruleset op `v*` (alleen admins). Het environment `Preview` verwijderen als het niets meer doet.
 - [ ] Stap 2: PR naar `main`: `cd.yml` volgens het voorbeeld, met `health-path: /`. Merge.
 - [ ] Stap 3: merge iets naar `develop`; verwacht een groene gate en een preview-deploy met de variabelen van `staging`, health-check groen.
 - [ ] Stap 4: een senior publiceert een release; verwacht een `--prod`-deploy. Een junior kan geen `v*`-tag maken.

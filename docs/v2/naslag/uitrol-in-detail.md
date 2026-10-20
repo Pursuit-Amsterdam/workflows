@@ -46,7 +46,7 @@ Wat op `v2` staat, draait met de environment-secrets van elke repo die hem aanro
 
 ## Testplan voor de gate
 
-De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8) heeft een `deploy`-job die alleen `echo` doet. Elke regel is een scenario dat precies één keer het verwachte resultaat moet geven; pas daarna komt er een echte cd-\* achter.
+De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8) heeft een `deploy`-job die alleen `echo` doet. Elke regel is een scenario dat precies één keer het verwachte resultaat moet geven; pas daarna komt er een echte cd-\* achter. Alle 21 zijn op 20 oktober 2026 in workflows-example gedraaid, met het verwachte resultaat; de run-id's staan in het [implementatieplan](../implementatieplan.md#plan) bij Task 11.
 
 | Scenario | Verwacht |
 | --- | --- |
@@ -67,6 +67,10 @@ De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8
 | `repository_dispatch: tms-deploy` met `environment: production` | rood: het CMS deployt alleen naar staging |
 | `repository_dispatch: tms-validate` | overgeslagen |
 | Een gate op een `push`-event (verkeerd gemigreerde aanroeper) | rood: "CD starts on workflow_run" |
+| Release met een tag op een `develop`-commit | rood: "is not on main: release from main only" |
+| Prerelease | overgeslagen (tenzij `allow-prerelease`, voor cd-packages) |
+| Release met tag `1.0.0` zonder `v` | rood: "must match v*" |
+| `repository_dispatch: tms-deploy` voor een environment waarvan de branch niet bestaat | rood: "branch … does not exist in this repo" |
 
 ## Mechaniek
 

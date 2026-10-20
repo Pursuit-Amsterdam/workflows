@@ -71,7 +71,7 @@ deploy:
 
 # eenmalig, per GitHub-environment:
 #   staging:    OP_VAULT=my-website-staging    OP_ITEM=my-website-staging-secrets
-#               branches: develop
+#               branches: develop, main  (workflow_run-runs hebben ref main)
 #   production: OP_VAULT=my-website-production OP_ITEM=my-website-production-secrets
 #               branches: tags v*  (en de tag-ruleset: alleen seniors maken v*-tags)
 #   secrets VERCEL_TOKEN en OP_SERVICE_ACCOUNT_TOKEN op beide environments
