@@ -276,7 +276,10 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 
 **Interface:** bestaande inputs; `environment != production` → `vercel pull --environment=preview` en `vercel deploy` zonder `--target`; `vercel@<vaste versie>`; nieuwe output `url` (uit de laatste regel van `vercel deploy`); een eerste stap die faalt als `build-mode` niet `github` of `vercel` is. De project-env-sync blijft `preview` voor alles behalve productie.
 
-- [ ] Stap 1: pas deploy-vercel aan; `actionlint` + `shellcheck`.
+- [x] Stap 1: pas deploy-vercel aan; `actionlint` + `shellcheck`. Getest met `scripts/deploy-vercel-cases.sh` (in `pnpm test`): de `run:`-scripts van de action draaien tegen een nep-`vercel` op `PATH`. Tegen de oude action 19 rood, tegen de nieuwe 32 groen.
+  - Bijgesteld: alle `${{ inputs.* }}` in de scripts staan nu in `env:`, zodat de test ze kan draaien.
+  - Bijgesteld: nieuwe input `working-directory` (standaard `.`). cd-vercel (Task 14) heeft hem nodig: de `defaults.run.working-directory` van een job bereikt de stappen van een composite action niet.
+  - CLI vast op `vercel@62.5.0` (6 oktober 2026, de nieuwste van minstens twee weken oud).
 - [ ] Stap 2: commit `feat(actions): preview deploys, pinned CLI and url output in deploy-vercel`; PR naar `v2`, mergen op groene `pipeline`.
 
 ### Task 14: `cd-vercel.yml`

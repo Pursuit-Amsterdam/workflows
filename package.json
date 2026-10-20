@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "lint": "actionlint && shellcheck -s bash check-pr.sh scripts/*.sh",
-    "test": "scripts/check-pr-cases.sh",
+    "test": "scripts/check-pr-cases.sh && scripts/deploy-vercel-cases.sh",
     "audit:consumers": "scripts/audit-consumers.sh",
     "audit:consumers:remote": "gh workflow run audit-consumers.yml --ref v2",
     "setup-consumer": "scripts/setup-consumer.sh",

@@ -647,6 +647,7 @@ jobs:
           prepare-package: ${{ inputs.prepare-package }}
           build-command: ${{ inputs.vercel-build-command }}
           vercel-project-env-keys: ${{ inputs.vercel-project-env-keys }}
+          working-directory: ${{ inputs.working-directory }}
 
       # An upload that succeeded says nothing about an app that answers. Before
       # mark-deployed, so a dead deploy is reported to the CMS as failed.
