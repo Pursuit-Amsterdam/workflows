@@ -81,7 +81,7 @@ Een machine-account heeft Administrator op de Supabase-organisatie, en alleen CI
 | De waarden van de secrets | het 1Password-item van de environment | `setup-services` → job-variabelen → `secrets set` | Per environment, beheerd en vervangen door de eigenaar van de dienst, en al de bron voor alles wat de repo verder uitrolt. Geen reden om ze ergens anders te zetten. |
 | De project-ref | `vars.SUPABASE_PROJECT_REF` op de environment | `cd-supabase` | Een variabele, geen secret: de ref is niet geheim (hij staat in elke project-URL) en verschilt per environment. Net als `OP_VAULT` en `VM_SSH_HOST`. |
 
-Of een merge naar een productieproject mag schrijven, bepalen de beveiligingsregels van de environment, niet iemands Supabase-rol: de branchregels en de verplichte reviewers op de environment beschermen het token. Dat werkt alleen omdat het token een environment-secret is; een org-secret staat buiten die regels.
+Of een merge naar een productieproject mag schrijven, bepalen de beveiligingsregels van de environment, niet iemands Supabase-rol: de branchregels op de environment en de tag-ruleset op `v*` beschermen het token: alleen een senior maakt de tag die naar productie deployt. Dat werkt alleen omdat het token een environment-secret is; een org-secret staat buiten die regels.
 
 ### Wat cd-supabase weigert
 
@@ -118,7 +118,7 @@ Checkout op `ref` → Supabase-CLI → 1Password (`setup-services`) → `secrets
 | `environment` | verplicht | Was optioneel met standaard `production`. |
 | tags | `:<versie>` en `:sha-<commit>`, ongewijzigd | Geen tag per environment. Die zou de buildjob pushen, buiten de concurrency-groep van de deploy, en dan kunnen twee runs elkaars tag in de verkeerde volgorde overschrijven. |
 | rechten | per job in plaats van voor de hele workflow | `packages: write` op de buildjob, `packages: read` op de deploy. De aanroeper geeft altijd `packages: write`, ook zonder images: GitHub toetst de rechten van elke job bij het starten van de workflow, ook van een job die daarna wordt overgeslagen. |
-| jobs `build`, `deploy` | ongewijzigd, plus een job `validate` | Sinds PR #24 wordt `build` overgeslagen zonder images, en draait `deploy` ook na een overgeslagen build, maar niet na een mislukte. v2 laat `build` afhangen van het aantal images dat `validate` telt, in plaats van een stringvergelijking met `'[]'`. `deploy` draait zelf setup-version, dus `${VERSION}` wordt nog steeds ingevuld; een kant-en-klare stack gebruikt vaste upstream-tags en heeft hem niet nodig. Beide jobs staan in de environment (de build voor de 1Password-build-args), dus met verplichte reviewers op `production` wordt er twee keer om goedkeuring gevraagd: eerst voor de build, dan voor de deploy. Zie de [detailbeslissing](detailbeslissingen.md#decisions-detail). |
+| jobs `build`, `deploy` | ongewijzigd, plus een job `validate` | Sinds PR #24 wordt `build` overgeslagen zonder images, en draait `deploy` ook na een overgeslagen build, maar niet na een mislukte. v2 laat `build` afhangen van het aantal images dat `validate` telt, in plaats van een stringvergelijking met `'[]'`. `deploy` draait zelf setup-version, dus `${VERSION}` wordt nog steeds ingevuld; een kant-en-klare stack gebruikt vaste upstream-tags en heeft hem niet nodig. Beide jobs staan in de environment: de build voor de 1Password-build-args, de deploy voor de secrets van de stack. |
 
 ### Wat cd-swarm weigert
 

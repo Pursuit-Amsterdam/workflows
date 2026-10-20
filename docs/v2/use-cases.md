@@ -67,7 +67,7 @@ Nog niet uitgewerkt. De laatste kolom toont welke principes van toepassing zoude
 Nog geen workflow, wel een toets: het ontwerp mag infra as code (Terraform of OpenTofu voor Azure, de Swarm-VM's, DNS bij Cloudflare, Vercel- en Supabase-projecten) niet blokkeren.
 
 - **CI:** format, validate, een linter en een plan, als commentaar op de PR. Past bij principe 1 (toolchain-versie uit de repo) en 7 (de repo bepaalt het commando).
-- **CD:** precies het plan van deze commit toepassen, na goedkeuring via de environment. Dat is principe 4: alleen wat op deze commit gecontroleerd en goedgekeurd is.
+- **CD:** precies het plan van deze commit toepassen, gestart vanaf een release-tag die alleen een senior kan maken. Dat is principe 4: alleen wat op deze commit gecontroleerd en goedgekeurd is.
 - **Drift:** een gepland plan dat afwijkingen meldt; de vorm die principe 5 voor infra aanneemt.
 - **Inloggen bij de cloud** gaat via OIDC, met kortlevende tokens in plaats van opgeslagen sleutels. Principe 3 blijft gelden: wat per environment verschilt, staat in de environment.
 - **Wat root vraagt op een VM** (basismappen en hun eigenaar, `sysctl`, sudoers, Docker zelf) gaat naar de inrichting: Terraform of OpenTofu maakt de VM, cloud-init of Ansible richt hem in. Dat draait met eigen credentials en eigen reviewers, los van de deploy. Tot dan zijn dit handmatige runbookstappen. `pre-deploy` houdt alleen wat zonder sudo kan.

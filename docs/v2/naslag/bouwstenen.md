@@ -99,7 +99,7 @@ Eén deploy-job voor alle environments; de gate vult in waarheen en wat.
 
 - Hij controleert geen code. Dat doet CI; de gate controleert alleen dát CI op deze commit geslaagd is.
 - Hij weet niets van Vercel, Swarm of Supabase, en werkt daardoor vóór elke cd-workflow.
-- Hij vervangt de goedkeuring via de environment niet. Verplichte reviewers op `production` blijven gewoon werken, ná de gate.
+- Hij bepaalt niet wie mag deployen. Dat doen de branchregels van de environment en, voor productie, de tag-ruleset op `v*`: alleen een senior maakt een release-tag.
 - Hij dwingt zelf niets af. De gate staat in de YAML van de repo, en een branch kan die YAML veranderen of de gate weglaten. Wat de deploy echt tegenhoudt, zijn de branchregels van de environment ([standaardinrichting](standaardinrichting.md#consumer-config)): GitHub weigert een job in `production` vanaf een ref die er niet in mag, en de secrets blijven dicht. De gate zorgt dat een toegestane ref ook nog gecontroleerd is.
 
 ### Twee dingen om te weten
@@ -151,7 +151,7 @@ De branch `feature/tms-prototype` koppelt `@pursuit-amsterdam/translations-manag
 | Workflow | Stap | Positie | Waarom daar |
 | --- | --- | --- | --- |
 | `ci.yml` | `sync` | na de checks, alleen op `tms-sync-branch` | Code die niet compileert is geen betrouwbare bron om te bepalen welke sleutels weg mogen. Synchroniseren vanaf een featurebranch registreert sleutels die misschien nooit gemerged worden. |
-| `cd-vercel.yml` | `ack` | direct na de setup en de secrets | Een release waar het CMS op wacht verloopt na 3 minuten, tenzij hij bevestigd wordt; dan wordt dat 30 minuten. Alles wat ervoor gebeurt, gaat van die tijd af. Op `production` wachten de reviewers; dan is de release al verlopen voordat `ack` draait. Zie de [detailbeslissing](detailbeslissingen.md#decisions-detail). |
+| `cd-vercel.yml` | `ack` | direct na de setup en de secrets | Een release waar het CMS op wacht verloopt na 3 minuten, tenzij hij bevestigd wordt; dan wordt dat 30 minuten. Alles wat ervoor gebeurt, gaat van die tijd af. Er zijn geen verplichte reviewers (Team-plan) en het CMS deployt alleen naar staging, dus niets wacht vóór `ack`. |
 | `pull` | vóór de build | Herschrijft de woordenboeken en genereert `settings.ts` / `types.ts` opnieuw, zodat de deploy de gepubliceerde versie meeneemt. |  |
 | `mark-deployed` / `mark-failed` | na de deploy, op `success()` / `failure()` | Het CMS ziet de deploy zelf niet. Zonder dit wordt een release die live staat, na afloop als mislukt gemarkeerd. `mark-deployed` scant ook de broncode op het sleutelmanifest dat de controle vóór publicatie naar productie gebruikt. |  |
 
