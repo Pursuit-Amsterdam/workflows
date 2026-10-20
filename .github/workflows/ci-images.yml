@@ -73,12 +73,19 @@ jobs:
         env:
           STACK_FILE: ${{ inputs.stack-file }}
           IMAGES: ${{ inputs.images }}
+          USE_CUSTOM_TOKEN: ${{ inputs.use-custom-token }}
+          HAS_CUSTOM_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN != '' }}
         run: |
           set -euo pipefail
           n=$(jq 'if type == "array" then length else error("not an array") end' <<<"$IMAGES") \
             || { echo "::error::images is not a JSON array"; exit 1; }
           if [ -z "${STACK_FILE//[[:space:]]/}" ] && [ "$n" -eq 0 ]; then
             echo "::error::Neither stack-file nor images is set: this job would pass without checking anything."; exit 1
+          fi
+          # Without this, a missing secret becomes an empty build secret and the
+          # image build fails later on the private dependencies.
+          if [ "$USE_CUSTOM_TOKEN" = true ] && [ "$HAS_CUSTOM_TOKEN" != true ]; then
+            echo "::error::use-custom-token is true but CUSTOM_GITHUB_TOKEN is not available to this workflow: set it on the repo (or the org, for this repo) and pass it with 'secrets: inherit'."; exit 1
           fi
           echo "n=$n" >> "$GITHUB_OUTPUT"
 
