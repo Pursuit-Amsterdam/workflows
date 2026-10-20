@@ -82,7 +82,7 @@ on:
 
       # ── translations CMS ─────────────────────────────────────────────────
       tms-sync-branch:
-        description: "Branch whose pushes sync translation keys to the CMS (e.g. develop). Empty = no sync."
+        description: "Branch whose pushes sync translation keys to the CMS (e.g. develop). Empty = no sync. Runs as a job in the staging environment, with TMS_URL / TMS_API_KEY from its OP_VAULT / OP_ITEM (or the TMS_* secrets)."
         required: false
         type: string
         default: ""
@@ -119,6 +119,22 @@ jobs:
         with:
           fetch-depth: 0   # turbo --affected compares against the base branch
 
+      # Runs from the repo root: a working-directory that does not exist would
+      # otherwise fail every later step with a bare "No such file or directory".
+      - name: Check working-directory
+        working-directory: .
+        env:
+          WORKING_DIRECTORY: ${{ inputs.working-directory }}
+          USE_CUSTOM_TOKEN: ${{ inputs.use-custom-token }}
+          HAS_CUSTOM_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN != '' }}
+        run: |
+          [ -f "$WORKING_DIRECTORY/package.json" ] || { echo "::error::no package.json in working-directory '$WORKING_DIRECTORY': the repo's scripts are the CI contract."; exit 1; }
+          # Without this, a missing secret falls back to GITHUB_TOKEN and the
+          # install fails later with a bare 403 on the private packages.
+          if [ "$USE_CUSTOM_TOKEN" = true ] && [ "$HAS_CUSTOM_TOKEN" != true ]; then
+            echo "::error::use-custom-token is true but CUSTOM_GITHUB_TOKEN is not available to this workflow: set it on the repo (or the org, for this repo) and pass it with 'secrets: inherit'."; exit 1
+          fi
+
       - name: Validate inputs and read the repo
         id: repo
         env:
@@ -132,7 +148,6 @@ jobs:
           # every check after the first, and `dbtest` alone must still match.
           checks=$(tr -s '[:space:]' ' ' <<<"$CHECKS" | sed 's/^ //; s/ $//')
           [ -n "$checks" ] || { echo "::error::checks is empty: this job would pass without running anything."; exit 1; }
-          [ -f package.json ] || { echo "::error::no package.json in working-directory: the repo's scripts are the CI contract."; exit 1; }
           {
             echo "checks=$checks"
             echo "only-dbtest=$([ "$checks" = dbtest ] && echo true || echo false)"
@@ -157,6 +172,7 @@ jobs:
         id: services
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
         with:
+          working-directory: ${{ inputs.working-directory }}
           database: ${{ inputs.database }}
           supabase-seed: ${{ inputs.supabase-seed }}
           # When dbtest is the only check, the stack only serves it: skip it when supabase/ is untouched.
@@ -204,18 +220,33 @@ jobs:
           CHECKS: ${{ steps.repo.outputs.checks }}
           TURBO: ${{ steps.repo.outputs.turbo }}
           EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
           read -ra checks <<<"$CHECKS"
           if [ "$TURBO" = true ]; then
             # turbo runs a task that no package defines as zero tasks, and passes.
-            defined=$(find . -name package.json -not -path '*/node_modules/*' -print0 \
-              | xargs -0 jq -r '.scripts // {} | keys[]' | sort -u)
+            # Only workspace packages count, not the root package.json: its
+            # scripts are usually pass-throughs ("format": "turbo run format")
+            # that turbo never runs as a task. Root tasks turbo does run are
+            # declared as "//#<task>" in turbo.json.
+            defined=$( {
+              find . -mindepth 2 -name package.json -not -path '*/node_modules/*' -print0 \
+                | xargs -0 -r jq -r '.scripts // {} | keys[]'
+              jq -r '(.tasks // .pipeline // {}) | keys[] | select(startswith("//#")) | ltrimstr("//#")' turbo.json
+            } | sort -u)
             for c in "${checks[@]}"; do
               grep -qxF -- "$c" <<<"$defined" || { echo "::error::no package defines a '$c' script"; exit 1; }
             done
             args=(--cache-dir=.turbo)
-            if [ "$EVENT" = pull_request ]; then args+=(--affected); fi
+            if [ "$EVENT" = pull_request ]; then
+              # In Actions turbo takes GITHUB_BASE_REF ("develop") as the base,
+              # but a PR checkout has no local branch of that name, and turbo
+              # then treats every package as affected. The remote branch exists
+              # (fetch-depth: 0), so point turbo at it.
+              export TURBO_SCM_BASE="origin/$BASE_REF"
+              args+=(--affected)
+            fi
             pnpm turbo run "${checks[@]}" "${args[@]}"
           else
             for c in "${checks[@]}"; do
@@ -225,10 +256,51 @@ jobs:
             done
           fi
 
-      # After the checks on purpose: a codebase that does not compile is not a
-      # trustworthy source of truth for what keys to delete.
+  # Keys reach the CMS from here, not from a developer's machine: `sync` scans
+  # the merged codebase, adds new keys, prunes keys nothing references any
+  # more, and leaves existing copy untouched. Only on a push to tms-sync-branch:
+  # a feature branch would register keys from work that may never merge, and
+  # pruning against it would delete keys the rest still uses. After `pipeline`:
+  # a codebase that does not pass its checks is no source of truth for what to
+  # delete.
+  # A job of its own in `staging`: the CMS key sits behind that environment's
+  # branch rules, out of reach of every pull request run in `integration`.
+  # continue-on-error: a CMS that is down must not block the deploy that the
+  # end of this run starts (CD needs CI green); the failed job stays visible.
+  tms-sync:
+    needs: pipeline
+    if: inputs.tms-sync-branch != '' && github.event_name == 'push' && github.ref_name == inputs.tms-sync-branch
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    environment: staging
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the Node version from the repo
+        id: node
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # TMS_URL / TMS_API_KEY from staging's 1Password item, as the deploy uses.
+      - name: Services (secrets)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          onepassword-vault: ${{ vars.OP_VAULT }}
+          onepassword-item: ${{ vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
       - name: Sync translation keys to the CMS
-        if: inputs.tms-sync-branch != '' && github.ref == format('refs/heads/{0}', inputs.tms-sync-branch)
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
         with:
           command: sync
@@ -416,6 +488,10 @@ name: "CD Vercel"
 # Per-environment values come from the GitHub
 # environment: an empty onepassword-vault/-item falls back to the environment
 # variables OP_VAULT / OP_ITEM, so one caller job serves staging and production.
+# With tms, the translations CMS is told about the deploy (ack, then
+# mark-deployed or mark-failed), and its published copy is pulled before the
+# build. The CMS starts staging deploys itself (workflow_dispatch from develop,
+# with environment and release_id); production gets the copy with each release.
 
 on:
   workflow_call:
@@ -495,7 +571,7 @@ on:
         type: string
         default: ""
       tms-release-id:
-        description: "Release the CMS asked to deploy. Pass github.event.client_payload.release_id; empty on every other event."
+        description: "Release the CMS asked to deploy. Pass github.event.inputs.release_id (the CMS sends it with its workflow_dispatch); empty on every other event."
         required: false
         type: string
         default: ""
@@ -540,8 +616,30 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  # A job of its own, before `deploy`: a job that names an environment that
+  # does not exist creates it, without branch rules or secrets. So an unknown
+  # environment is refused before any job names it.
+  validate:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      # An unknown build-mode would skip both deploy steps in deploy-vercel and
+      # turn the run green: the `platform: azure-asp` mistake, again.
+      - name: Validate inputs
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          BUILD_MODE: ${{ inputs.build-mode }}
+        run: |
+          set -euo pipefail
+          case "$ENVIRONMENT" in staging|production) ;; *)
+            echo "::error::Vercel deploys to staging (the custom environment of develop) or production (got '$ENVIRONMENT')"; exit 1;; esac
+          case "$BUILD_MODE" in github|vercel) ;; *)
+            echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
+
+  deploy:
+    needs: validate
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     environment: ${{ inputs.environment }}
     # One deploy per app and environment at a time; never cancel one that runs.
     # working-directory in the group: two apps in one monorepo must not queue
@@ -558,16 +656,6 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-
-      # An unknown build-mode would skip both deploy steps in deploy-vercel and
-      # turn the run green: the `platform: azure-asp` mistake, again.
-      - name: Validate inputs
-        env:
-          BUILD_MODE: ${{ inputs.build-mode }}
-        run: |
-          set -euo pipefail
-          case "$BUILD_MODE" in github|vercel) ;; *)
-            echo "::error::build-mode must be github or vercel (got '$BUILD_MODE')"; exit 1;; esac
 
       - name: Read the Node version from the repo
         id: node
@@ -648,8 +736,7 @@ jobs:
           vercel-project-env-keys: ${{ inputs.vercel-project-env-keys }}
           working-directory: ${{ inputs.working-directory }}
 
-      # An upload that succeeded says nothing about an app that answers. Before
-      # mark-deployed, so a dead deploy is reported to the CMS as failed.
+      # An upload that succeeded says nothing about an app that answers.
       - name: Health check
         if: inputs.health-path != ''
         env:
@@ -668,8 +755,8 @@ jobs:
           echo "::error::${URL%/}${HEALTH_PATH} did not answer 2xx"; exit 1
 
       # The CMS cannot observe this deploy, so it has to be told. Without these
-      # a release that went live is expired as failed. mark-deployed also scans
-      # the source for the key manifest the production publish gate checks.
+      # a release that went live is expired as failed. mark-deployed also sends
+      # the key manifest the CMS's production publish gate checks against.
       - name: Mark the release deployed
         if: inputs.tms && success()
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-translations@v2
@@ -925,7 +1012,11 @@ name: "CD gate"
 #                                           unless allow-prerelease
 #   workflow_dispatch                    -> from the ref it was started from: a branch in
 #                                           branch-targets, or a tag, which must be the
-#                                           latest release (no rollbacks) -> production
+#                                           latest release (no rollbacks) -> production.
+#                                           The translations CMS dispatches too, with an
+#                                           `environment` input: staging from develop; production
+#                                           (from the default branch) only with cms-production,
+#                                           and then the latest release's commit
 #   repository_dispatch (tms-deploy)     -> client_payload.environment, staging/acceptance
 #                                           only; sha = head of that environment's branch
 #   push                                 -> fails: CD starts on workflow_run, never on push
@@ -958,6 +1049,11 @@ on:
         required: false
         type: string
         default: "develop=staging acceptance=acceptance"
+      cms-production:
+        description: "Let the translations CMS deploy production: its workflow_dispatch from the default branch with environment production redeploys the latest release with the published copy. Also needs production in GITHUB_DISPATCH_ENVIRONMENTS (dashboard) and the default branch allowed on the production environment. Default: refused."
+        required: false
+        type: boolean
+        default: false
       allow-prerelease:
         description: "Let a published prerelease deploy to production (cd-packages publishes it under the `next` dist-tag). Default: a prerelease is skipped."
         required: false
@@ -1000,6 +1096,7 @@ jobs:
           REQUIRED: ${{ inputs.required-workflows }}
           BRANCH_TARGETS: ${{ inputs.branch-targets }}
           ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
+          CMS_PRODUCTION: ${{ inputs.cms-production }}
           CI_WAIT_MINUTES: ${{ inputs.ci-wait-minutes }}
         with:
           script: |
@@ -1043,12 +1140,31 @@ jobs:
                 const latest = await github.rest.repos.getLatestRelease(context.repo).then(r => r.data.tag_name).catch(() => null);
                 if (tag !== latest) return fail(`tag ${tag} is not the latest release (${latest ?? 'none'}): rollbacks are not supported, start from ${latest ?? 'a release tag'}`);
                 target = 'production';
+                sha = context.sha;
               } else if (context.ref.startsWith('refs/heads/')) {
                 const branch = context.ref.slice('refs/heads/'.length);
-                target = map[branch];
-                if (!target) return fail(`no environment for branch ${branch}: start this workflow from ${Object.keys(map).join(' or ')}, or from the tag of the latest release for production`);
+                // The translations CMS dispatches with an `environment` input:
+                // staging from develop, production from the default branch.
+                const asked = p.inputs?.environment || '';
+                if (asked === 'production') {
+                  // Off unless the repo opts in: main can hold merged but
+                  // unreleased code, and copy must not ship it. Opted in, the
+                  // CMS redeploys the latest release with the published copy.
+                  const base = p.repository.default_branch;
+                  if (process.env.CMS_PRODUCTION !== 'true') return fail(`the translations CMS asked for production: this repo does not let the CMS deploy production (cd-gate input cms-production). The published copy goes live with the next release; or leave production out of GITHUB_DISPATCH_ENVIRONMENTS in the dashboard.`);
+                  if (branch !== base) return fail(`a CMS production deploy starts from ${base}, not ${branch}`);
+                  const latest = await github.rest.repos.getLatestRelease(context.repo).then(r => r.data.tag_name).catch(() => null);
+                  if (!latest) return fail('the translations CMS asked for production, but there is no release yet to redeploy');
+                  sha = (await github.rest.repos.getCommit({ ...context.repo, ref: latest })).data.sha;
+                  target = 'production';
+                  core.info(`Gate: CMS production deploy of the latest release ${latest}`);
+                } else {
+                  target = map[branch];
+                  if (!target) return fail(`no environment for branch ${branch}: start this workflow from ${Object.keys(map).join(' or ')}, or from the tag of the latest release for production`);
+                  if (asked && asked !== target) return fail(`the translations CMS asked for ${asked}, but ${branch} deploys to ${target}`);
+                  sha = context.sha;
+                }
               } else return fail(`unexpected ref ${context.ref}`);
-              sha = context.sha;
             } else if (ev === 'repository_dispatch') {
               if (p.action !== 'tms-deploy') return skip(`repository_dispatch '${p.action}' is not a deploy`);
               const env = p.client_payload?.environment;
@@ -2107,8 +2223,9 @@ name: "Translations CMS"
 description: >
   Runs one @pursuit-amsterdam/translations-management CLI command in the
   directory that holds the app's dictionaries. Credentials come from the job
-  env when a 1Password item exported TMS_URL / TMS_API_KEY; the tms-url and
-  tms-api-key inputs only fill gaps and never overwrite an exported value.
+  env when a 1Password item exported them (TMS_URL or NEXT_PUBLIC_TMS_URL,
+  TMS_API_KEY); the tms-url and tms-api-key inputs only fill gaps and never
+  overwrite an exported value. The CLI itself reports what is missing.
   One action, five commands, so ci.yml and every cd-*.yml share the same
   credential and working-directory handling. Lifted from feature/tms-prototype.
 inputs:
@@ -2146,10 +2263,14 @@ runs:
         FALLBACK_KEY: ${{ inputs.tms-api-key }}
       run: |
         set -euo pipefail
-        if [ -z "${TMS_URL:-}" ] && [ -n "$FALLBACK_URL" ]; then echo "TMS_URL=$FALLBACK_URL" >> "$GITHUB_ENV"; fi
-        if [ -z "${TMS_API_KEY:-}" ] && [ -n "$FALLBACK_KEY" ]; then echo "::add-mask::$FALLBACK_KEY"; echo "TMS_API_KEY=$FALLBACK_KEY" >> "$GITHUB_ENV"; fi
-        if [ -z "${TMS_URL:-}${FALLBACK_URL}" ] || [ -z "${TMS_API_KEY:-}${FALLBACK_KEY}" ]; then
-          echo "::error::TMS_URL / TMS_API_KEY missing: put them in the 1Password item or pass the TMS_URL / TMS_API_KEY secrets"; exit 1
+        # The same names the CLI reads, in its order; it validates them itself
+        # and says what is missing. The fallbacks only fill a gap.
+        if [ -z "${TMS_URL:-}${NEXT_PUBLIC_TMS_URL:-}${NEXT_PUBLIC_CMS_URL:-}" ] && [ -n "$FALLBACK_URL" ]; then
+          echo "TMS_URL=$FALLBACK_URL" >> "$GITHUB_ENV"
+        fi
+        if [ -z "${TMS_API_KEY:-}${CMS_SYNC_API_KEY:-}" ] && [ -n "$FALLBACK_KEY" ]; then
+          echo "::add-mask::$FALLBACK_KEY"
+          echo "TMS_API_KEY=$FALLBACK_KEY" >> "$GITHUB_ENV"
         fi
 
     - name: translations ${{ inputs.command }}

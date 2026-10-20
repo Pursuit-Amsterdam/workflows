@@ -371,15 +371,25 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 ### Task 21: `run-translations` en de CMS-stappen
 
-**Bestanden:**
-- Maak: `.github/actions/run-translations/action.yml` (concept-blok).
-- Wijzig: `ci.yml` (stap `sync` op `tms-sync-branch`), `cd-vercel.yml` (`ack`, `pull`, `generated-elsewhere: ${{ inputs.tms }}`, `mark-deployed`, `mark-failed`).
+**Bestanden:** `.github/actions/run-translations/action.yml` (concept-blok); `ci.yml` (job `tms-sync`), `cd-vercel.yml` (`ack`, `pull`, `mark-deployed`, `mark-failed`), `cd-gate.yml` (de `workflow_dispatch` van het CMS, `cms-production`).
 
-**Bron:** `feature/tms-prototype` in deze repo, voor de exacte CLI-aanroepen.
+**Bron:** `feature/tms-prototype` en de v1-opzet van integrators-website-2025. Bijgesteld op 20 oktober 2026 ([beslissingen](beslissingen.md#decided)):
+- het CMS start een deploy met `workflow_dispatch` (`environment`, `release_id`), niet met `repository_dispatch: tms-deploy`; dat blijft zo;
+- de bewaking zit in het dashboard (`GITHUB_DISPATCH_ENVIRONMENTS`, standaard alleen staging); v2 laat productie toe als opt-in (`cms-production`), en dan de nieuwste release, nooit de head van `main`;
+- `sync` draait als eigen job in `staging`, niet in `integration`, met `continue-on-error`.
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: tms-test op `v2`: CI met `tms-sync-branch: develop`; CD met `tms: true` en `repository_dispatch: [tms-deploy]`. Merge naar `develop`; verwacht `sync` in CI, en in CD `ack` → `pull` → typecheck → deploy → `mark-deployed`. Een `tms-deploy` met `environment: production` vanuit het CMS → rood met de staging-melding.
-- [ ] Stap 3: commit `feat: add run-translations and wire the CMS into ci and cd-vercel`.
+- [x] Stap 1: schrijf en lint (commits op `feature/run-translations`).
+- [x] Stap 2: gate-scenario's voor de CMS-dispatch in de voorbeeldrepo:
+  - [x] `develop` + `staging` → staging op de head van `develop` — 39433689340
+  - [x] `main` + `production` zonder `cms-production` → rood "does not let the CMS deploy production" — 39433935075
+  - [x] `develop` + `production` zonder `cms-production` → rood, zelfde melding — 39433996221
+  - [x] `main` + `production` mét `cms-production` → productie op d10c219, de commit van de nieuwste release `v0.6.0+1` (ook een tag met `+` werkt) — 39434052152. `production` stond daarvoor tijdelijk ook `main` toe.
+  - [x] `develop` + `production` mét `cms-production` → rood "starts from main, not develop" — 39434166919
+- [x] Stap 3: integrators-website-2025, staging, via een tijdelijke branch: CI met `tms-sync-branch` op die branch, daarna `cd-vercel` met `tms: true`. Run 39434349950, groen:
+  - `tms-sync` (in `staging`): "Synced, 0 values uploaded, 280 skipped";
+  - deploy: `ack` ("No pending release to acknowledge"), `pull` (staging release #23, 20 bestanden), build, deploy naar het custom environment `staging`, health-check 200, `mark-deployed` ("recorded the deployed code against release …").
+  - Eerst rood: (1) `run-translations@v2` bestond nog niet op `v2`; voor de test tijdelijk naar deze branch gewezen en daarna teruggedraaid. (2) De action eiste `TMS_URL`, maar het 1Password-item levert `NEXT_PUBLIC_TMS_URL`, dat de CLI ook accepteert. De action controleert nu niets meer zelf; de CLI meldt wat ontbreekt.
+- [ ] Stap 4: PR naar `v2`, mergen op groene `pipeline`.
 
 ### Task 22: `cd-packages.yml`
 

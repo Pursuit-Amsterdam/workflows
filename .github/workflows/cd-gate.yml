@@ -10,7 +10,11 @@ name: "CD gate"
 #                                           unless allow-prerelease
 #   workflow_dispatch                    -> from the ref it was started from: a branch in
 #                                           branch-targets, or a tag, which must be the
-#                                           latest release (no rollbacks) -> production
+#                                           latest release (no rollbacks) -> production.
+#                                           The translations CMS dispatches too, with an
+#                                           `environment` input: staging from develop; production
+#                                           (from the default branch) only with cms-production,
+#                                           and then the latest release's commit
 #   repository_dispatch (tms-deploy)     -> client_payload.environment, staging/acceptance
 #                                           only; sha = head of that environment's branch
 #   push                                 -> fails: CD starts on workflow_run, never on push
@@ -43,6 +47,11 @@ on:
         required: false
         type: string
         default: "develop=staging acceptance=acceptance"
+      cms-production:
+        description: "Let the translations CMS deploy production: its workflow_dispatch from the default branch with environment production redeploys the latest release with the published copy. Also needs production in GITHUB_DISPATCH_ENVIRONMENTS (dashboard) and the default branch allowed on the production environment. Default: refused."
+        required: false
+        type: boolean
+        default: false
       allow-prerelease:
         description: "Let a published prerelease deploy to production (cd-packages publishes it under the `next` dist-tag). Default: a prerelease is skipped."
         required: false
@@ -85,6 +94,7 @@ jobs:
           REQUIRED: ${{ inputs.required-workflows }}
           BRANCH_TARGETS: ${{ inputs.branch-targets }}
           ALLOW_PRERELEASE: ${{ inputs.allow-prerelease }}
+          CMS_PRODUCTION: ${{ inputs.cms-production }}
           CI_WAIT_MINUTES: ${{ inputs.ci-wait-minutes }}
         with:
           script: |
@@ -128,12 +138,31 @@ jobs:
                 const latest = await github.rest.repos.getLatestRelease(context.repo).then(r => r.data.tag_name).catch(() => null);
                 if (tag !== latest) return fail(`tag ${tag} is not the latest release (${latest ?? 'none'}): rollbacks are not supported, start from ${latest ?? 'a release tag'}`);
                 target = 'production';
+                sha = context.sha;
               } else if (context.ref.startsWith('refs/heads/')) {
                 const branch = context.ref.slice('refs/heads/'.length);
-                target = map[branch];
-                if (!target) return fail(`no environment for branch ${branch}: start this workflow from ${Object.keys(map).join(' or ')}, or from the tag of the latest release for production`);
+                // The translations CMS dispatches with an `environment` input:
+                // staging from develop, production from the default branch.
+                const asked = p.inputs?.environment || '';
+                if (asked === 'production') {
+                  // Off unless the repo opts in: main can hold merged but
+                  // unreleased code, and copy must not ship it. Opted in, the
+                  // CMS redeploys the latest release with the published copy.
+                  const base = p.repository.default_branch;
+                  if (process.env.CMS_PRODUCTION !== 'true') return fail(`the translations CMS asked for production: this repo does not let the CMS deploy production (cd-gate input cms-production). The published copy goes live with the next release; or leave production out of GITHUB_DISPATCH_ENVIRONMENTS in the dashboard.`);
+                  if (branch !== base) return fail(`a CMS production deploy starts from ${base}, not ${branch}`);
+                  const latest = await github.rest.repos.getLatestRelease(context.repo).then(r => r.data.tag_name).catch(() => null);
+                  if (!latest) return fail('the translations CMS asked for production, but there is no release yet to redeploy');
+                  sha = (await github.rest.repos.getCommit({ ...context.repo, ref: latest })).data.sha;
+                  target = 'production';
+                  core.info(`Gate: CMS production deploy of the latest release ${latest}`);
+                } else {
+                  target = map[branch];
+                  if (!target) return fail(`no environment for branch ${branch}: start this workflow from ${Object.keys(map).join(' or ')}, or from the tag of the latest release for production`);
+                  if (asked && asked !== target) return fail(`the translations CMS asked for ${asked}, but ${branch} deploys to ${target}`);
+                  sha = context.sha;
+                }
               } else return fail(`unexpected ref ${context.ref}`);
-              sha = context.sha;
             } else if (ev === 'repository_dispatch') {
               if (p.action !== 'tms-deploy') return skip(`repository_dispatch '${p.action}' is not a deploy`);
               const env = p.client_payload?.environment;

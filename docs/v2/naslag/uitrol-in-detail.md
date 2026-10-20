@@ -63,6 +63,10 @@ De gate is het stuk waar alle events samenkomen, en de voorbeeldrepo (principe 8
 | Twee CI-workflowbestanden (afwijkende repo), beide groen | twee CD-runs, precies één deploy; de andere "duplicate trigger" |
 | Twee CI-workflowbestanden, één rood | geen deploy; één grijze run, één met een waarschuwing |
 | `required-workflows` met een naam die niet bestaat | rood: "no push run of …" |
+| CMS: `workflow_dispatch` vanaf `develop` met `environment: staging` | deploy naar staging op de head van `develop` |
+| CMS: `workflow_dispatch` vanaf `main` met `environment: production`, zonder `cms-production` | rood: "does not let the CMS deploy production" |
+| CMS: idem, mét `cms-production` | deploy naar productie op de commit van de nieuwste release |
+| CMS: `workflow_dispatch` vanaf `develop` met `environment: production` | rood (zonder `cms-production`), of rood "starts from main" (met) |
 | `repository_dispatch: tms-deploy` met `environment: staging` | deploy naar staging op de head van `develop` |
 | `repository_dispatch: tms-deploy` met `environment: production` | rood: het CMS deployt alleen naar staging |
 | `repository_dispatch: tms-validate` | overgeslagen |
