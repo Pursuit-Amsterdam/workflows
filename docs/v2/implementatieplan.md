@@ -401,6 +401,17 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [x] Bestandsnamen gelijkgetrokken (#100, #101): `web-ci.yml` → `ci.yml`, `web-cd.yml` → `cd.yml`. Het CMS roept het CD-bestand aan met de naam uit zijn projectinstelling (kolom `github_workflow_file`; leeg = de standaard van het dashboard, `cd.yml` op `main` en `web-cd.yml` op `develop`). Die instelling staat nu op `cd.yml`. Daarna, run 39440036657: CMS-route vanaf `develop` groen (de gate wachtte op CI, `ack`, `pull`, deploy, health 200, `mark-deployed`). pursuit-website-2025 kreeg dezelfde namen (#110, #111).
 - [ ] Eerste productiedeploy via v2: bij de volgende release, door een senior.
 
+**tms-test op `v2`** (20 oktober 2026), van plain v1 (`@main`, met `repository_dispatch: tms-deploy`/`tms-validate`, zonder CMS-stappen in de deploy):
+
+- [x] Inrichting: `staging` alleen vanaf `develop` en `main`; `Production` alleen tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset. Het CMS stond al op `cd.yml`.
+- [x] PR naar `develop` (#21):
+  - CLI `^0.1.58` → `^0.4.0`, want `translations release ack` kwam pas in 0.2. 0.4.0 is alleen ESM, en Next laadt `next.config.ts` via `require`, dus `next.config.mjs`, zoals integrators.
+  - `ci.yml` met `lint typecheck build` (geen `test`: er zijn geen tests, jest faalt op "No tests found") en `tms-sync-branch: develop`; `cd.yml` met gate + `cd-vercel` + `tms`; check-pr `@v2`; `CODEOWNERS`; de `repository_dispatch`-triggers weg.
+  - CI faalde eerst met een 401: de `CUSTOM_GITHUB_TOKEN` van de repo (3 juni) was verlopen; na een nieuwe PAT groen.
+- [x] `develop` → `main` (#22). Eerste `tms-sync` op `develop` groen. Staging zoals het CMS hem start (run 39443905683): `ack`, `pull` (release #2), deploy, health 200, `mark-deployed`. Tegelijk liep de automatische deploy na de merge (`workflow_run`), op dezelfde commit; cd-vercel zet die achter elkaar.
+- [x] Rulesets op `develop` (up-to-date aan) en `main` (uit); er was geen bescherming.
+- [x] `withTranslations(nextConfig, { pull: false })`, zoals integrators (#23): sinds 0.4.0 doet de plugin zonder opties niets en waarschuwt hij daarover; CD pullt vóór de build.
+
 ### Task 22: `cd-packages.yml`
 
 **Bestanden:** maak `.github/workflows/cd-packages.yml` uit het concept-blok (met de `.npmrc`-overschrijving vóór `publish`).
