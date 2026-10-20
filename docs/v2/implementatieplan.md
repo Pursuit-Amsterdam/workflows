@@ -389,7 +389,16 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
   - `tms-sync` (in `staging`): "Synced, 0 values uploaded, 280 skipped";
   - deploy: `ack` ("No pending release to acknowledge"), `pull` (staging release #23, 20 bestanden), build, deploy naar het custom environment `staging`, health-check 200, `mark-deployed` ("recorded the deployed code against release …").
   - Eerst rood: (1) `run-translations@v2` bestond nog niet op `v2`; voor de test tijdelijk naar deze branch gewezen en daarna teruggedraaid. (2) De action eiste `TMS_URL`, maar het 1Password-item levert `NEXT_PUBLIC_TMS_URL`, dat de CLI ook accepteert. De action controleert nu niets meer zelf; de CLI meldt wat ontbreekt.
-- [ ] Stap 4: PR naar `v2`, mergen op groene `pipeline`.
+- [x] Stap 4: PR naar `v2` (#63), gemerged op groene `pipeline`.
+
+**integrators-website-2025 op `v2`** (20 oktober 2026), van `feature/tms-prototype` (v1):
+
+- [x] Inrichting: `staging` alleen vanaf `develop` en `main`; `Production` alleen tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset op `v*`.
+- [x] PR naar `develop` (#97): CI op `ci.yml@v2` met `tms-sync-branch: develop`; check-pr `@v2`; CD (`web-cd.yml`, de naam die het CMS aanroept) met gate (`branch-targets: develop=staging`) + `cd-vercel@v2` met `tms: true`, `tms-release-id` uit de dispatch-input en `health-path: /`; de inputs `environment` en `release_id` blijven gedeclareerd; `CODEOWNERS`. CI groen zonder de staging-secrets die v1-CI laadde.
+- [x] PR `develop` → `main` (#98); gemerged. De eerste `tms-sync` op `develop` (run 39437453177): groen, 0 wijzigingen.
+- [x] Staging zoals het CMS hem start (`workflow_dispatch` vanaf `develop`, `environment: staging`), run 39437902354: gate `workflow_dispatch -> staging`, `ack`, `pull` (release #23), deploy, health-check 200, `mark-deployed`.
+- [x] Branchbescherming: rulesets op `develop` (up-to-date aan) en `main` (uit); de klassieke protectie met `ci / pipeline` is weg.
+- [ ] Eerste productiedeploy via v2: bij de volgende release, door een senior.
 
 ### Task 22: `cd-packages.yml`
 
