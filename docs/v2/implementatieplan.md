@@ -395,6 +395,16 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 - [ ] Stap 3: translations-management op `v2` (**handwerk** voor `packages: write`); eerste echte publicatie.
 - [x] Stap 4: commit `feat: add cd-packages.yml`.
 
+### Task 22b: de configpakketten op `v2`
+
+jest-config, eslint-config, prettier-config en typescript-config (20 oktober 2026). Alle vier hebben alleen `main`, publiceerden met `npm publish` op `release: created` zonder CI, en hadden geen scripts behalve de test van typescript-config.
+
+- [x] check-pr: een repo zonder `develop` mag `feature/*` en `dependabot/*` naar `main` mergen (#58); check-pr kijkt via de API of `develop` bestaat.
+- [x] Inrichting: environment `production` met alleen tags `v*`; tag-ruleset op `v*` (alleen admins).
+- [ ] PR per repo: CI op `ci.yml@v2` met `check-pack` (elk item in `files` bestaat, dan `pnpm pack --dry-run`), typescript-config ook `test` en zijn matrix als niet-verplichte job `compat`; check-pr `@v2`; CD met gate (`allow-prerelease: true`) + `cd-packages@v2` (`build: none`); `packageManager`; `CODEOWNERS`; `release-package.yml` weg. eslint-config negeerde `pnpm-lock.yaml` in `.gitignore`; de lockfile staat er nu in. PR's: jest-config#5, eslint-config#19, prettier-config#2, typescript-config#2.
+- [ ] Branchbescherming op `main`: twee rulesets (checks met up-to-date, want er is geen `develop`; review met bypass voor admins); klassieke protectie weg.
+- [ ] Eerste publicatie via cd-packages: bij de volgende release van elk pakket.
+
 ### Task 23: `cd-pages.yml`
 
 **Bestanden:** maak `.github/workflows/cd-pages.yml`: `storybook-cd.yml` als basis, met `build-command` (default `build-storybook`), `output-directory` (default `storybook-static`), `codegen*`, Node uit `.nvmrc`, job `deploy` in environment `github-pages`, `run-codegen` vóór de build.
