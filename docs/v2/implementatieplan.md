@@ -307,12 +307,12 @@ Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `relea
 - [x] Stap 3: PR `develop` → `main` (#107); gemerged. De Storybook-deploy (v1) op die commit is rood, maar faalt al sinds 6 augustus: los van de migratie.
 - [x] Stap 4: CD handmatig starten vanaf `develop`; run 39415892050: gate `workflow_dispatch -> staging @ d81cdf9`, deploy naar het custom environment `staging`, health-check 200.
 - [x] Stap 5: branchbescherming: per branch (`main`, `develop`) twee rulesets met `run-check-pr / pipeline` en `run-ci / pipeline`; klassieke protectie weg. Voorheen: geen verplichte checks, force push toegestaan op `develop`, geen code-owner-review.
+- [x] Storybook-deploy verwijderd (pursuit-website-2025#108): Storybook wordt in deze repo niet gebruikt, de deploy faalde sinds 6 augustus. Die merge gaf de eerste automatische staging-deploy via `workflow_run`: run 39418492212, gate `workflow_run -> staging @ b38c0ba`, health-check 200.
 - [ ] Stap 6 (bij de volgende release, door een senior): verwacht een `--prod`-deploy via de gate. Een handmatige start vanaf de huidige tag v2026.08.26 kan nog niet: een dispatch leest de workflow van die tag, en daar staat de v1-versie.
 - Nog open, buiten deze stappen:
   - `VERCEL_TOKEN` en `VERCEL_ORG_ID` staan op org-niveau; de standaard wil `VERCEL_TOKEN` als environment-secret op `Staging` en `Production` (handwerk: de waarde).
   - Environmentnamen met hoofdletters (`Staging`, `Production`); GitHub negeert hoofdletters, hernoemen kan niet zonder de secrets opnieuw te zetten.
   - Het lege environment `Preview` kan weg.
-  - Storybook staat nog op v1 (`storybook-cd.yml@main`) en faalt sinds 6 augustus; `cd-pages` is Task 23.
   - Geen `dependabot.yml`.
 
 ---
