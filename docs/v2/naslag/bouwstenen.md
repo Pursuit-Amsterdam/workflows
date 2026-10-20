@@ -41,7 +41,7 @@ Daarna zoekt de gate per naam in `required-workflows` de nieuwste **push-run** o
 - **`branch-targets`** staat standaard op `develop=staging acceptance=acceptance`. `main` staat er bewust niet in: een merge naar `main` deployt niets, productie gaat alleen bij een release live ([besloten](../beslissingen.md#decided)). Een repo die wél bij elke merge live wil, zet `main=production` erbij.
 - **Handmatig starten:** het doel komt uit de ref waarvan je start, niet uit een keuzelijst. "Use workflow from" → `develop` deployt staging; → tag `v1.4.0` deployt productie, mits dat de nieuwste release is. Een oudere tag is rood ([geen rollbacks](../beslissingen.md#decided)); een branch zonder environment ook. Zo kan het gedeployde environment nooit afwijken van wat je koos, en sluit het aan bij de branchregels van de environments: `production` laat alleen tags toe. Dit is de manier om de nieuwste release opnieuw te deployen, bijvoorbeeld na een wijziging in 1Password; *Re-run all jobs* op de laatste CD-run doet hetzelfde.
 - **Het CMS deployt alleen naar staging.** Een `repository_dispatch` draait op de default branch, en `production` laat alleen tags toe; een CMS-deploy naar productie zou GitHub dus weigeren. Vertalingen gaan live met de volgende release. Andere CMS-acties, zoals `tms-validate`, slaat de gate over.
-- **De gate wacht nooit.** Hij leest één keer af en is in seconden klaar. Hoe het dan toch altijd na groene CI komt: [hieronder](#gate-outcomes).
+- **Na `workflow_run` wacht de gate nooit**: CI is dan klaar, hij leest één keer af en is in seconden klaar. **Bij een release of een handmatige start wacht hij op CI die nog loopt** (elke 30 seconden, hooguit `ci-wait-minutes`, standaard 20; een run die nog niet bestaat krijgt 2 minuten), omdat je een release direct na de merge naar `main` publiceert. Hoe het altijd na groene CI komt: [hieronder](#gate-outcomes).
 
 <a id="gate-outcomes"></a>
 
@@ -56,10 +56,11 @@ Overslaan is iets anders dan falen. De gate is rood bij een configuratiefout of 
 | Een andere vereiste CI-workflow is gefaald | `proceed: false` met een **waarschuwing** (geel). CI zelf is al rood; een tweede rode run voegt niets toe. |
 | Twee CI-workflows allebei groen | Precies één gate deployt: beide rekenen uit welke CI-run het laatst klaar was (`updated_at`, tie-break op id), en alleen de gate die door die run gestart is, gaat door. Deterministisch, zonder gate-runs te vergelijken; overgenomen van gp-map. |
 | Geen push-run van een vereiste workflow op deze commit | **Rood**: verkeerde naam in `required-workflows`, of een `paths:`-filter op die workflow. |
-| Release of dispatch, en CI is niet klaar of niet geslaagd op die commit | **Rood**: niets anders probeert het opnieuw. Bij "te vroeg een release gepubliceerd": wacht op groen en *Re-run all jobs*. |
+| Release of dispatch, en CI loopt nog op die commit | De gate **wacht** tot CI klaar is, hooguit `ci-wait-minutes`. Groen: deploy. |
+| Release of dispatch, en CI is gefaald, of na `ci-wait-minutes` nog niet klaar | **Rood**: niets anders probeert het opnieuw. Maak CI groen en *Re-run all jobs*. |
 | Lege `required-workflows`; dispatch vanaf een branch zonder environment of een tag die niet de nieuwste release is; CMS vraagt productie | **Rood**, met de melding wat er mis is. |
 
-- **Een release telt alleen de CI op `main`.** De gate eist een geslaagde run op de commit van de tag, en dat is de merge-commit op `main`. De groene PR-run `develop → main` telt niet: die draaide op een andere commit. Publiceer de release dus pas als het vinkje op `main` er staat.
+- **Een release telt alleen de CI op `main`.** De gate eist een geslaagde run op de commit van de tag, en dat is de merge-commit op `main`. De groene PR-run `develop → main` telt niet: die draaide op een andere commit. Publiceer je de release voordat het vinkje op `main` er staat, dan wacht de gate erop.
 - **CI rood, dan gefixt of opnieuw gedraaid:** een re-run vuurt opnieuw `workflow_run`, dus CD volgt vanzelf. De gate neemt altijd de nieuwste run per workflow.
 - **Dubbele deploy van dezelfde commit** (bijvoorbeeld door een CI-re-run na een groene run) is onschuldig: de concurrency-groep van de deploy-job zet hem in de rij en hij deployt hetzelfde nog een keer.
 
