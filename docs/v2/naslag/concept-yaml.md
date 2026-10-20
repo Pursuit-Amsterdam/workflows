@@ -2250,6 +2250,8 @@ for repo in "${repos[@]}"; do
 
   # --- branch protection: classic protection and rulesets together; the default
   # branch, and develop when it exists
+  has_develop=false
+  gh api "repos/$full/branches/develop" >/dev/null 2>&1 && has_develop=true
   for branch in "$default" develop; do
     gh api "repos/$full/branches/$branch" >/dev/null 2>&1 || continue
     classic=$(gh api "repos/$full/branches/$branch/protection" 2>/dev/null || echo '{}')
@@ -2279,7 +2281,14 @@ for repo in "${repos[@]}"; do
     # Source pinned to GitHub Actions: with "any source" a status from any token counts.
     mapfile -t unpinned < <(jq -r --argjson app "$ACTIONS_APP_ID" '.checks[] | select(.app != $app) | .context' <<<"$eff")
     for c in "${unpinned[@]}"; do say "$repo" protection "$branch: required check '$c' not pinned to GitHub Actions"; done
-    [ "$(jq -r .strict <<<"$eff")" = true ] || say "$repo" protection "$branch: not requiring up-to-date branches"
+    # Up-to-date on develop, not on the default branch when develop exists:
+    # develop is always behind main after a release (merge commits), and
+    # "Update branch" would push straight onto the protected develop.
+    if [ "$branch" = "$default" ] && [ "$has_develop" = true ]; then
+      [ "$(jq -r .strict <<<"$eff")" = false ] || say "$repo" protection "$branch: requires up-to-date branches, which blocks every develop -> $branch PR"
+    else
+      [ "$(jq -r .strict <<<"$eff")" = true ] || say "$repo" protection "$branch: not requiring up-to-date branches"
+    fi
     [ "$(jq -r .force_push <<<"$eff")" = false ] || say "$repo" protection "$branch: force push allowed"
     [ "$(jq -r .reviews <<<"$eff")" -ge 1 ] || say "$repo" protection "$branch: no review required"
     [ "$(jq -r .code_owners <<<"$eff")" = true ] || say "$repo" protection "$branch: review from code owners not required"
