@@ -207,7 +207,7 @@ Na deze plak slaagt het [testplan](naslag/uitrol-in-detail.md#gate-tests) in de 
   - `repository_dispatch`: `getBranch` in `try/catch` → `fail('branch … does not exist in this repo')`.
 - [x] Stap 2: haal het script uit de YAML (`python3 -c 'import yaml…'`) en draai `node --check`; `actionlint`.
 - [x] Stap 3: voorbeeldrepo: `.github/workflows/cd.yml` volgens het [voorbeeld in bouwstenen](naslag/bouwstenen.md#gate), met een job `deploy` die geen reusable workflow aanroept maar `runs-on` + `environment: ${{ needs.gate.outputs.target }}` + `run: echo "deploy ${{ needs.gate.outputs.sha }} to ${{ needs.gate.outputs.target }}"`. Environments `staging` (branch `develop`), `production` (tags `v*`) en `acceptance` (branch `acceptance`) aanmaken, plus de branch `acceptance` en de tag-ruleset op `v*` (alleen admins). Gedaan op 20 oktober; verplichte reviewers kunnen niet op het Team-plan.
-- [ ] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
+- [x] Stap 4: loop de 17 scenario's van het [testplan](naslag/uitrol-in-detail.md#gate-tests) af en noteer per scenario de run-URL in de PR van deze taak. Voeg vier scenario's toe: tag op `develop` → rood "not on main"; prerelease → overgeslagen; tag `1.0.0` → rood "must match v*"; `tms-deploy` met `environment: acceptance` vóór de branch bestaat → rood "does not exist".
 - [ ] Stap 5: commit `feat: add cd-gate.yml`.
 
 Voortgang stap 4 (scenario's in workflows-example, run-id's):
@@ -222,8 +222,8 @@ Voortgang stap 4 (scenario's in workflows-example, run-id's):
 - [x] S8 handmatig vanaf een oudere tag → rood "not the latest release" — 39396611026
 - [x] S9 handmatig vanaf `develop` → staging — 39393426886; vanaf `main` → rood — 39393838510
 - [x] S10 handmatig vanaf `feature/x` → rood "no environment for branch" — 39393504131
-- [ ] S11 twee CI-workflowbestanden, beide groen → precies één deploy
-- [ ] S12 twee CI-workflowbestanden, één rood → geen deploy
+- [x] S11 twee CI-workflowbestanden, beide groen → precies één deploy; de eerst klare slaat over ("still running … its completion starts its own gate") — 39398626512, 39398676195
+- [x] S12 twee CI-workflowbestanden, één rood → geen deploy: één run grijs, één met waarschuwing "CI Second did not succeed" — 39398963648, 39399020028
 - [x] S13 `required-workflows` met een naam die niet bestaat → rood "no push run of 'Does Not Exist'" — 39397860099
 - [x] S14 `tms-deploy` staging → staging op de head van `develop` — 39393768869
 - [x] S15 `tms-deploy` production → rood — 39393605452
