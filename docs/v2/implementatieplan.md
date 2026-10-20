@@ -19,12 +19,13 @@
 - **Plak 0–2** (Task 1–12): `v2` is beschermd en test zichzelf; `ci.yml`, `ci-images.yml` en de gate staan erop; de gate is met 21 scenario's getest.
 - **Plak 3, CD naar Vercel** (Task 13–15): `run-codegen`, `deploy-vercel`, `cd-vercel`; pursuit-website-2025 draait op `v2`, ook in productie (release v2026.10.20).
 - **Vertalingen-CMS** (Task 21): `run-translations`, de job `tms-sync` in CI, de CMS-stappen in cd-vercel, de CMS-dispatch in de gate (productie opt-in met `cms-production`). Op `v2`: integrators-website-2025, tms-test en het CLI-pakket translations-management-js.
+- **GitHub Pages** (Task 23): `cd-pages`; tellr-website draait helemaal op `v2` (CI, CD naar Vercel, Storybook).
 - **Pakketten** (Task 22, 22b): `cd-packages`; op `v2`: jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js.
 
 **Open:**
 
 - **Plak 4, CD naar Swarm** (Task 16–18): `deploy-swarm` met `pre-deploy`, `cd-swarm`, gp-container-tracking-webapp en gp-map-webapp.
-- **Plak 5, de rest** (Task 19, 20, 23): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI, `cd-pages` (Storybook).
+- **Plak 5, de rest** (Task 19, 20): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI.
 - **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
 - **Nog op v1:** template-nextjs-vercel (CD; geen Vercel-project), translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
@@ -474,7 +475,15 @@ De andere pakketrepo's (20 oktober 2026):
 
 - [x] Stap 1: schrijf en lint. De Pages-actions op hun huidige versie, vastgezet op een commit: `configure-pages` v6.0.0, `upload-pages-artifact` v5.0.0, `deploy-pages` v5.0.1 (v1 gebruikte v5, v3 en v4). De build faalt met een duidelijke melding als `output-directory` geen `index.html` bevat.
 - [x] Stap 2: voorbeeldrepo: `pages.yml` met `build-command: build` en `output-directory: dist` (het `build`-script schrijft `dist/index.html`); verwacht een gepubliceerde Pages-site. Pages eerst aangezet (bron: GitHub Actions); `pages.yml` met `working-directory: web`. Run 39446208947 groen, `pursuit-amsterdam.github.io/workflows-example/` geeft 200.
-- [ ] Stap 3: één storybook-repo op `@v2` zonder extra inputs; verwacht gelijk gedrag aan v1.
+- [x] Stap 3: tellr-website op `@v2` zonder extra inputs (alleen `use-custom-token`, zoals in v1); Storybook nog steeds bij elke push op `develop`. Run 39447002016 groen, de Pages-site geeft 200.
+
+**tellr-website helemaal op `v2`** (20 oktober 2026; geen Supabase, geen Swarm, geen CMS):
+
+- [x] Inrichting: `staging` alleen vanaf `develop` en `main`; `Production` alleen tags `v*`; `OP_VAULT`/`OP_ITEM` op beide; tag-ruleset. `github-pages` liet al alleen `develop` toe.
+- [x] PR naar `develop` (#41): `ci.yml` (`lint typecheck test build`), `cd.yml` (gate + `cd-vercel`, `health-path: /`), Storybook via `cd-pages@v2`, check-pr `@v2`, `CODEOWNERS`. De `.nvmrc` met `24` stond er al. De verplichte checks hielden hun naam.
+- [x] `develop` → `main` (#42). Staging via een handmatige start vanaf `develop` (run 39447222444): gate, deploy naar het custom environment `staging`, health-check 200.
+- [x] Rulesets op `develop` (up-to-date aan) en `main` (uit); de klassieke protectie is weg.
+- [ ] Eerste productiedeploy via `v2`: bij de volgende release. `VERCEL_TOKEN` staat nog op de repo in plaats van op de environments (handwerk: de waarde).
 - [x] Stap 4: commit `feat: add cd-pages.yml`.
 
 ---
