@@ -405,6 +405,14 @@ jest-config, eslint-config, prettier-config en typescript-config (20 oktober 202
 - [x] Branchbescherming op `main`: twee rulesets (checks met up-to-date, want er is geen `develop`; review met bypass voor admins); klassieke protectie weg.
 - [ ] Eerste publicatie via cd-packages: bij de volgende release van elk pakket.
 
+De andere pakketrepo's (20 oktober 2026):
+
+- [x] cd-packages negeert build-metadata in de tag (#60): `v3.5.0+2` past bij `3.5.0`, zoals de oude release-workflows deden. Getest met release `v0.6.0+1` in de voorbeeldrepo (run 39426416014, `example-lib@0.6.0`).
+- [x] web-essentials-cli (#5): zoals de configpakketten, met `lint typecheck build` en `build: build`. Privépakketten met de eigen `GITHUB_TOKEN` (CI krijgt `packages: read`), zoals de oude release. `pnpm lint` faalde ook lokaal ("eslint: command not found"): `eslint` en `eslint-plugin-simple-import-sort` toegevoegd als devDependency.
+- [ ] web-essentials-js (#8, pnpm 11): CI faalt met een 401 op de privépakketten. Lokaal installeert pnpm 11 met dezelfde `.npmrc` en een geldige token zonder problemen, dus de `CUSTOM_GITHUB_TOKEN` van de repo (gezet op 7 mei) is verlopen. **Handwerk:** een geldige waarde zetten; daarna de PR mergen en `main` beschermen.
+- [x] text-extract (#8 naar `develop`, #9 naar `main`): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/text-extract`. De deploy van de demo-app is weg: die draaide nooit (geen Vercel-project). De default branch is nu `main` (was `develop`). `main` had "include administrators" aan, waardoor ook een admin niet zonder review kon mergen; vervangen door de rulesets (up-to-date uit op `main`, aan op `develop`).
+- Later: web-essentials-py (Python, wheel bij de release; cd-packages is alleen npm) en translations-management-js (Task 22 stap 3).
+
 ### Task 23: `cd-pages.yml`
 
 **Bestanden:** maak `.github/workflows/cd-pages.yml`: `storybook-cd.yml` als basis, met `build-command` (default `build-storybook`), `output-directory` (default `storybook-static`), `codegen*`, Node uit `.nvmrc`, job `deploy` in environment `github-pages`, `run-codegen` vóór de build.
