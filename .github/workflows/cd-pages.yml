@@ -4,14 +4,24 @@ name: "CD Pages"
 # Pages. Storybook is the default (build-storybook -> storybook-static), so the
 # storybook-cd callers need no inputs; any other static site sets build-command
 # and output-directory. Pages has one site per repo, so there is no
-# environment input, ref or 1Password here; the job runs in the environment
+# environment input or 1Password here; the job runs in the environment
 # github-pages, which GitHub creates and Pages requires.
+# When the caller decides, not this workflow. Two patterns:
+#   - on a push to develop (a Storybook used during development): no gate;
+#     github-pages allows develop.
+#   - behind cd-gate, next to a deploy or a package publish (documentation per
+#     release): pass the gate's `sha` as `ref`; github-pages allows v* tags.
 # The caller declares `pages: write` and `id-token: write`.
 # Supersedes storybook-cd.yml.
 
 on:
   workflow_call:
     inputs:
+      ref:
+        description: "Commit to build. Empty = github.sha. Behind cd-gate, pass its `sha` output."
+        required: false
+        type: string
+        default: ""
       build-command:
         description: "Name of the package script that builds the site"
         required: false
@@ -73,6 +83,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Read the Node version from the repo
         id: node
