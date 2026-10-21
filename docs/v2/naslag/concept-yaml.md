@@ -1336,7 +1336,7 @@ on:
         type: string
         default: "180"
       health-url:
-        description: "URL that must answer 2xx after the stack converged. May contain ${ENVIRONMENT}. Empty = no check."
+        description: "URL that must answer 2xx after the stack converged. May contain ${VAR} from the job env: ENVIRONMENT, VERSION, and the 1Password fields (e.g. https://${APP_HOST}/). Empty = no check."
         required: false
         type: string
         default: ""
@@ -1663,7 +1663,15 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
         run: |
           set -euo pipefail
-          url=${HEALTH_URL//\$\{ENVIRONMENT\}/$ENVIRONMENT}
+          # ${VAR} from the job env, the same values the stack was deployed
+          # with; an unknown name stops here instead of checking a wrong URL.
+          url=$HEALTH_URL
+          for _ in $(seq 1 20); do   # a value that itself holds ${...} cannot loop forever
+            [[ $url =~ \$\{([A-Za-z_][A-Za-z0-9_]*)\} ]] || break
+            name=${BASH_REMATCH[1]}
+            [ -n "${!name:-}" ] || { echo "::error::health-url uses \${$name}, which is empty or not set in this job"; exit 1; }
+            url=${url//"\${$name}"/${!name}}
+          done
           for i in $(seq 1 12); do
             code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
             case "$code" in 2??) echo "healthy ($code)"; exit 0 ;; esac
