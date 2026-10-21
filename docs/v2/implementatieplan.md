@@ -352,9 +352,9 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 **Bestanden:** wijzig `.github/actions/deploy-swarm/action.yml`: inputs `pre-deploy`, `environment`, `version`; de stap uit [cd.md](naslag/cd.md#cd-swarm) tussen GHCR-login en migraties.
 
-- [ ] Stap 1: schrijf en lint; `shellcheck` op het script met `printf %q`.
-- [ ] Stap 2: test komt in Task 18 op een echte VM; hier alleen een droogtest met `ssh` naar `localhost` op de runner: een script dat `exit 3` doet stopt de stap met exitcode 3 vóór `docker stack deploy`.
-- [ ] Stap 3: commit `feat(deploy-swarm): add pre-deploy checks on the manager`.
+- [x] Stap 1: schrijf en lint; `shellcheck` op het script met `printf %q`. Meegenomen: de twee `${{ … }}` die nog inline in `run:` stonden (`ssh-user`, `github.actor`), staan nu in `env:`.
+- [x] Stap 2: in plaats van `ssh` naar `localhost` op de runner: `scripts/deploy-swarm-cases.sh` (in `pnpm test`) draait de echte stap tegen een nep-`ssh` die het script uitvoert zoals de manager: `bash -s` op stdin, in een lege omgeving. 10 gevallen: `exit 3` stopt de stap met exitcode 3; de drie variabelen komen aan en geen secrets; `set -u` staat aan; een vijandige `VERSION` (`v1; touch …`) voert niets uit; `BatchMode` en `deploy@swarm-manager`; de stap staat na de GHCR-login en vóór migraties en deploy. Eerst rood (stap bestond niet), daarna groen. Controle op de test zelf: met `%s` in plaats van `%q` vallen de twee injectiegevallen om.
+- [x] Stap 3: commit `feat(deploy-swarm): add pre-deploy checks on the manager`.
 
 ### Task 17: `cd-swarm.yml`
 
