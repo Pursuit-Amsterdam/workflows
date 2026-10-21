@@ -160,9 +160,15 @@ deploy-swarm · de stap, tussen GHCR-login en migraties
 | — | `output-directory` nieuw, standaard `storybook-static` | Idem. |
 | `node-version` | vervallen | Versie uit `.nvmrc`, net als in CI. |
 | `use-custom-token` `working-directory` | ongewijzigd |  |
+| — | `ref` nieuw, standaard `""` (de commit van de run) | Achter cd-gate: de `sha` van de gate. Storybook-aanroepers laten hem leeg. |
 | job `deploy` | ongewijzigd |  |
 
-Storybook blijft de standaard; met `build-command` en `output-directory` kan ook een andere statische site naar Pages. Pages kent één site per repo, dus een `environment`-input, `ref` en 1Password hebben hier geen betekenis; de job draait wel in het environment `github-pages`, dat GitHub zelf aanmaakt en dat Pages vereist. De aanroeper moet `pages: write` en `id-token: write` declareren; het auditscript controleert dat.
+Storybook blijft de standaard; met `build-command` en `output-directory` kan ook een andere statische site naar Pages. Pages kent één site per repo, dus een `environment`-input en 1Password hebben hier geen betekenis; de job draait wel in het environment `github-pages`, dat GitHub zelf aanmaakt en dat Pages vereist. De aanroeper moet `pages: write` en `id-token: write` declareren; het auditscript controleert dat.
+
+**Wanneer, bepaalt de aanroeper.** Twee patronen (21 oktober 2026):
+
+- **Bij elke push op `develop`**, voor een Storybook tijdens het ontwikkelen. Een eigen workflow zonder gate; `github-pages` laat `develop` toe. Zo deed v1 het, en zo draait tellr-website. Een rode CI op `develop` houdt de publicatie niet tegen; alleen een falende build.
+- **Achter cd-gate**, bijvoorbeeld documentatie bij een pakketrelease: een job naast `publish` of `deploy` met `needs: gate`, en `ref: ${{ needs.gate.outputs.sha }}`. Alleen bij een release met groene CI, en de site hoort bij precies die commit. `github-pages` laat dan `v*`-tags toe. Getest in workflows-example: release v0.7.0 publiceerde het pakket en de docs-site vanaf dezelfde commit.
 
 <a id="cd-packages"></a>
 
