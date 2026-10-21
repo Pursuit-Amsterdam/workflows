@@ -476,6 +476,7 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] Stap 1: schrijf en lint. De Pages-actions op hun huidige versie, vastgezet op een commit: `configure-pages` v6.0.0, `upload-pages-artifact` v5.0.0, `deploy-pages` v5.0.1 (v1 gebruikte v5, v3 en v4). De build faalt met een duidelijke melding als `output-directory` geen `index.html` bevat.
 - [x] Stap 2: voorbeeldrepo: `pages.yml` met `build-command: build` en `output-directory: dist` (het `build`-script schrijft `dist/index.html`); verwacht een gepubliceerde Pages-site. Pages eerst aangezet (bron: GitHub Actions); `pages.yml` met `working-directory: web`. Run 39446208947 groen, `pursuit-amsterdam.github.io/workflows-example/` geeft 200.
 - [x] Stap 3: tellr-website op `@v2` zonder extra inputs (alleen `use-custom-token`, zoals in v1); Storybook nog steeds bij elke push op `develop`. Run 39447002016 groen, de Pages-site geeft 200.
+- [x] Toegevoegd (21 oktober 2026): input `ref`, zodat `cd-pages` ook achter de gate kan, bijvoorbeeld voor documentatie bij een pakketrelease. Getest in de voorbeeldrepo: release v0.7.0, run 39561995763; gate, `publish` (`example-lib@0.7.0`) en `docs` bouwden allemaal cef29ed, Pages 200. `github-pages` laat daar nu `main` en `v*` toe.
 
 **tellr-website helemaal op `v2`** (20 oktober 2026; geen Supabase, geen Swarm, geen CMS):
 
