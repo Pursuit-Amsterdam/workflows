@@ -30,7 +30,7 @@ Door twee regels van GitHub Actions kun je op `main` niets veranderen zonder all
    Als elke testrepo via `v2` naar al zijn environments heeft gedeployd. Er verandert niets in de repo: het is een afspraak dat de andere repo's mogen overstappen, en dat `v2` vanaf dan niet meer breekt.
 5. De rest op @v2
 
-   Een migratiescript herschrijft de workflowbestanden (inputs, ref, en de CD-trigger van `push` naar `workflow_run`) en opent de PR; `setup-consumer.sh` past de standaardinrichting toe, inclusief de branchregels per environment en het verplaatsen van deploy-secrets die nog op de repo staan. `main` verandert niet meer.
+   Een migratiescript herschrijft de workflowbestanden (inputs, ref, en de CD-trigger van `push` naar `workflow_run`) en opent de PR; `setup-consumer` past de standaardinrichting toe, inclusief de branchregels per environment en het verplaatsen van deploy-secrets die nog op de repo staan. `main` verandert niet meer.
 
 ## Bescherming van `v2`
 

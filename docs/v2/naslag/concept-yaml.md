@@ -2367,7 +2367,7 @@ scripts/audit-consumers.sh bash + gh · alleen-lezen · exit 1 bij elke bevindin
 # One line per finding: <repo>  <area>  <finding>. Exit 1 when anything is off.
 # Deploy secrets live on the environments; org-level Dependabot secrets are only
 # visible to an org admin and are checked only when visible.
-# Companion: scripts/setup-consumer.sh <repo> applies the baseline (protection,
+# Companion: scripts/setup-consumer.ts <repo> applies the baseline (protection,
 # environments, variables) so a new project starts compliant.
 set -euo pipefail
 ORG=Pursuit-Amsterdam

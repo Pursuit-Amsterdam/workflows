@@ -12,13 +12,12 @@
 // cd-pages gets the check-pr, protection, CODEOWNERS and Dependabot checks.
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
+import { CHECK_CALL, CI_CALL, loadConsumer } from './lib/consumer.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
-import { dispatchInputs, jobs, parseWorkflow, stringList, trigger, triggers, type Workflow } from './lib/workflow.ts';
+import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
-const CI_CALL = new RegExp(`/workflows/\\.github/workflows/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\\.yml@`);
 const REQUIRED_CI_CALL = new RegExp(`${ORG}/workflows/\\.github/workflows/(ci|ci-images|web-ci|backend-ci)\\.yml@`);
-const CHECK_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci|check-pr)\.yml@/;
 
 interface Finding {
     repo: string;
@@ -72,42 +71,19 @@ const repos = args.length > 0 ? args : (await orgRepos()).filter(r => r !== 'wor
 let audited = 0;
 for (const repo of repos) {
     const p = { owner: ORG, repo };
-    const meta = await get<{ default_branch: string }>(`/repos/{owner}/{repo}`, p);
-    if (!meta) {
+    // --- workflow files; repos that never reference this repo are not consumers
+    const c = await loadConsumer(repo);
+    if (!c) {
         say(repo, 'access', 'cannot read repo');
         continue;
     }
-    const def = meta.default_branch;
-
-    // --- workflow files; repos that never reference this repo are not consumers
-    const entries = (await get<{ name: string; type: string }[]>(`/repos/{owner}/{repo}/contents/{path}`, { ...p, path: '.github/workflows' })) ?? [];
-    const wfs: Workflow[] = [];
-    for (const e of entries.filter(x => x.type === 'file' && /\.ya?ml$/.test(x.name))) {
-        const text = await readFile(repo, `.github/workflows/${e.name}`);
-        if (text === null) {
-            say(repo, 'access', `cannot read ${e.name}`);
-            continue;
-        }
-        try {
-            wfs.push(parseWorkflow(e.name, text));
-        } catch {
-            say(repo, 'workflows', `${e.name}: not valid YAML`);
-        }
-    }
-    const all = wfs.map(w => w.text).join('\n');
-    if (!all.includes(`${ORG}/workflows/`)) continue;
+    for (const u of c.unreadable) say(repo, u.reason === 'cannot read' ? 'access' : 'workflows', u.reason === 'cannot read' ? `cannot read ${u.file}` : `${u.file}: not valid YAML`);
+    if (!c.calls) continue;
     audited++;
 
     // What the repo calls decides what the standard expects of it.
-    const hasCi = CI_CALL.test(all);
-    const deploys = /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all);
-    const publishes = all.includes('cd-packages.yml@');
-    const vercel = /cd-vercel\.yml@|web-cd\.yml@/.test(all);
-    const swarm = /cd-swarm\.yml@|vm-cd\.yml@/.test(all);
-    const supabase = all.includes('cd-supabase.yml@');
+    const { defaultBranch: def, workflows: wfs, all, hasCi, deploys, publishes, vercel, swarm, supabase, hasDevelop, hasAcceptance } = c;
     const fullAudit = deploys || publishes;
-    const hasDevelop = (await get(`/repos/{owner}/{repo}/branches/{branch}`, { ...p, branch: 'develop' })) !== null;
-    const hasAcceptance = (await get(`/repos/{owner}/{repo}/branches/{branch}`, { ...p, branch: 'acceptance' })) !== null;
 
     if (!wfs.some(w => w.file === 'check-pr.yml')) say(repo, 'workflows', 'no check-pr.yml caller');
     for (const wf of wfs) {
