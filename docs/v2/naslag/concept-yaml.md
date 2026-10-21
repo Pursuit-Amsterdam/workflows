@@ -854,10 +854,14 @@ on:
         type: string
         default: "."
       db-password-variable:
-        description: "Variable from the 1Password item that holds the database password. Migrations link to project-ref, so no database URL is needed."
+        description: >
+          Variable from the 1Password item that holds the database password.
+          Empty = no password: the CLI logs in with a temporary role it creates
+          through SUPABASE_ACCESS_TOKEN. Migrations link to project-ref, so no
+          database URL is needed either way.
         required: false
         type: string
-        default: "SUPABASE_DB_PASSWORD"
+        default: ""
       onepassword-vault:
         description: "Empty = vars.OP_VAULT of the environment"
         required: false
@@ -900,6 +904,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Validate inputs
+        id: validate
         env:
           ENVIRONMENT: ${{ inputs.environment }}
           MIGRATIONS: ${{ inputs.migrations }}
@@ -942,6 +947,7 @@ jobs:
       # Values come from the job env and go into a 0600 file, never into argv:
       # a command line is readable by every process on the runner.
       - name: Set function secrets
+        id: secrets
         if: inputs.function-env-keys != ''
         env:
           ENV_KEYS: ${{ inputs.function-env-keys }}
@@ -966,17 +972,25 @@ jobs:
 
       # Not the deploy-supabase action: it checks out the default ref itself
       # (migrating a different commit than `ref`), reinstalls the CLI and ignores
-      # working-directory. Linking keeps the database URL off the command line;
-      # the CLI reads the password from SUPABASE_DB_PASSWORD.
+      # working-directory. Linking keeps the database URL off the command line.
+      # With a password the CLI reads it from SUPABASE_DB_PASSWORD; without
+      # one it creates a temporary login role through the Management API, with
+      # SUPABASE_ACCESS_TOKEN ("Initialising login role...").
       - name: Run migrations
+        id: migrations
         if: inputs.migrations
         env:
           DB_PASSWORD_VARIABLE: ${{ inputs.db-password-variable }}
         run: |
           set -euo pipefail
-          SUPABASE_DB_PASSWORD=${!DB_PASSWORD_VARIABLE-}
-          [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::$DB_PASSWORD_VARIABLE is not in the environment's 1Password item"; exit 1; }
-          export SUPABASE_DB_PASSWORD
+          if [ -n "$DB_PASSWORD_VARIABLE" ]; then
+            SUPABASE_DB_PASSWORD=${!DB_PASSWORD_VARIABLE-}
+            [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::$DB_PASSWORD_VARIABLE is not in the environment's 1Password item"; exit 1; }
+            export SUPABASE_DB_PASSWORD
+          else
+            # A value the 1Password item happens to hold must not decide how we log in.
+            unset SUPABASE_DB_PASSWORD
+          fi
           supabase link --project-ref "$PROJECT_REF"
           supabase db push
 
@@ -985,6 +999,7 @@ jobs:
       # --use-api bundles server-side: no Docker on the runner. verify_jwt,
       # import map and entrypoint come from supabase/config.toml.
       - name: Deploy edge functions
+        id: functions
         if: inputs.functions != 'none'
         env:
           FUNCTIONS: ${{ inputs.functions }}
@@ -1004,6 +1019,7 @@ jobs:
       # is live but no longer listed is drift worth seeing - and not something a
       # deploy should ever delete on its own.
       - name: Report unmanaged secrets
+        id: report
         if: always() && inputs.function-env-keys != ''
         env:
           ENV_KEYS: ${{ inputs.function-env-keys }}

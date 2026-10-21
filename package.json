@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.28.5",
   "scripts": {
     "lint": "actionlint && shellcheck -s bash check-pr.sh scripts/*.sh && tsc",
-    "test": "scripts/check-pr-cases.sh && scripts/deploy-vercel-cases.sh && scripts/deploy-swarm-cases.sh",
+    "test": "scripts/check-pr-cases.sh && scripts/deploy-vercel-cases.sh && scripts/deploy-swarm-cases.sh && scripts/cd-supabase-cases.sh",
     "audit:consumers": "node scripts/audit-consumers.ts",
     "audit:consumers:remote": "gh workflow run audit-consumers.yml --ref v2",
     "setup-consumer": "node scripts/setup-consumer.ts",
