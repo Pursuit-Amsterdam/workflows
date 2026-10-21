@@ -97,7 +97,7 @@ Na deze plak is `v2` beschermd, test hij zichzelf, en bestaat de voorbeeldrepo.
   - `test`: `scripts/check-pr-cases.sh`
   - `audit:consumers`: `scripts/audit-consumers.sh` (Task 24; argumenten via `pnpm audit:consumers -- gp-map-webapp`; niet `audit`, dat is een ingebouwd pnpm-commando)
   - `audit:consumers:remote`: `gh workflow run audit-consumers.yml --ref v2` (Task 24)
-  - `setup-consumer`: `scripts/setup-consumer.sh` (Task 25)
+  - `setup-consumer`: `scripts/setup-consumer.ts` (Task 25)
   - `migrate-consumer`: `scripts/migrate-consumer.sh` (Task 26)
   Plus een lege `pnpm-lock.yaml` en `.nvmrc` met `22`. De scripts voor Task 24–26 mogen er nu al in staan; ze falen met "no such file" tot die taak klaar is.
 - Maak: `.github/workflows/self-ci.yml` met `name: Continuous Integration`, trigger `pull_request` en `push` op `v2`, één job `pipeline`.
@@ -322,7 +322,7 @@ Twee aparte PR's: beide zitten in CD, maar ze hebben verder niets met elkaar te 
 
 ### Task 15: pursuit-website-2025 op `v2` (eerste echte Vercel-migratie)
 
-**Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration) en de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). Eerst bedoeld voor template-nextjs-vercel, maar die heeft geen Vercel-project (20 oktober 2026). pursuit-website-2025 hangt niet aan het vertalingen-CMS, dus de ontbrekende `tms`-stappen spelen geen rol. `setup-consumer.sh` bestaat nog niet (Task 25): de inrichting gaat met `gh`.
+**Bron:** [migratievoorbeeld Next.js](naslag/migratievoorbeelden.md#migration) en de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). Eerst bedoeld voor template-nextjs-vercel, maar die heeft geen Vercel-project (20 oktober 2026). pursuit-website-2025 hangt niet aan het vertalingen-CMS, dus de ontbrekende `tms`-stappen spelen geen rol. `setup-consumer` bestond toen nog niet (Task 25): de inrichting gaat met `gh`.
 
 Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `release` lezen de workflow van de default branch. `develop` loopt niet voor op `main`, dus de PR `develop` → `main` bevat alleen de migratie; een merge naar `main` deployt niets.
 
@@ -522,13 +522,20 @@ De andere pakketrepo's (20 oktober 2026):
 - [ ] Stap 4: eerste run via `pnpm audit:consumers:remote`; verwacht een issue "Consumer audit" met de tabel. Werkt de dispatch niet omdat het bestand niet op de default branch staat, dan is dat de reden om Task 28 stap 4 naar voren te halen.
 - [ ] Stap 5: commit `feat: add audit-consumers script and weekly workflow`.
 
-### Task 25: `scripts/setup-consumer.sh`
+### Task 25: `scripts/setup-consumer.ts`
 
-**Bestanden:** maak `scripts/setup-consumer.sh <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), per beschermde branch (`main`, en `develop` en `acceptance` als ze bestaan) twee rulesets: checks zonder bypass, en review (code owners, geen force push of verwijderen) met bypass voor admins alleen op PR's; daarna haalt het de klassieke branchprotectie weg, pas als de rulesets staan. Het zet ook de tag-ruleset op `v*` (aanmaken, wijzigen, verwijderen alleen voor admins). Het zet `.github/CODEOWNERS` niet (dat doet Task 26) en meldt welke secrets de beheerder nog moet zetten, ook `CUSTOM_GITHUB_TOKEN` als de CI `use-custom-token` gebruikt. Idempotent: een tweede run verandert niets.
+**Bestanden:** maak `scripts/setup-consumer.ts <repo> [--vercel|--swarm|--supabase]`: maakt environments `integration`, `staging`, `production` (en `acceptance` als de branch bestaat) met de branchregels uit de standaard, zet lege variabelen (`OP_VAULT`, `OP_ITEM`, en per target `VM_SSH_*` of `SUPABASE_PROJECT_REF`), per beschermde branch (`main`, en `develop` en `acceptance` als ze bestaan) twee rulesets: checks zonder bypass, en review (code owners, geen force push of verwijderen) met bypass voor admins alleen op PR's; daarna haalt het de klassieke branchprotectie weg, pas als de rulesets staan. Het zet ook de tag-ruleset op `v*` (aanmaken, wijzigen, verwijderen alleen voor admins). Het zet `.github/CODEOWNERS` niet (dat doet Task 26) en meldt welke secrets de beheerder nog moet zetten, ook `CUSTOM_GITHUB_TOKEN` als de CI `use-custom-token` gebruikt. Idempotent: een tweede run verandert niets.
 
-- [ ] Stap 1: `pnpm lint`; `pnpm setup-consumer -- <verse testrepo>`; daarna `pnpm audit:consumers -- <die repo>`: verwacht alleen bevindingen over secrets en variabelen zonder waarde.
-- [ ] Stap 2: tweede run; verwacht geen wijzigingen (vergelijk `gh api` vóór en na).
-- [ ] Stap 3: commit `feat: add setup-consumer script`.
+- Bijgesteld (21 oktober 2026):
+  - TypeScript, zoals de audit; de gedeelde code (welke workflows een repo aanroept) staat in `scripts/lib/consumer.ts`, en de audit gebruikt die nu ook (uitvoer identiek).
+  - Standaard een dry run; `--apply` voert uit. Elke regel is `create`, `update`, `remove`, `todo` of `note`.
+  - Geen `--vercel|--swarm|--supabase`: het profiel komt uit de workflows van de repo, net als in de audit. De verplichte checks ook: `<job van de aanroeper> / pipeline` voor elke aanroep van check-pr of CI.
+  - Geen lege variabelen: GitHub weigert een variabele zonder waarde. Ontbrekende variabelen en secrets zijn `todo`'s.
+  - Laat staan en meldt (`note`): environmentnamen met hoofdletters (hernoemen gooit de secrets weg), extra branchregels, environments buiten de standaard, andere rulesets op dezelfde branch. Bestaande wachttijd en reviewers van een environment blijven.
+  - Een bestaande ruleset met dezelfde naam wordt bijgewerkt; zo zijn de rulesets van de eerdere migraties meteen goed.
+- [x] Stap 1: `pnpm lint`; dry run op acht ingerichte repo's (workflows-example, tellr, pursuit-website, integrators, tms-test, gp-container-tracking, text-extract, eslint-config): geen wijzigingen behalve de rulesets op `acceptance` in de voorbeeldrepo en `production` + tag-ruleset in gp-container-tracking (niet uitgevoerd: daar is staging de productie). Daarna in de voorbeeldrepo de tag-ruleset verwijderd en up-to-date op `develop` uitgezet; `--apply` zet beide terug plus de rulesets op `acceptance`. `pnpm audit:consumers -- workflows-example` meldt daarna alleen de workflowbestanden (geen CI-push op `acceptance`, geen `dependabot.yml`), niets van de inrichting.
+- [x] Stap 2: tweede run: `no changes`.
+- [x] Stap 3: commit `feat: add setup-consumer script`.
 
 ### Task 26: migratiescript
 
