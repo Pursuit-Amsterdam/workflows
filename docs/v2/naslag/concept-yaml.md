@@ -2295,7 +2295,7 @@ runs:
         esac
 ```
 
-scripts/audit-consumers.sh bash + gh · alleen-lezen · exit 1 bij elke bevinding
+scripts/audit-consumers.sh bash + gh · alleen-lezen · exit 1 bij elke bevinding. **Gebouwd als `scripts/audit-consumers.ts`** (21 oktober 2026, TypeScript met `yaml` en Octokit); dit blok was het ontwerp, de TypeScript-versie gaf op zes repo's precies dezelfde 37 bevindingen
 
 ```bash
 #!/usr/bin/env bash
