@@ -12,6 +12,7 @@
 // cd-pages gets the check-pr, protection, CODEOWNERS and Dependabot checks.
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
+import { parse as parseYaml } from 'yaml';
 import { CHECK_CALL, CI_CALL, loadConsumer } from './lib/consumer.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
@@ -356,7 +357,21 @@ for (const repo of repos) {
     const dep = await readFile(repo, '.github/dependabot.yml');
     if (dep === null) {
         say(repo, 'dependabot', 'no dependabot.yml');
-    } else if (all.includes('use-custom-token: true')) {
+    } else {
+        // Dependabot only knows its own secrets: ${{ env.GITHUB_TOKEN }} and the like are empty.
+        let registries: Record<string, { url?: string; token?: string }> = {};
+        try {
+            registries = (parseYaml(dep) as { registries?: typeof registries } | null)?.registries ?? {};
+        } catch {
+            say(repo, 'dependabot', 'dependabot.yml: not valid YAML');
+        }
+        for (const [name, r] of Object.entries(registries)) {
+            if (r?.url?.includes('npm.pkg.github.com') && !/^\$\{\{\s*secrets\.CUSTOM_GITHUB_TOKEN\s*\}\}$/.test(r.token ?? '')) {
+                say(repo, 'dependabot', `registry '${name}' reads GitHub Packages with ${r.token ?? 'no token'}, not \${{ secrets.CUSTOM_GITHUB_TOKEN }}: private packages are not updated`);
+            }
+        }
+    }
+    if (dep !== null && all.includes('use-custom-token: true')) {
         if (!dep.includes('npm.pkg.github.com')) say(repo, 'dependabot', 'no npm-registry for npm.pkg.github.com: private packages are not updated');
         if (!orgDepSecrets.includes('CUSTOM_GITHUB_TOKEN')) {
             const repoDep = await names(`/repos/{owner}/{repo}/dependabot/secrets`, p, 'secrets');
