@@ -1402,6 +1402,7 @@ permissions:
 jobs:
   validate:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
     outputs:
       images-count: ${{ steps.count.outputs.n }}
     steps:
@@ -1425,6 +1426,7 @@ jobs:
     needs: validate
     if: needs.validate.outputs.images-count != '0'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -1462,6 +1464,20 @@ jobs:
           version: $(git describe --tags --abbrev=0 --always)
           environment: ${{ inputs.environment }}
 
+      # A Docker tag allows [A-Za-z0-9_.-] only: a re-release tag such as
+      # v1.2.0+1 would be an invalid reference. Build and deploy both use this
+      # value, for the tags, the migration image and ${VERSION} in the stack.
+      - name: Docker-safe version
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag=$(printf '%s' "$VERSION" | tr -c 'A-Za-z0-9_.-' '-')
+          [ "$tag" = "$VERSION" ] || echo "Version $VERSION is used as $tag (Docker tags allow [A-Za-z0-9_.-] only)"
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
       # From the checked-out commit, not github.sha: for workflow_run callers
       # github.sha is the default branch, not the commit being built.
       - name: SHA tag
@@ -1490,6 +1506,7 @@ jobs:
           codegen: ${{ inputs.codegen }}
           codegen-check: ${{ inputs.codegen-check }}
           codegen-baseline: ${{ inputs.codegen-baseline }}
+          working-directory: ${{ inputs.working-directory }}
 
       # The gha cache exporter needs a buildx builder; the default docker
       # driver cannot write it.
@@ -1519,7 +1536,7 @@ jobs:
           load: true
           push: false
           tags: |
-            ${{ matrix.image.name }}:${{ steps.version.outputs.version }}
+            ${{ matrix.image.name }}:${{ steps.tag.outputs.version }}
             ${{ matrix.image.name }}:${{ steps.sha.outputs.tag }}
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
@@ -1530,13 +1547,13 @@ jobs:
       - name: Smoke test before push
         uses: Pursuit-Amsterdam/workflows/.github/actions/run-image-smoke@v2
         with:
-          image: ${{ matrix.image.name }}:${{ steps.version.outputs.version }}
+          image: ${{ matrix.image.name }}:${{ steps.tag.outputs.version }}
           config: ${{ toJSON(matrix.image) }}
 
       - name: Push
         env:
           IMAGE: ${{ matrix.image.name }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.tag.outputs.version }}
           SHA_TAG: ${{ steps.sha.outputs.tag }}
         run: |
           set -euo pipefail
@@ -1549,6 +1566,7 @@ jobs:
     # one stops it. Without this condition a skipped `needs` skips the deploy too.
     if: ${{ !cancelled() && needs.validate.result == 'success' && needs.build.result != 'failure' && inputs.deploy-enabled }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
@@ -1598,6 +1616,20 @@ jobs:
           version: $(git describe --tags --abbrev=0 --always)
           environment: ${{ inputs.environment }}
 
+      # A Docker tag allows [A-Za-z0-9_.-] only: a re-release tag such as
+      # v1.2.0+1 would be an invalid reference. Build and deploy both use this
+      # value, for the tags, the migration image and ${VERSION} in the stack.
+      - name: Docker-safe version
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag=$(printf '%s' "$VERSION" | tr -c 'A-Za-z0-9_.-' '-')
+          [ "$tag" = "$VERSION" ] || echo "Version $VERSION is used as $tag (Docker tags allow [A-Za-z0-9_.-] only)"
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
       # SSH config → GHCR login → pre-deploy → migrations → stack deploy → converge.
       # Each step fails the job before the next one starts. Existing deploy-swarm
       # inputs keep their names; pre-deploy, environment and version are new.
@@ -1614,10 +1646,10 @@ jobs:
           stack-name: ${{ steps.plan.outputs.stack-name }}
           pre-deploy: ${{ inputs.pre-deploy }}
           environment: ${{ inputs.environment }}
-          version: ${{ steps.version.outputs.version }}
+          version: ${{ steps.tag.outputs.version }}
           # The version tag of this build, as vm-cd does; without it the
           # migration would run :latest or fail to pull.
-          migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.version.outputs.version) || '' }}
+          migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.tag.outputs.version) || '' }}
           migrate-entrypoint: ${{ inputs.migrate-entrypoint }}
           migrate-command: ${{ inputs.migrate-command }}
           migrate-env: ${{ inputs.migrate-env }}

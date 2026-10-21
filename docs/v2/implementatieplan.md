@@ -360,9 +360,12 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 **Bestanden:** maak `.github/workflows/cd-swarm.yml` uit het concept-blok (met de `migrate-image`-tag en `working-directory` in de concurrency-groep).
 
-- [ ] Stap 1: schrijf en lint.
-- [ ] Stap 2: validatietests in de voorbeeldrepo, zonder VM: `images: []` met `deploy-enabled: false` → rood in `validate`; `images` met één image en `deploy-enabled: false` → build-job bouwt, smoketest draait, push naar GHCR slaagt, deploy overgeslagen.
-- [ ] Stap 3: commit `feat: add cd-swarm.yml`.
+- [x] Stap 1: schrijf en lint. Naast het concept: `timeout-minutes` per job, `working-directory` voor `run-codegen`. Pariteit met vm-cd nagelopen voor gp-map en container-tracking: buildsecrets `NODE_AUTH_TOKEN` (gp-map frontend) en `GITHUB_TOKEN` (gp-map backend), tags `:<versie>` en `:sha-…`, `migrate-image` met de versietag, `${VERSION}` in de stackbestanden.
+- [x] Stap 2: validatietests in de voorbeeldrepo, zonder VM (tijdelijke branch, environment `integration`), run 39567151055:
+  - [x] `images: []` met `deploy-enabled: false` → rood in `validate`: "this run would do nothing".
+  - [x] één image met `deploy-enabled: false` → build, smoketest ("healthy: /"), push naar GHCR (`v0.6.0-1`, `sha-5314f4dca62c`), deploy overgeslagen.
+  - Bijgesteld: de eerste poging faalde op `invalid tag …:v0.6.0+1`. Een tag als `v1.2.0+1` (een her-release) is geen geldige Docker-referentie; v1 had hetzelfde probleem. Beide jobs maken de versie nu Docker-veilig (tekens buiten `[A-Za-z0-9_.-]` worden `-`) en gebruiken die voor tags, smoketest, migratie-image en `VERSION` in de stack.
+- [x] Stap 3: commit `feat: add cd-swarm.yml`.
 
 ### Task 18: gp-container-tracking-webapp en gp-map-webapp op `v2` (**handwerk** voor vars en environments)
 
