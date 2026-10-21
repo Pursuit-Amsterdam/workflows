@@ -79,7 +79,12 @@ check "  with both keys in it" logged "file: MAPS_KEY=m2"
 refute "  and no value on the command line" grep -q "secrets set.*r1" "$tmp/log"
 
 # --- migrations
-refute "no database password in the 1Password item: refused" run_step migrations DB_PASSWORD_VARIABLE=SUPABASE_DB_PASSWORD
+check "no password variable: link and push" run_step migrations DB_PASSWORD_VARIABLE=
+check "  pushes" logged "supabase db push"
+check "  without a password: the CLI logs in through the access token" logged "password seen: none"
+check "  even when the 1Password item has one" run_step migrations DB_PASSWORD_VARIABLE= SUPABASE_DB_PASSWORD=stale
+check "  which it leaves out" logged "password seen: none"
+refute "password variable named but empty in the 1Password item: refused" run_step migrations DB_PASSWORD_VARIABLE=SUPABASE_DB_PASSWORD
 check "  names the variable" said "SUPABASE_DB_PASSWORD is not in the environment's 1Password item"
 refute "  and pushes nothing" logged "db push"
 check "password present: link and push" run_step migrations DB_PASSWORD_VARIABLE=DB_PASS DB_PASS=s3cret
