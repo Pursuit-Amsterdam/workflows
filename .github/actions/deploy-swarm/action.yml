@@ -61,6 +61,25 @@ inputs:
     description: "Seconds to wait for all services to reach their desired replica count"
     required: false
     default: "180"
+  pre-deploy:
+    description: >
+      Shell script that runs on the manager as ssh-user, after the registry
+      login and before the migrations and the stack deploy. Checks only:
+      do the bind-mount directories exist, is the external network there, are
+      the node labels right. A non-zero exit stops the deploy before anything
+      changes on the Swarm. Gets ENVIRONMENT, STACK_NAME and VERSION, nothing
+      else from the job (no secrets). Runs with `set -euo pipefail`, without
+      sudo. Empty = skip.
+    required: false
+    default: ""
+  environment:
+    description: "Available to pre-deploy as ENVIRONMENT"
+    required: false
+    default: ""
+  version:
+    description: "Available to pre-deploy as VERSION"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -72,6 +91,7 @@ runs:
         SSH_PORT: ${{ inputs.ssh-port }}
         SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
         SSH_KNOWN_HOSTS: ${{ inputs.ssh-known-hosts }}
+        SSH_USER: ${{ inputs.ssh-user }}
       run: |
         set -euo pipefail
 
@@ -99,15 +119,38 @@ runs:
         } >> ~/.ssh/config
         chmod 600 ~/.ssh/config
 
-        echo "DOCKER_HOST=ssh://${{ inputs.ssh-user }}@swarm-manager" >> "$GITHUB_ENV"
+        echo "DOCKER_HOST=ssh://${SSH_USER}@swarm-manager" >> "$GITHUB_ENV"
 
     - name: Log in to GHCR
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        ACTOR: ${{ github.actor }}
       run: |
         set -euo pipefail
-        echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+    # Checks that the server is ready for this stack before anything changes on
+    # the Swarm; a forgotten runbook step otherwise only shows as a stack that
+    # does not converge. The script goes over stdin, never on the command line;
+    # the three values are quoted with %q, so a value is data, never code. The
+    # remote shell gets nothing else from this job: no secrets.
+    - name: Run pre-deploy checks on the manager
+      id: pre-deploy
+      if: ${{ inputs.pre-deploy != '' }}
+      shell: bash
+      env:
+        PRE_DEPLOY: ${{ inputs.pre-deploy }}
+        SSH_USER: ${{ inputs.ssh-user }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        STACK_NAME: ${{ inputs.stack-name }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        echo "Running pre-deploy checks on the manager as ${SSH_USER}..."
+        printf 'set -euo pipefail\nexport ENVIRONMENT=%q STACK_NAME=%q VERSION=%q\n%s\n' \
+          "$ENVIRONMENT" "$STACK_NAME" "$VERSION" "$PRE_DEPLOY" \
+          | ssh -o BatchMode=yes "${SSH_USER}@swarm-manager" 'bash -s'
 
     - name: Run migrations
       if: ${{ inputs.migrate-image != '' }}
