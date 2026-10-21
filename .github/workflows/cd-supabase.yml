@@ -1,0 +1,222 @@
+name: "CD Supabase"
+
+# Deploys the Supabase half of a project at one commit: function secrets,
+# migrations, edge functions, in that order. No quality checks here: CI proves
+# the SHA, cd-gate proves CI ran.
+#
+# Two credentials, deliberately kept apart:
+#   SUPABASE_ACCESS_TOKEN - a machine-account PAT, GitHub environment secret on
+#     staging and production. A Supabase PAT is unscoped and account-wide, and
+#     developers can read 1Password by design, so it lives on the GitHub side
+#     next to OP_SERVICE_ACCOUNT_TOKEN, behind the environment's branch rules.
+#     It exists so that `supabase secrets set`, which needs Owner/Administrator
+#     on the organisation, never needs a person.
+#   the secret values - the environment's 1Password item, as everywhere else.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment. Selects vars.SUPABASE_PROJECT_REF / OP_VAULT / OP_ITEM and the environment's protection rules."
+        required: true
+        type: string
+      ref:
+        description: "Commit to deploy. Empty = github.sha. Pass cd-gate's `sha`."
+        required: false
+        type: string
+        default: ""
+      project-ref:
+        description: "Supabase project ref. Empty = vars.SUPABASE_PROJECT_REF of the environment (staging and production are different projects)."
+        required: false
+        type: string
+        default: ""
+      migrations:
+        description: "Run `supabase db push`. false means functions-only; false together with `functions: none` is refused."
+        required: false
+        type: boolean
+        default: true
+      functions:
+        description: "Empty = every function declared in supabase/config.toml (the source of truth). Space-separated names to deviate; `none` = deploy no functions."
+        required: false
+        type: string
+        default: ""
+      function-env-keys:
+        description: >
+          Names of variables to push to the project's function secret store,
+          taken from the env the 1Password item populated. Empty = leave the
+          secret store untouched. Set and update only: a name dropped from this
+          list is reported, never deleted.
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        description: "Directory that holds supabase/"
+        required: false
+        type: string
+        default: "."
+      db-password-variable:
+        description: "Variable from the 1Password item that holds the database password. Migrations link to project-ref, so no database URL is needed."
+        required: false
+        type: string
+        default: "SUPABASE_DB_PASSWORD"
+      onepassword-vault:
+        description: "Empty = vars.OP_VAULT of the environment"
+        required: false
+        type: string
+        default: ""
+      onepassword-item:
+        description: "Empty = vars.OP_ITEM of the environment"
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        description: "Machine-account PAT with Administrator on the Supabase organisation"
+        required: true
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: ${{ inputs.environment }}
+    # One deploy per repo and environment at a time; never cancel one that runs.
+    concurrency:
+      group: cd-supabase-${{ inputs.environment }}-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ inputs.project-ref || vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Validate inputs
+        id: validate
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          MIGRATIONS: ${{ inputs.migrations }}
+          FUNCTIONS: ${{ inputs.functions }}
+          ENV_KEYS: ${{ inputs.function-env-keys }}
+        run: |
+          set -euo pipefail
+          if [ "$MIGRATIONS" != true ] && [ "$FUNCTIONS" = none ]; then
+            echo "::error::Nothing to deploy: migrations are off and functions is none."; exit 1
+          fi
+          if [ -z "${PROJECT_REF:-}" ]; then
+            echo "::error::project-ref is empty and vars.SUPABASE_PROJECT_REF is not set on environment '$ENVIRONMENT'"; exit 1
+          fi
+          # `secrets: inherit` skips the required-secret check, so check it here,
+          # before anything is written.
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not available to this repo"; exit 1
+          fi
+          # SUPABASE_* names are injected by the platform; `secrets set` rejects
+          # them, but only after writing everything that came before.
+          for k in $ENV_KEYS; do
+            case "$k" in SUPABASE_*)
+              echo "::error::$k is provided by the platform and cannot be set as a function secret"; exit 1 ;;
+            esac
+          done
+
+      # No version input: setup-cli takes the CLI version from the repo's
+      # lockfile, so CD runs the CLI the repo pins.
+      - name: Supabase CLI
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+
+      - name: Services (secrets)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          onepassword-vault: ${{ inputs.onepassword-vault || vars.OP_VAULT }}
+          onepassword-item: ${{ inputs.onepassword-item || vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      # First, so a function's first cold start already sees its environment.
+      # Values come from the job env and go into a 0600 file, never into argv:
+      # a command line is readable by every process on the runner.
+      - name: Set function secrets
+        id: secrets
+        if: inputs.function-env-keys != ''
+        env:
+          ENV_KEYS: ${{ inputs.function-env-keys }}
+        run: |
+          set -euo pipefail
+          umask 077
+          file=$(mktemp)
+          trap 'rm -f "$file"' EXIT
+          missing=()
+          for k in $ENV_KEYS; do
+            v=${!k-}
+            if [ -z "$v" ]; then missing+=("$k"); continue; fi
+            printf '%s=%s\n' "$k" "$v" >> "$file"
+          done
+          # An absent value would set the live secret to the empty string and
+          # break the function at its next cold start. Write nothing instead.
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::not present in the environment's 1Password item: ${missing[*]}"; exit 1
+          fi
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$file"
+          echo "Set on $PROJECT_REF: $ENV_KEYS"
+
+      # Not the deploy-supabase action: it checks out the default ref itself
+      # (migrating a different commit than `ref`), reinstalls the CLI and ignores
+      # working-directory. Linking keeps the database URL off the command line;
+      # the CLI reads the password from SUPABASE_DB_PASSWORD.
+      - name: Run migrations
+        id: migrations
+        if: inputs.migrations
+        env:
+          DB_PASSWORD_VARIABLE: ${{ inputs.db-password-variable }}
+        run: |
+          set -euo pipefail
+          SUPABASE_DB_PASSWORD=${!DB_PASSWORD_VARIABLE-}
+          [ -n "$SUPABASE_DB_PASSWORD" ] || { echo "::error::$DB_PASSWORD_VARIABLE is not in the environment's 1Password item"; exit 1; }
+          export SUPABASE_DB_PASSWORD
+          supabase link --project-ref "$PROJECT_REF"
+          supabase db push
+
+      # Every function, every deploy, changed or not: CD ships a commit, it does
+      # not diff.
+      # --use-api bundles server-side: no Docker on the runner. verify_jwt,
+      # import map and entrypoint come from supabase/config.toml.
+      - name: Deploy edge functions
+        id: functions
+        if: inputs.functions != 'none'
+        env:
+          FUNCTIONS: ${{ inputs.functions }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FUNCTIONS// /}" ]; then
+            supabase functions deploy --project-ref "$PROJECT_REF" --use-api
+          else
+            for fn in $FUNCTIONS; do
+              echo "::group::deploy $fn"
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --use-api
+              echo "::endgroup::"
+            done
+          fi
+
+      # Names and digests only; `secrets list` never prints a value. A key that
+      # is live but no longer listed is drift worth seeing - and not something a
+      # deploy should ever delete on its own.
+      - name: Report unmanaged secrets
+        id: report
+        if: always() && inputs.function-env-keys != ''
+        env:
+          ENV_KEYS: ${{ inputs.function-env-keys }}
+        run: |
+          set -euo pipefail
+          for k in $(supabase secrets list --project-ref "$PROJECT_REF" --output json | jq -r '.[].name'); do
+            case "$k" in SUPABASE_*) continue ;; esac
+            case " $ENV_KEYS " in *" $k "*) continue ;; esac
+            echo "::warning::$k is live on $PROJECT_REF but not listed in function-env-keys"
+          done
