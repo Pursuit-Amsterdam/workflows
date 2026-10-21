@@ -20,6 +20,7 @@
 - **Plak 3, CD naar Vercel** (Task 13–15): `run-codegen`, `deploy-vercel`, `cd-vercel`; pursuit-website-2025 draait op `v2`, ook in productie (release v2026.10.20).
 - **Vertalingen-CMS** (Task 21): `run-translations`, de job `tms-sync` in CI, de CMS-stappen in cd-vercel, de CMS-dispatch in de gate (productie opt-in met `cms-production`). Op `v2`: integrators-website-2025, tms-test en het CLI-pakket translations-management-js.
 - **GitHub Pages** (Task 23): `cd-pages`; tellr-website draait helemaal op `v2` (CI, CD naar Vercel, Storybook).
+- **Template** (Task 15b): template-nextjs-vercel helemaal op `v2`, met `develop`; deployt zelf nooit.
 - **Pakketten** (Task 22, 22b): `cd-packages`; op `v2`: jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js.
 
 **Open:**
@@ -28,7 +29,7 @@
 - **Plak 5, de rest** (Task 19, 20): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI.
 - **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
-- **Nog op v1:** template-nextjs-vercel (CD; geen Vercel-project), translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
+- **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
 
 **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)):
 
@@ -341,6 +342,14 @@ Een nieuw CD-bestand werkt pas als het op `main` staat: `workflow_run` en `relea
   - Environmentnamen met hoofdletters (`Staging`, `Production`); GitHub negeert hoofdletters, hernoemen kan niet zonder de secrets opnieuw te zetten.
   - Het lege environment `Preview` kan weg.
   - Geen `dependabot.yml`.
+
+### Task 15b: template-nextjs-vercel helemaal op `v2`
+
+De template heeft geen Vercel-project en deployt niet: elk project uit de template richt zijn eigen deploy in.
+
+- [x] Stap 1: PR naar `main` (template-nextjs-vercel#28): `web-ci.yml` → `ci.yml`, `web-cd.yml` → `cd.yml` met gate + `cd-vercel@v2` (1Password uit `OP_VAULT`/`OP_ITEM` van het environment, niet uit de YAML), Storybook op `cd-pages@v2`. De gate en de Storybook-job slaan de template zelf over (`github.repository != 'Pursuit-Amsterdam/template-nextjs-vercel'`); in een nieuwe repo is die voorwaarde altijd waar. README: sectie "Set up deployment" (Vercel-project met custom environment `staging`, 1Password-items, `setup-consumer`, variabelen en secrets, Pages) en "Include all branches" bij het aanmaken.
+- [x] Stap 2: `develop` aangemaakt vanaf `main`, zodat een nieuwe repo met beide branches start. Eerste runs: CI op `develop` groen, CD na die CI en Storybook overgeslagen.
+- [x] Stap 3: inrichting met `setup-consumer --apply`: rulesets op `develop`, up-to-date uit op `main`, tag-ruleset, `staging` (develop + main), `Production` ook vanaf tags `v*`. De bestaande rulesets heetten `main: checks (no bypass)`; eerst hernoemd naar de standaardnamen, anders had het script er een tweede set naast gezet. Tweede run: `no changes`. De audit meldt nog de lege variabelen en secrets (bewust: de template deployt niet), `Production` met hoofdletter, het lege `Preview` en de Dependabot-secret.
 
 ---
 
