@@ -1,0 +1,431 @@
+name: "CD Swarm"
+
+# Builds a project's own images (if any) and deploys a Docker Swarm stack on a VM.
+# Supersedes vm-cd.yml and keeps its images schema, so existing Dockerfiles and
+# callers keep working. No source checks here: CI proves the commit, cd-gate proves
+# CI succeeded on it. What CD adds itself is checked: every image is started and
+# smoke-tested before it is pushed, and the stack must answer after it converges.
+# Per-environment values come from the GitHub environment: empty ssh-* and
+# onepassword-* inputs fall back to vars.VM_SSH_* and vars.OP_*.
+#   validate - refuses a run that would do nothing (no images and no deploy)
+#   build    - one matrix job per image; skipped entirely when `images` is empty
+#   deploy   - runs after build, or after a skipped build; never after a failed one
+# The caller grants packages: write, also for a stack without images: GitHub checks
+# every job's permissions when the workflow starts, including a job it then skips.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment to deploy (staging, production, ...)"
+        required: true
+        type: string
+      ref:
+        description: "Commit to deploy. Empty = github.sha. Pass cd-gate's `sha`."
+        required: false
+        type: string
+        default: ""
+      images:
+        description: >
+          JSON array of images this project builds, the vm-cd schema: name (the
+          full image name, e.g. ghcr.io/org/app-backend), dockerfile, context,
+          build-args ("public" passes the non-concealed 1Password fields), and
+          optionally port, health-path, env, smoke, exec for the smoke test before
+          push. [] = a stack of ready-made images; the build job is skipped.
+        required: false
+        type: string
+        default: "[]"
+      stack-file:
+        description: "Space-separated stack files: base + overlay"
+        required: false
+        type: string
+        default: "docker-stack.yml"
+      stack-name:
+        description: "Empty = <repo>-<environment>"
+        required: false
+        type: string
+        default: ""
+      codegen:
+        description: "Name of the package script that generates code before the image build (runs on the runner; the Dockerfile only copies the result). Empty = none."
+        required: false
+        type: string
+        default: ""
+      codegen-check:
+        description: "Script that compares external input codegen fetched with the committed version ($CODEGEN_BASELINE). Empty = none. Needs codegen and codegen-baseline."
+        required: false
+        type: string
+        default: ""
+      codegen-baseline:
+        description: "Space-separated committed files the codegen script overwrites with a fresh fetch (e.g. openapi.json); copied to $CODEGEN_BASELINE first"
+        required: false
+        type: string
+        default: ""
+      deploy-enabled:
+        description: "false = build and push only (the VM does not exist yet). Refused when there is nothing to build."
+        required: false
+        type: boolean
+        default: true
+      pre-deploy:
+        description: "Shell script run on the manager as ssh-user, before migrations and stack deploy. Checks only (directories, networks, labels); a non-zero exit stops the deploy. Sees ENVIRONMENT, STACK_NAME, VERSION."
+        required: false
+        type: string
+        default: ""
+      migrate-image:
+        description: "Image (without tag) whose migrate-command runs before the stack deploy; this build's version tag is appended, as in vm-cd. Empty = no migrations."
+        required: false
+        type: string
+        default: ""
+      migrate-entrypoint:
+        description: "Override the migration container's ENTRYPOINT. Empty = image default."
+        required: false
+        type: string
+        default: ""
+      migrate-command:
+        required: false
+        type: string
+        default: ""
+      migrate-env:
+        description: "Space-separated env var names forwarded to the migration container"
+        required: false
+        type: string
+        default: "DATABASE_URL"
+      converge-timeout:
+        description: "Seconds to wait until every service runs"
+        required: false
+        type: string
+        default: "180"
+      health-url:
+        description: "URL that must answer 2xx after the stack converged. May contain ${ENVIRONMENT}. Empty = no check."
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        description: "Directory the deploy job runs in, as in vm-cd. Paths in `images` are relative to the repo root."
+        required: false
+        type: string
+        default: "."
+      database:
+        description: "none | postgres | supabase, for images that need one to start in the smoke test"
+        required: false
+        type: string
+        default: "none"
+      redis:
+        description: "Start Redis for images that need it to start in the smoke test"
+        required: false
+        type: boolean
+        default: false
+      ssh-host:
+        description: "Empty = vars.VM_SSH_HOST"
+        required: false
+        type: string
+        default: ""
+      ssh-user:
+        description: "Empty = vars.VM_SSH_USER"
+        required: false
+        type: string
+        default: ""
+      ssh-port:
+        description: "Empty = vars.VM_SSH_PORT, else 22"
+        required: false
+        type: string
+        default: ""
+      onepassword-vault:
+        description: "Empty = vars.OP_VAULT"
+        required: false
+        type: string
+        default: ""
+      onepassword-item:
+        description: "Empty = vars.OP_ITEM. Non-concealed fields become build args for images with build-args: public; all fields reach the stack."
+        required: false
+        type: string
+        default: ""
+      use-custom-token:
+        description: "Use CUSTOM_GITHUB_TOKEN as the NODE_AUTH_TOKEN / GITHUB_TOKEN build secrets for private dependencies"
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      VM_SSH_PRIVATE_KEY:
+        required: false
+      VM_SSH_KNOWN_HOSTS:
+        required: false
+      OP_SERVICE_ACCOUNT_TOKEN:
+        required: false
+      CUSTOM_GITHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    outputs:
+      images-count: ${{ steps.count.outputs.n }}
+    steps:
+      # Counted with jq, not compared as a string: "[ ]" or a multi-line [] is
+      # empty too, and an empty matrix is a hard error instead of a skip.
+      - name: Refuse a run that does nothing
+        id: count
+        env:
+          IMAGES: ${{ inputs.images }}
+          DEPLOY: ${{ inputs.deploy-enabled }}
+        run: |
+          set -euo pipefail
+          n=$(jq 'if type == "array" then length else error("not an array") end' <<<"$IMAGES") \
+            || { echo "::error::images is not a JSON array"; exit 1; }
+          if [ "$n" -eq 0 ] && [ "$DEPLOY" != true ]; then
+            echo "::error::Nothing to build and deploy-enabled is false: this run would do nothing."; exit 1
+          fi
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    if: needs.validate.outputs.images-count != '0'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    # Build args come from the environment's 1Password item, so the build runs in
+    # the environment too.
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: true
+      matrix:
+        image: ${{ fromJSON(inputs.images) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # The smoke test needs the same services as in ci-images, or an image that
+      # passed there fails here.
+      - name: Services (database, redis, 1Password build args)
+        id: services
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          database: ${{ inputs.database }}
+          redis: ${{ inputs.redis }}
+          onepassword-vault: ${{ inputs.onepassword-vault || vars.OP_VAULT }}
+          onepassword-item: ${{ inputs.onepassword-item || vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          onepassword-export-build-args: "true"
+
+      - name: Version
+        id: version
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@v2
+        with:
+          version: $(git describe --tags --abbrev=0 --always)
+          environment: ${{ inputs.environment }}
+
+      # A Docker tag allows [A-Za-z0-9_.-] only: a re-release tag such as
+      # v1.2.0+1 would be an invalid reference. Build and deploy both use this
+      # value, for the tags, the migration image and ${VERSION} in the stack.
+      - name: Docker-safe version
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag=$(printf '%s' "$VERSION" | tr -c 'A-Za-z0-9_.-' '-')
+          [ "$tag" = "$VERSION" ] || echo "Version $VERSION is used as $tag (Docker tags allow [A-Za-z0-9_.-] only)"
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
+      # From the checked-out commit, not github.sha: for workflow_run callers
+      # github.sha is the default branch, not the commit being built.
+      - name: SHA tag
+        id: sha
+        run: echo "tag=sha-$(git rev-parse HEAD | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      # Codegen on the runner, so it is checked like in every cd-*; the Dockerfile
+      # only copies the generated files.
+      - name: Read the Node version from the repo
+        id: node
+        if: inputs.codegen != ''
+        run: echo "version=$(cat .nvmrc 2>/dev/null || echo 22.x)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js and pnpm
+        if: inputs.codegen != ''
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-node-pnpm@v2
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          node-auth-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Code generation and its checks
+        if: inputs.codegen != '' || inputs.codegen-check != ''
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-codegen@v2
+        with:
+          codegen: ${{ inputs.codegen }}
+          codegen-check: ${{ inputs.codegen-check }}
+          codegen-baseline: ${{ inputs.codegen-baseline }}
+          working-directory: ${{ inputs.working-directory }}
+
+      # The gha cache exporter needs a buildx builder; the default docker
+      # driver cannot write it.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Version and sha tags only, as in vm-cd. A per-environment tag would be
+      # pushed outside the deploy's concurrency group, so two runs could
+      # overwrite it out of order.
+      - name: Build (load, do not push yet)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.image.context || '.' }}
+          file: ${{ matrix.image.dockerfile || './Dockerfile' }}
+          build-args: ${{ matrix.image.build-args == 'public' && steps.services.outputs.build-args || '' }}
+          # Same secret ids as vm-cd, so `--mount=type=secret,id=NODE_AUTH_TOKEN` keeps working.
+          secrets: |
+            NODE_AUTH_TOKEN=${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+            GITHUB_TOKEN=${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || '' }}
+          load: true
+          push: false
+          tags: |
+            ${{ matrix.image.name }}:${{ steps.tag.outputs.version }}
+            ${{ matrix.image.name }}:${{ steps.sha.outputs.tag }}
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+
+      # Same start / health / smoke as ci-images, on the exact image that is
+      # about to be pushed. Does nothing when the entry has no health-path,
+      # smoke or exec.
+      - name: Smoke test before push
+        uses: Pursuit-Amsterdam/workflows/.github/actions/run-image-smoke@v2
+        with:
+          image: ${{ matrix.image.name }}:${{ steps.tag.outputs.version }}
+          config: ${{ toJSON(matrix.image) }}
+
+      - name: Push
+        env:
+          IMAGE: ${{ matrix.image.name }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          SHA_TAG: ${{ steps.sha.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:$SHA_TAG"
+
+  deploy:
+    needs: [validate, build]
+    # A skipped build (no images) lets the deploy through; a failed or cancelled
+    # one stops it. Without this condition a skipped `needs` skips the deploy too.
+    if: ${{ !cancelled() && needs.validate.result == 'success' && needs.build.result != 'failure' && inputs.deploy-enabled }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    environment: ${{ inputs.environment }}
+    # One deploy per repo and environment at a time; never cancel one that runs.
+    concurrency:
+      group: cd-swarm-${{ inputs.environment }}-${{ inputs.working-directory }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    env:
+      SSH_HOST: ${{ inputs.ssh-host || vars.VM_SSH_HOST }}
+      SSH_USER: ${{ inputs.ssh-user || vars.VM_SSH_USER }}
+      SSH_PORT: ${{ inputs.ssh-port || vars.VM_SSH_PORT || '22' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Validate deploy inputs
+        id: plan
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          STACK_NAME: ${{ inputs.stack-name }}
+          SSH_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [ -n "$SSH_HOST" ] || { echo "::error::ssh-host is empty and vars.VM_SSH_HOST is not set on environment '$ENVIRONMENT'"; exit 1; }
+          [ -n "$SSH_USER" ] || { echo "::error::ssh-user is empty and vars.VM_SSH_USER is not set on environment '$ENVIRONMENT'"; exit 1; }
+          [ -n "$SSH_KEY" ] || { echo "::error::VM_SSH_PRIVATE_KEY is not available"; exit 1; }
+          echo "stack-name=${STACK_NAME:-${GITHUB_REPOSITORY#*/}-$ENVIRONMENT}" >> "$GITHUB_OUTPUT"
+
+      - name: Services (secrets for the stack)
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
+        with:
+          onepassword-vault: ${{ inputs.onepassword-vault || vars.OP_VAULT }}
+          onepassword-item: ${{ inputs.onepassword-item || vars.OP_ITEM }}
+          onepassword-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Version
+        id: version
+        uses: Pursuit-Amsterdam/workflows/.github/actions/setup-version@v2
+        with:
+          version: $(git describe --tags --abbrev=0 --always)
+          environment: ${{ inputs.environment }}
+
+      # A Docker tag allows [A-Za-z0-9_.-] only: a re-release tag such as
+      # v1.2.0+1 would be an invalid reference. Build and deploy both use this
+      # value, for the tags, the migration image and ${VERSION} in the stack.
+      - name: Docker-safe version
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag=$(printf '%s' "$VERSION" | tr -c 'A-Za-z0-9_.-' '-')
+          [ "$tag" = "$VERSION" ] || echo "Version $VERSION is used as $tag (Docker tags allow [A-Za-z0-9_.-] only)"
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$tag" >> "$GITHUB_ENV"
+
+      # SSH config → GHCR login → pre-deploy → migrations → stack deploy → converge.
+      # Each step fails the job before the next one starts. Existing deploy-swarm
+      # inputs keep their names; pre-deploy, environment and version are new.
+      - name: Deploy the stack
+        uses: Pursuit-Amsterdam/workflows/.github/actions/deploy-swarm@v2
+        with:
+          ssh-host: ${{ env.SSH_HOST }}
+          ssh-user: ${{ env.SSH_USER }}
+          ssh-port: ${{ env.SSH_PORT }}
+          ssh-private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          ssh-known-hosts: ${{ secrets.VM_SSH_KNOWN_HOSTS }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          stack-file: ${{ inputs.stack-file }}
+          stack-name: ${{ steps.plan.outputs.stack-name }}
+          pre-deploy: ${{ inputs.pre-deploy }}
+          environment: ${{ inputs.environment }}
+          version: ${{ steps.tag.outputs.version }}
+          # The version tag of this build, as vm-cd does; without it the
+          # migration would run :latest or fail to pull.
+          migrate-image: ${{ inputs.migrate-image != '' && format('{0}:{1}', inputs.migrate-image, steps.tag.outputs.version) || '' }}
+          migrate-entrypoint: ${{ inputs.migrate-entrypoint }}
+          migrate-command: ${{ inputs.migrate-command }}
+          migrate-env: ${{ inputs.migrate-env }}
+          converge-timeout: ${{ inputs.converge-timeout }}
+
+      # Converged means the tasks run; this checks that proxy and app answer.
+      - name: Health check
+        if: inputs.health-url != ''
+        env:
+          HEALTH_URL: ${{ inputs.health-url }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+          url=${HEALTH_URL//\$\{ENVIRONMENT\}/$ENVIRONMENT}
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            case "$code" in 2??) echo "healthy ($code)"; exit 0 ;; esac
+            echo "attempt $i: $code"; sleep 10
+          done
+          echo "::error::$url did not answer 2xx"; exit 1
