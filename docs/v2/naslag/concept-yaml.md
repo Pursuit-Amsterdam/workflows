@@ -233,7 +233,26 @@ jobs:
             defined=$( {
               find . -mindepth 2 -name package.json -not -path '*/node_modules/*' -print0 \
                 | xargs -0 -r jq -r '.scripts // {} | keys[]'
-              jq -r '(.tasks // .pipeline // {}) | keys[] | select(startswith("//#")) | ltrimstr("//#")' turbo.json
+              # turbo.json is JSONC (comments, trailing commas), which jq rejects.
+              node - turbo.json <<'JS'
+          const s = require('fs').readFileSync(process.argv[2], 'utf8');
+          let out = '', i = 0, inString = false;
+          while (i < s.length) {
+            const c = s[i], n = s[i + 1];
+            if (inString) {
+              out += c;
+              if (c === '\\') { out += n; i += 2; continue; }
+              if (c === '"') inString = false;
+              i++; continue;
+            }
+            if (c === '"') { inString = true; out += c; i++; continue; }
+            if (c === '/' && n === '/') { while (i < s.length && s[i] !== '\n') i++; continue; }
+            if (c === '/' && n === '*') { const e = s.indexOf('*/', i + 2); i = e < 0 ? s.length : e + 2; continue; }
+            out += c; i++;
+          }
+          const turbo = JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
+          for (const k of Object.keys(turbo.tasks || turbo.pipeline || {})) if (k.startsWith('//#')) console.log(k.slice(3));
+          JS
             } | sort -u)
             for c in "${checks[@]}"; do
               grep -qxF -- "$c" <<<"$defined" || { echo "::error::no package defines a '$c' script"; exit 1; }
