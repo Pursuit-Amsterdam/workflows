@@ -371,8 +371,14 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 **Bron:** [migratievoorbeelden Swarm](naslag/migratievoorbeelden.md#migration). Volgorde: eerst container-tracking (alleen stack), dan gp-map (Postgres, images, migraties).
 
-- [ ] Stap 1: container-tracking: `ci.yml` → één bestand met `run-ci` (ci-images, alleen stack); `cd.yml` met gate + cd-swarm; `VM_SSH_HOST`/`VM_SSH_USER`/`OP_*` op `staging`; `pre-deploy` met de map-controles. Merge naar `develop`; verwacht een deploy op de staging-VM, `health-url` groen.
-- [ ] Stap 2: gp-map: `ci.yml` met `run-ci` (turbo, Postgres) en `run-ci-images`; `cd.yml` met gate + cd-swarm met `migrate-image` zonder tag; verplichte checks aanpassen vlak vóór de merge ([job-id's](naslag/uitrol-in-detail.md#job-ids)). Merge naar `develop`; verwacht: build met smoketest, migratie op `:<versie>`, deploy, health groen.
+- [x] Stap 1: container-tracking (21 oktober 2026). Staging is daar de omgeving waarin gebruikers werken; er is geen productie.
+  - `ci.yml`: `run-ci` → `ci.yml@v2` met `checks: lint` (hun `pnpm lint` valideert de stack al, inclusief verplichte variabelen); hun `backup-image`-job met de tests op de backup-container bleef ongewijzigd en niet verplicht. Dus geen ci-images: de bestaande validatie is strenger.
+  - `cd.yml`: gate (`branch-targets: develop=staging`) + `cd-swarm@v2`, zelfde image, stackbestanden en stacknaam als vm-cd; `pre-deploy` controleert de vier mappen uit hun runbook, `acme` mode 700, `backup-state` van uid 70 en een actieve swarm; `health-url: https://${APP_HOST}/` (daarvoor kreeg cd-swarm `${VAR}` uit de job-omgeving, #75).
+  - `VM_SSH_HOST`/`VM_SSH_USER`/`OP_VAULT`/`OP_ITEM` op `staging`; staging alleen vanaf `develop` en `main`. PR's #13 (naar `develop`) en #14 (`develop` → `main`). **Fout van mij:** #14 nam 17 eerdere `develop`-commits mee naar `main` (alles al live op staging, niets gedeployd); in overleg zo gelaten. Voortaan staat in elke `develop` → `main`-PR wat `develop` meer heeft.
+  - Eerste deploy, handmatig vanaf `develop` op een afgesproken moment (run 39568958014): gate, build + smoketest + push van het backup-image, `pre-deploy` OK, stack geconvergeerd, health-check 200 op het dashboard.
+  - Rulesets op `develop` en `main` met `run-check-pr / pipeline` en `run-ci / pipeline` (was `run-ci`); klassieke protectie weg.
+  - Audit: de bevindingen gaan vooral over het lege, ongebruikte environment `production`; echte gaten zijn `FROM postgres:18-alpine` zonder digest, `OP_SERVICE_ACCOUNT_TOKEN` op `integration` en geen `dependabot.yml`. De audit eiste `VM_SSH_KNOWN_HOSTS` op repo-niveau; per environment mag nu ook.
+- [ ] Stap 2: gp-map: `ci.yml` met `run-ci` (turbo, Postgres) en `run-ci-images`; `cd.yml` met gate + cd-swarm met `migrate-image` zonder tag; verplichte checks aanpassen vlak vóór de merge ([job-id's](naslag/uitrol-in-detail.md#job-ids)). Merge naar `develop`; verwacht: build met smoketest, migratie op `:<versie>`, deploy, health groen. **Beperking (21 oktober 2026):** `develop` loopt 193 commits voor en mag niet naar `main`; de workflows gaan daarom via een `hotfix/`-PR met alleen `.github/` naar `main`, en via een eigen PR naar `develop`.
 - [ ] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy.
 
 ---

@@ -339,7 +339,15 @@ for (const repo of repos) {
             }
         }
         if (vercel) for (const s of ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID']) if (!secrets.includes(s)) say(repo, 'secrets', `${s} missing (repo level; or org level, invisible here)`);
-        if (swarm && !secrets.includes('VM_SSH_KNOWN_HOSTS')) say(repo, 'secrets', 'VM_SSH_KNOWN_HOSTS missing');
+        // Per environment is better than per repo (each environment has its own host); either will do.
+        if (swarm && !secrets.includes('VM_SSH_KNOWN_HOSTS')) {
+            for (const e of ['staging', 'production']) {
+                const n = envName(e);
+                if (n === undefined) continue;
+                const envSecrets = await names(`/repos/{owner}/{repo}/environments/{environment_name}/secrets`, { ...p, environment_name: n }, 'secrets');
+                if (!envSecrets.includes('VM_SSH_KNOWN_HOSTS')) say(repo, 'secrets', `${e}: VM_SSH_KNOWN_HOSTS missing (on the environment or the repo)`);
+            }
+        }
         if (all.includes('use-custom-token: true') && !secrets.includes('CUSTOM_GITHUB_TOKEN')) say(repo, 'secrets', 'use-custom-token without CUSTOM_GITHUB_TOKEN');
 
         // --- Supabase: edge functions must ship from CI, not from a laptop
