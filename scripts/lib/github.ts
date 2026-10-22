@@ -51,12 +51,13 @@ export async function list<T>(route: string, params: Record<string, unknown> = {
     }
 }
 
-/** A file's content on the default branch; null when it does not exist. */
-export async function readFile(repo: string, path: string): Promise<string | null> {
+/** A file's content on `ref` (default: the default branch); null when it does not exist. */
+export async function readFile(repo: string, path: string, ref?: string): Promise<string | null> {
     return get<string>(`/repos/{owner}/{repo}/contents/{path}`, {
         owner: ORG,
         repo,
         path,
+        ...(ref ? { ref } : {}),
         mediaType: { format: 'raw' },
     });
 }

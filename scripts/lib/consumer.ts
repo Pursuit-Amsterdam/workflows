@@ -33,17 +33,17 @@ export async function branchExists(repo: string, branch: string): Promise<boolea
     return (await get(`/repos/{owner}/{repo}/branches/{branch}`, { owner: ORG, repo, branch })) !== null;
 }
 
-/** null when the repo cannot be read. */
-export async function loadConsumer(repo: string): Promise<Consumer | null> {
+/** The workflows on `ref` (default: the default branch); null when the repo cannot be read. */
+export async function loadConsumer(repo: string, ref?: string): Promise<Consumer | null> {
     const p = { owner: ORG, repo };
     const meta = await get<{ default_branch: string }>(`/repos/{owner}/{repo}`, p);
     if (!meta) return null;
 
-    const entries = (await get<{ name: string; type: string }[]>(`/repos/{owner}/{repo}/contents/{path}`, { ...p, path: '.github/workflows' })) ?? [];
+    const entries = (await get<{ name: string; type: string }[]>(`/repos/{owner}/{repo}/contents/{path}`, { ...p, path: '.github/workflows', ...(ref ? { ref } : {}) })) ?? [];
     const workflows: Workflow[] = [];
     const unreadable: Consumer['unreadable'] = [];
     for (const e of entries.filter(x => x.type === 'file' && /\.ya?ml$/.test(x.name))) {
-        const text = await readFile(repo, `.github/workflows/${e.name}`);
+        const text = await readFile(repo, `.github/workflows/${e.name}`, ref);
         if (text === null) {
             unreadable.push({ file: e.name, reason: 'cannot read' });
             continue;
