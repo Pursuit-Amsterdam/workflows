@@ -393,9 +393,12 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
     - Gevonden in v2: `ci.yml` las `turbo.json` met `jq`, en gp-map's `turbo.json` heeft commentaar (JSONC). Opgelost in #77. Een re-run gebruikt de oude versie van een herbruikbare workflow; pas een nieuwe run (PR dicht en weer open) pakte de fix op.
     - CI op de PR groen; de eerste volledige run op `develop` (39572023475) groen: 8 van 8 turbo-taken, alle drie images.
   - [x] `hotfix/`-PR naar `main` (#200): alleen `cd.yml` (gelijk aan `develop`), `vm-cd.yml` weg, `CODEOWNERS`. `main`'s eigen CI ongewijzigd. Environments: `VM_SSH_HOST`/`VM_SSH_USER`/`OP_VAULT`/`OP_ITEM` op staging en production, staging alleen `develop` + `main`, production alleen tags `v*`, tag-ruleset.
-  - [ ] **On hold (21 oktober 2026, presentaties op staging):** de eerste staging-deploy via v2 (handmatig vanaf `develop`). Let op: `cd.yml` op `main` staat aan, dus de eerstvolgende merge naar `develop` deployt automatisch via v2 naar staging; zo afgesproken.
+  - [x] Eerste staging-deploy via v2: run 39573140260 (21 oktober 2026, 08:56, handmatig vanaf `develop` @ d59d390): gate `workflow_dispatch -> staging`, drie images gebouwd met smoketests, pre-deploy, migraties, stack `gp-map-staging` geüpdatet, health-check 200. (Gestart vlak vóór de hold; eerder ten onrechte als "niet gedeployd" gemeld.)
+  - [x] Brug op `main` (gp-map-webapp#201, 22 oktober 2026): `main` draait de v1-CI nog als twee workflows ("Continuous Integration (Web)" en "(Backend)"), want de v2-CI hangt aan turbo, `backend/package.json` en de test-fix die alleen op `develop` staan, en `develop` mag nog niet naar `main`. `required-workflows` van de gate kiest daarom op de ref: een tag (release, productie vanaf `main`) wacht op die twee, al het andere (staging vanaf `develop`) op "Continuous Integration". `workflow_run` leest `cd.yml` van `main`, dus het kan niet per bestand. Getest op een branch en een tag in de voorbeeldrepo. Weg zodra `develop` naar `main` gaat.
+  - Gevonden: `test_console_shows_the_documents_behind_the_judged_text` (backend) is instabiel: rood op #201, groen bij een herhaling (765/765).
+  - [ ] `setup-consumer --apply`: rulesets met per branch de checks van die branch (#89): `develop` `run-check-pr`, `run-ci`, `run-ci-images`; `main` `run-check-pr`, `run-ci`. Na de merge van `develop` naar `main` opnieuw, voor `run-ci-images` op `main`.
   - [ ] Rulesets op `develop` en `main` met `run-check-pr / pipeline`, `run-ci / pipeline` en `run-ci-images / pipeline` in plaats van de klassieke protectie.
-- [ ] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy.
+- [ ] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy. Kan nu al vanaf `main` (app-code gelijk aan v2026.09.14, alleen workflowbestanden erbij); `develop` naar `main` pas als die vrijgegeven is.
 
 ---
 
