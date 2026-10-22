@@ -80,3 +80,19 @@ export function producedChecks(c: Consumer): string[] {
     const ids = c.workflows.flatMap(wf => jobs(wf).filter(([, j]) => typeof j.uses === 'string' && CHECK_CALL.test(j.uses)).map(([id]) => `${id} / pipeline`));
     return [...new Set(ids)].sort();
 }
+
+/**
+ * Whether the deploys load a 1Password item: the workflows name one, or a deploy
+ * environment already has the variables or the token for it. A repo whose app
+ * gets its values from Vercel itself does not, and needs none of the three.
+ */
+export async function usesOnePassword(c: Consumer, envNames: string[]): Promise<boolean> {
+    if (/onepassword/i.test(c.all)) return true;
+    for (const environment_name of envNames) {
+        const q = { owner: ORG, repo: c.repo, environment_name, per_page: 100 };
+        const vars = (await get<{ variables: { name: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/variables', q))?.variables ?? [];
+        const secrets = (await get<{ secrets: { name: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/secrets', q))?.secrets ?? [];
+        if ([...vars, ...secrets].some(x => ['OP_VAULT', 'OP_ITEM', 'OP_SERVICE_ACCOUNT_TOKEN'].includes(x.name))) return true;
+    }
+    return false;
+}

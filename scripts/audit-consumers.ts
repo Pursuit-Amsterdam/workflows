@@ -13,7 +13,7 @@
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { parse as parseYaml } from 'yaml';
-import { CHECK_CALL, CI_CALL, loadConsumer } from './lib/consumer.ts';
+import { CHECK_CALL, CI_CALL, loadConsumer, usesOnePassword } from './lib/consumer.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
 
@@ -276,12 +276,13 @@ for (const repo of repos) {
     }
 
     if (fullAudit) {
+        const onePassword = deploys && (await usesOnePassword(c, ['staging', 'acceptance', 'production'].map(envName).filter((n): n is string => n !== undefined)));
         // --- per-environment variables the v2 CD workflows fall back to
         for (const e of ['staging', 'production']) {
             const n = envName(e);
             if (n === undefined) continue;
             const vars = await names(`/repos/{owner}/{repo}/environments/{environment_name}/variables`, { ...p, environment_name: n }, 'variables');
-            if (deploys) for (const v of ['OP_VAULT', 'OP_ITEM']) if (!vars.includes(v)) say(repo, 'vars', `${e}: ${v} not set (cd-* will need it passed explicitly)`);
+            if (onePassword) for (const v of ['OP_VAULT', 'OP_ITEM']) if (!vars.includes(v)) say(repo, 'vars', `${e}: ${v} not set (cd-* will need it passed explicitly)`);
             if (swarm) for (const v of ['VM_SSH_HOST', 'VM_SSH_USER']) if (!vars.includes(v)) say(repo, 'vars', `${e}: ${v} not set`);
             if (supabase && !vars.includes('SUPABASE_PROJECT_REF')) say(repo, 'vars', `${e}: SUPABASE_PROJECT_REF not set`);
         }
@@ -293,7 +294,7 @@ for (const repo of repos) {
         // --- secrets (names only): deploy credentials on the environments, nowhere else
         const secrets = await names(`/repos/{owner}/{repo}/actions/secrets`, p, 'secrets');
         const deploySecrets = [
-            ...(deploys ? ['OP_SERVICE_ACCOUNT_TOKEN'] : []),
+            ...(onePassword ? ['OP_SERVICE_ACCOUNT_TOKEN'] : []),
             ...(vercel ? ['VERCEL_TOKEN'] : []),
             ...(swarm ? ['VM_SSH_PRIVATE_KEY'] : []),
             ...(supabase ? ['SUPABASE_ACCESS_TOKEN'] : []),
