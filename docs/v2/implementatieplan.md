@@ -633,6 +633,7 @@ De andere pakketrepo's (20 oktober 2026):
   - unconsultants-website: #66 (`develop`), #67 (`main`), meteen groen (typecheck, test, build). Staging @ a3b4ba7.
   - scm-executives-website: #111, #112; geen tests, dus `test` uit `checks` (de checklist voorspelde het). `prepare-package` kwam mee. Staging @ feea0e1. De ruleset "Copilot review for default branch" (februari 2026) weg.
   - Lege `Preview`-environments weg in beide. all-connect-solutions-website overgeslagen (opgezegd); multifill-planning-tool wacht.
+- [x] Vijfde migratie (22 oktober 2026, door Bas zelf): variantzorg-frontend, #149 (`develop`) en #150 (`main`), staging via v2 om 15:48; `setup-consumer` gedaan (tweede run `no changes`), audit alleen de hoofdletters in de environmentnamen. Daarbij gevonden: `setup-node-pnpm` pinde `pnpm/action-setup` v4.3.0 (Node 20) → v6.1.0 (#105).
 
 ### Task 27: README op `v2`
 
