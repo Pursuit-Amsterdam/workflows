@@ -198,6 +198,9 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
     const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
     const path = (file: string): string => `.github/workflows/${file}`;
     const all = workflows.flatMap(w => w.jobs);
+    // The repo's own GITHUB_TOKEN cannot read @pursuit-amsterdam packages of other
+    // repos. v1 CI often did without use-custom-token while v1 CD had it.
+    const privatePackages = all.some(j => truthy(j.with['use-custom-token'])) || Object.keys(deps).some(d => d.startsWith('@pursuit-amsterdam/'));
     let nodeVersion = '';
     for (const j of all) nodeVersion ||= str(j.with['node-version']);
 
@@ -240,7 +243,7 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
                 ciYaml({
                     branches: ['main', ...(facts.hasDevelop ? ['develop'] : []), ...(facts.hasAcceptance ? ['acceptance'] : [])],
                     checks,
-                    useCustomToken: truthy(w['use-custom-token']),
+                    useCustomToken: privatePackages,
                     workingDirectory: str(w['working-directory']).replace(/^\.\/(.+)$/, '$1') || '.',
                 }),
             );

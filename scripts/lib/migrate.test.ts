@@ -140,6 +140,17 @@ test('Vercel site with staging and production: the migration example', () => {
     for (const [p, t] of m.files) if (t) assert.doesNotMatch(t, /@main/, p);
 });
 
+test('CI gets use-custom-token when CD has it, or the repo uses private packages', () => {
+    const ciWithout = WEB_CI().replace('            use-custom-token: true\n', '');
+    const withCd = migrate(facts(), [{ file: 'web-ci.yml', text: ciWithout }, { file: 'web-cd.yml', text: WEB_CD('staging', 'production') }]);
+    assert.equal(yaml(withCd.files, '.github/workflows/ci.yml').jobs['run-ci']!.with!['use-custom-token'], true);
+    const pkg = JSON.stringify({ packageManager: 'pnpm@11.28.6', scripts: { lint: 'eslint' }, dependencies: { '@pursuit-amsterdam/web-essentials': '^3.4.6' } });
+    const withDep = migrate(facts({ packageJson: pkg }), [{ file: 'web-ci.yml', text: ciWithout }]);
+    assert.equal(yaml(withDep.files, '.github/workflows/ci.yml').jobs['run-ci']!.with!['use-custom-token'], true);
+    const plain = migrate(facts(), [{ file: 'web-ci.yml', text: ciWithout }]);
+    assert.equal(yaml(plain.files, '.github/workflows/ci.yml').jobs['run-ci']!.with!['use-custom-token'], undefined);
+});
+
 test('a CI flag without a package.json script is left out and noted', () => {
     const m = migrate(facts({ packageJson: JSON.stringify({ packageManager: 'pnpm@11.28.6', scripts: { lint: 'eslint', test: 'jest' } }) }), [{ file: 'ci.yml', text: WEB_CI() }]);
     assert.equal(yaml(m.files, '.github/workflows/ci.yml').jobs['run-ci']!.with!.checks, 'lint test');
