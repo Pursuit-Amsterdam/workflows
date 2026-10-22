@@ -354,7 +354,28 @@ for (const repo of repos) {
     }
 
     // Only seniors create release tags, so only a senior deploys to production.
-    if (wanted.has('production')) await upsertRuleset(repo, rulesets, tagRuleset);
+    // Also for a repo whose release publishes Pages: the tag is how it goes live.
+    if (wanted.has('production') || c.releases) await upsertRuleset(repo, rulesets, tagRuleset);
+
+    // Pages published from a release: the github-pages environment (GitHub makes it)
+    // must allow the release tags. Other rules on it (develop, for a Storybook on
+    // every push) stay.
+    if (c.pagesOnRelease) {
+        const gh = existingEnvs.find(e => e.name === 'github-pages');
+        if (!gh) add({ repo, kind: 'todo', message: "github-pages: enable Pages (source: GitHub Actions) first; then run again to allow tags v*" });
+        else {
+            const q = { ...p, environment_name: 'github-pages' };
+            const current = ((await get<{ branch_policies: { name: string; type?: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies', q))?.branch_policies ?? []).map(b => `${b.type ?? 'branch'} ${b.name}`);
+            if (gh.deployment_branch_policy?.custom_branch_policies !== true) {
+                add({ repo, kind: 'update', message: "environment 'github-pages': tag v* (was: any branch)", run: async () => {
+                    await send('PUT', '/repos/{owner}/{repo}/environments/{environment_name}', { ...q, deployment_branch_policy: { protected_branches: false, custom_branch_policies: true } });
+                    await send('POST', '/repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies', { ...q, name: 'v*', type: 'tag' });
+                } });
+            } else if (!current.includes('tag v*')) {
+                add({ repo, kind: 'update', message: "environment 'github-pages': allow tag v*", run: () => send('POST', '/repos/{owner}/{repo}/environments/{environment_name}/deployment-branch-policies', { ...q, name: 'v*', type: 'tag' }) });
+            }
+        }
+    }
 
     await todos(c, envs);
 }
