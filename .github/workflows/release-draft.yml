@@ -82,9 +82,12 @@ jobs:
           tag="v$version"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-          # The tag exists: this version is released, or a release is being published right now.
-          if gh api "repos/{owner}/{repo}/git/ref/tags/$tag" >/dev/null 2>&1; then
-            echo "$tag exists: $version is released. Nothing to do."
+          # The tag exists: this version is released, or a release is being published
+          # right now. A tag with build metadata (v1.2.3+2) counts: cd-packages
+          # publishes that as 1.2.3 too.
+          existing=$(gh api "repos/{owner}/{repo}/git/matching-refs/tags/$tag" --jq --arg tag "$tag" '.[].ref | ltrimstr("refs/tags/") | select(. == $tag or startswith($tag + "+"))' | head -1)
+          if [ -n "$existing" ]; then
+            echo "$existing exists: $version is released. Nothing to do."
             echo "action=none" >> "$GITHUB_OUTPUT"; exit 0
           fi
 

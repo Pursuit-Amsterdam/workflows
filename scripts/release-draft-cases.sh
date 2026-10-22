@@ -46,9 +46,10 @@ echo "gh api $method $path ${fields[*]:-}" >>"$GH_LOG"
 out=
 case "$method $path" in
   "GET repos/{owner}/{repo}") out='{"default_branch":"main"}' ;;
-  "GET repos/{owner}/{repo}/git/ref/tags/"*)
-    t=${path##*/}
-    case " ${FAKE_TAGS:-} " in *" $t "*) out="{\"ref\":\"refs/tags/$t\"}" ;; *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;; esac ;;
+  "GET repos/{owner}/{repo}/git/matching-refs/tags/"*)
+    prefix=${path##*/}; out='['; sep=
+    for t in ${FAKE_TAGS:-}; do case "$t" in "$prefix"*) out+="$sep{\"ref\":\"refs/tags/$t\"}"; sep=, ;; esac; done
+    out+=']' ;;
   "GET repos/{owner}/{repo}/releases") out=${FAKE_RELEASES:-[]} ;;
   "POST repos/{owner}/{repo}/releases/generate-notes") out='{"body":"generated notes"}' ;;
   "POST repos/{owner}/{repo}/releases") out='{"id":99,"html_url":"https://github.com/o/r/releases/tag/new"}' ;;
@@ -93,6 +94,12 @@ check "tag exists: nothing to do" run_step draft '"1.2.3"' FAKE_TAGS="v1.0.0 v1.
 check "  says so" said "v1.2.3 exists"
 check "  action=none" output "action=none"
 refute "  no draft created" logged "POST repos/{owner}/{repo}/releases "
+# cd-packages reads v1.2.3+2 as 1.2.3 (build metadata): that version is released too
+check "a +N tag for this version: nothing to do" run_step draft '"1.2.3"' FAKE_TAGS="v1.2.3+2"
+check "  says so" said "v1.2.3+2 exists"
+refute "  no draft created" logged "POST repos/{owner}/{repo}/releases "
+check "a tag that only starts the same: not this version" run_step draft '"1.2.3"' FAKE_TAGS="v1.2.30 v1.2.3-rc.1"
+check "  draft created" logged "tag_name=v1.2.3"
 
 # --- a new draft
 check "no draft yet: created" run_step draft '"1.2.3"'
