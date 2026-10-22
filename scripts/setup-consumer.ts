@@ -312,7 +312,8 @@ for (const repo of repos) {
     const envs = new Map<string, EnvRef>();
     const wanted = wantedEnvironments(c);
     for (const [name, allowed] of wanted) envs.set(name, await setupEnvironment(repo, existingEnvs, name, allowed));
-    const standard = ['integration', 'staging', 'acceptance', 'production', 'github-pages'];
+    // github-pages and copilot are GitHub's own (cd-pages, the Copilot coding agent).
+    const standard = ['integration', 'staging', 'acceptance', 'production', 'github-pages', 'copilot'];
     for (const e of existingEnvs.filter(e => !standard.includes(e.name.toLowerCase()))) {
         add({ repo, kind: 'note', message: `environment '${e.name}' is not part of the standard` });
     }

@@ -235,6 +235,7 @@ for (const repo of repos) {
     for (const e of envs) {
         const lc = e.toLowerCase();
         if (lc === 'integration') continue; // CI runs on every branch
+        if (lc === 'copilot') continue; // GitHub's own, for the Copilot coding agent
         if (!['staging', 'acceptance', 'production', 'github-pages'].includes(lc)) {
             say(repo, 'environments', `unexpected environment '${e}'`);
             continue;
