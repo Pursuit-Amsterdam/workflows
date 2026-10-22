@@ -106,6 +106,7 @@ check "  tag output" output "tag=v1.2.3"
 check "  url output" output "url=https://github.com/o/r/releases/tag/new"
 
 # --- notes from the repo
+# shellcheck disable=SC2016  # the command must receive $VERSION literally; the step expands it
 check "notes-command: its output is the body" run_step draft '"1.2.3"' NOTES_COMMAND='echo "notes for $VERSION"'
 check "  with the version in VERSION" logged "body=notes for 1.2.3"
 refute "  no generated notes" logged "generate-notes"
