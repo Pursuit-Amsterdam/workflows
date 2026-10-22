@@ -14,6 +14,8 @@ const facts = (over: Partial<RepoFacts> = {}): RepoFacts => ({
     nvmrc: '24\n',
     codeowners: '* @Pursuit-Amsterdam/senior-developers\n',
     dependabot: DEPENDABOT_YAML,
+    turboJson: null,
+    supabaseConfig: null,
     ...over,
 });
 
@@ -245,4 +247,82 @@ test('package.json lessons from the template', () => {
     const pkg = { scripts: { test: 'jest' }, devDependencies: { '@pursuit-amsterdam/jest-config': '^1.0.0', typescript: '^6.0.2' } };
     const m = migrate(facts({ packageJson: JSON.stringify(pkg), hasLockfile: false }), []);
     for (const s of ['packageManager', 'pnpm-lock.yaml', '1.0.1', 'jest-dom', 'TypeScript 6']) assert.ok(m.checklist.some(l => l.includes(s)), s);
+});
+
+// --- tellr lessons: backend-ci that only ran the pgTAP suite, next to web-ci
+const SUPABASE_CI = (extra = '') => `name: Continuous Integration
+on:
+    push:
+        branches: [main, develop]
+jobs:
+    frontend-ci:
+        uses: Pursuit-Amsterdam/workflows/.github/workflows/web-ci.yml@main
+        with:
+            node-version: '24.x'
+            run-build: false
+            run-test: true
+            run-lint: true
+            run-typecheck: true
+            use-custom-token: true
+        secrets: inherit
+    backend-ci:
+        uses: Pursuit-Amsterdam/workflows/.github/workflows/backend-ci.yml@main
+        with:
+            run-python-checks: false
+            run-supabase-test: true
+${extra}`;
+const TURBO = '{\n    "$schema": "https://turborepo.dev/schema.json",\n    "tasks": {\n        "build": { "dependsOn": ["^build"] },\n        "test": {}\n    }\n}\n';
+const PKG = JSON.stringify({ packageManager: 'pnpm@11.5.2', scripts: { lint: 'turbo run lint', typecheck: 'turbo run typecheck', test: 'turbo run test', build: 'turbo run build' }, devDependencies: { supabase: '2.121.0', turbo: '^2.11.7' } }, null, 4) + '\n';
+const patch = (m: ReturnType<typeof migrate>, file: string) => m.patches.find(p => p.file === file);
+
+test('tellr: backend-ci with only the Supabase test next to web-ci becomes one ci.yml with dbtest', () => {
+    const m = migrate(facts({ packageJson: PKG, turboJson: TURBO, supabaseConfig: '[api]\nenabled = true\n' }), [{ file: 'ci.yml', text: SUPABASE_CI() }]);
+    const ci = yaml(m.files, '.github/workflows/ci.yml');
+    assert.deepEqual(ci.jobs['run-ci']!.with, { checks: 'lint typecheck test dbtest', database: 'supabase', 'use-custom-token': true });
+    assert.ok(m.report.some(l => l.includes('dbtest')), m.report.join('\n'));
+    assert.ok(!m.checklist.some(l => l.includes('backend-ci')), 'no "left alone" line');
+    // the root script, as a patch on whatever package.json the branch has
+    const pkg = patch(m, 'package.json');
+    assert.ok(pkg, 'package.json patch');
+    const after = pkg.apply(PKG)!;
+    assert.equal((JSON.parse(after) as { scripts: Record<string, string> }).scripts['dbtest'], 'supabase test db');
+    assert.match(after, /^    "scripts": \{\n        "dbtest": "supabase test db",\n        "lint"/m, 'inserted with the file\'s indentation');
+    assert.equal(pkg.apply(after), null, 'already there: nothing to do');
+    // the turbo root task
+    const turbo = patch(m, 'turbo.json');
+    assert.ok(turbo, 'turbo.json patch');
+    const t = turbo.apply(TURBO)!;
+    assert.match(t, /"tasks": \{\n(\s*\/\/[^\n]*\n)*\s*"\/\/#dbtest": \{/, 'root task first in tasks');
+    assert.equal(turbo.apply(t), null);
+    assert.equal(turbo.apply(null), null, 'no turbo.json on this branch: nothing to do');
+});
+
+test('tellr: seed carries over, and no turbo means no turbo patch', () => {
+    const m = migrate(facts({ packageJson: PKG, turboJson: null }), [{ file: 'ci.yml', text: SUPABASE_CI('            seed: true\n') }]);
+    assert.equal(yaml(m.files, '.github/workflows/ci.yml').jobs['run-ci']!.with!['supabase-seed'], true);
+    assert.ok(patch(m, 'package.json'));
+    assert.equal(patch(m, 'turbo.json'), undefined);
+});
+
+test('tellr: backend-ci with Python, or in a directory, stays handwork', () => {
+    const python = migrate(facts({ packageJson: PKG }), [{ file: 'ci.yml', text: SUPABASE_CI().replace('run-python-checks: false', 'run-python-checks: true') }]);
+    assert.equal(python.files.has('.github/workflows/ci.yml'), false);
+    assert.ok(python.checklist.some(l => l.includes('backend-ci')));
+    const dir = migrate(facts({ packageJson: PKG }), [{ file: 'ci.yml', text: SUPABASE_CI('            working-directory: ./backend\n') }]);
+    assert.equal(dir.files.has('.github/workflows/ci.yml'), false);
+});
+
+test('tellr: the pinned Supabase CLI must know the config.toml, and must be exact', () => {
+    const old = JSON.parse(PKG) as { devDependencies: Record<string, string> };
+    old.devDependencies.supabase = '2.106.0';
+    const stale = migrate(facts({ packageJson: JSON.stringify(old), supabaseConfig: '[local_smtp]\nenabled = true\n' }), [{ file: 'ci.yml', text: SUPABASE_CI() }]);
+    assert.ok(stale.checklist.some(l => l.includes('2.108.0') && l.includes('local_smtp')), stale.checklist.join('\n'));
+    const fresh = migrate(facts({ packageJson: PKG, supabaseConfig: '[local_smtp]\nenabled = true\n' }), [{ file: 'ci.yml', text: SUPABASE_CI() }]);
+    assert.ok(!fresh.checklist.some(l => l.includes('local_smtp')));
+    old.devDependencies.supabase = '^2.121.0';
+    const range = migrate(facts({ packageJson: JSON.stringify(old) }), [{ file: 'ci.yml', text: SUPABASE_CI() }]);
+    assert.ok(range.checklist.some(l => l.includes('exact')), range.checklist.join('\n'));
+    delete (old.devDependencies as Record<string, string | undefined>).supabase;
+    const none = migrate(facts({ packageJson: JSON.stringify(old) }), [{ file: 'ci.yml', text: SUPABASE_CI() }]);
+    assert.ok(none.checklist.some(l => l.includes('exact')), none.checklist.join('\n'));
 });

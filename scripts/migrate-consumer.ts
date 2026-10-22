@@ -38,14 +38,20 @@ function run(cwd: string, cmd: string, cmdArgs: string[]): string {
 const git = (cwd: string, ...a: string[]): string => run(cwd, 'git', ['-c', 'core.hooksPath=/dev/null', ...a]);
 const read = (dir: string, file: string): string | null => (existsSync(join(dir, file)) ? readFileSync(join(dir, file), 'utf8') : null);
 
-function writeFiles(dir: string, files: Migration['files']): void {
-    for (const [file, content] of files) {
+// The patches work on the branch's own copy (package.json, turbo.json), so the
+// hotfix to main never gets develop's version of those files.
+function writeFiles(dir: string, m: Pick<Migration, 'files' | 'patches'>): void {
+    for (const [file, content] of m.files) {
         const path = join(dir, file);
         if (content === null) rmSync(path, { force: true });
         else {
             mkdirSync(dirname(path), { recursive: true });
             writeFileSync(path, content);
         }
+    }
+    for (const patch of m.patches) {
+        const next = patch.apply(read(dir, patch.file));
+        if (next !== null) writeFileSync(join(dir, patch.file), next);
     }
 }
 
@@ -74,6 +80,8 @@ try {
             nvmrc: read(dir, '.nvmrc'),
             codeowners: read(dir, '.github/CODEOWNERS') ?? read(dir, 'CODEOWNERS') ?? read(dir, 'docs/CODEOWNERS'),
             dependabot: read(dir, '.github/dependabot.yml'),
+            turboJson: read(dir, 'turbo.json'),
+            supabaseConfig: read(dir, 'supabase/config.toml'),
         },
         sources,
     );
@@ -89,8 +97,9 @@ try {
     // --- show it
     console.log(`${ORG}/${repo}: ${hasDevelop ? `develop -> ${FEATURE}, ${main} -> ${HOTFIX}` : `${main} -> ${FEATURE}`}\n`);
     for (const l of m.report) console.log(`  ${l}`);
+    for (const patch of m.patches) console.log(`  ${patch.file}: ${patch.why}`);
     git(dir, 'checkout', '--quiet', '-b', FEATURE);
-    writeFiles(dir, m.files);
+    writeFiles(dir, m);
     git(dir, 'add', '-A');
     const changed = git(dir, 'diff', '--cached', '--stat');
     if (!changed) {
@@ -139,7 +148,7 @@ try {
 
     if (hasDevelop) {
         git(dir, 'checkout', '--quiet', '-b', HOTFIX, `origin/${main}`);
-        writeFiles(dir, m.files);
+        writeFiles(dir, m);
         git(dir, 'add', '-A');
         if (git(dir, 'diff', '--cached', '--stat')) {
             git(dir, 'commit', '--quiet', '-m', 'ci: move workflows to Pursuit-Amsterdam/workflows v2');
@@ -150,7 +159,7 @@ try {
                 base: main,
                 draft: true,
                 title: `ci: move workflows to Pursuit-Amsterdam/workflows v2 (${main})`,
-                body: `The workflow files of ${feature.data.html_url}, so \`${main}\` gets the v2 \`cd.yml\`: \`workflow_run\` and \`release\` read the CD file from \`${main}\`. No app changes. Merge this one first, then the PR to \`develop\` shortly after.\n\n## Summary\n\n${summary}\n`,
+                body: `The workflow files of ${feature.data.html_url}, so \`${main}\` gets the v2 \`cd.yml\`: \`workflow_run\` and \`release\` read the CD file from \`${main}\`. No app changes${m.patches.length ? ` beyond ${m.patches.map(p => `\`${p.file}\` (${p.why})`).join(' and ')}` : ''}. Merge this one first, then the PR to \`develop\` shortly after.\n\n## Summary\n\n${summary}\n`,
             });
             console.log(`PR: ${hotfix.data.html_url}`);
         }

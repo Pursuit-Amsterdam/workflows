@@ -16,11 +16,28 @@ export interface RepoFacts {
     nvmrc: string | null;
     codeowners: string | null;
     dependabot: string | null;
+    /** turbo.json at the root; null when there is none. */
+    turboJson: string | null;
+    /** supabase/config.toml; null when there is none. */
+    supabaseConfig: string | null;
+}
+
+/**
+ * An edit to a file that differs per branch (package.json, turbo.json): applied
+ * to whatever the branch has, so the hotfix to main never gets develop's copy.
+ * `apply` returns the new text, or null when there is nothing to do.
+ */
+export interface Patch {
+    file: string;
+    why: string;
+    apply: (current: string | null) => string | null;
 }
 
 export interface Migration {
     /** Path → new content; null deletes the file. */
     files: Map<string, string | null>;
+    /** Edits applied to the branch's own copy of a file, after `files`. */
+    patches: Patch[];
     /** What a person still has to do or check, one line each. */
     checklist: string[];
     /** Variables to set on a GitHub environment (by its lowercase name). */
@@ -58,10 +75,45 @@ function scriptName(command: string): string {
 function nodeMajor(version: string): string | null {
     return /^(\d+)/.exec(version.trim())?.[1] ?? null;
 }
+const EXACT = /^\d+\.\d+\.\d+$/;
+/** a < b for exact versions. */
+function older(a: string, b: string): boolean {
+    const [x, y] = [a, b].map(v => v.split('.').map(Number));
+    for (let i = 0; i < 3; i++) if (x![i] !== y![i]) return x![i]! < y![i]!;
+    return false;
+}
+/** The CLI version that first read `[local_smtp]` in config.toml (it was `[inbucket]`). */
+const LOCAL_SMTP_SINCE = '2.108.0';
+
+// --- the patches: the dbtest script and the turbo root task ---------------------
+
+export const DBTEST_SCRIPT = 'supabase test db';
+/** Adds `"dbtest": "supabase test db"` as the first script, with the file's indentation. */
+export const dbtestScriptPatch: Patch = {
+    file: 'package.json',
+    why: 'the `dbtest` script that CI runs',
+    apply: current => {
+        if (!current || /"dbtest"\s*:/.test(current)) return null;
+        const m = /("scripts"\s*:\s*\{\n)([ \t]*)/.exec(current);
+        return m ? current.replace(m[0], `${m[1]}${m[2]}"dbtest": "${DBTEST_SCRIPT}",\n${m[2]}`) : null;
+    },
+};
+/** turbo only runs scripts of workspace packages; a root script is a `//#<task>` in turbo.json. */
+export const dbtestTurboPatch: Patch = {
+    file: 'turbo.json',
+    why: 'the `//#dbtest` root task (turbo runs no root script without it)',
+    apply: current => {
+        if (!current || current.includes('"//#dbtest"')) return null;
+        const m = /("(?:tasks|pipeline)"\s*:\s*\{\n)([ \t]*)/.exec(current);
+        if (!m) return null;
+        const i = m[2];
+        return current.replace(m[0], `${m[1]}${i}// Root task: the pgTAP suite against the local Supabase stack that CI starts.\n${i}"//#dbtest": { "cache": false },\n${i}`);
+    },
+};
 
 // --- the v2 files -------------------------------------------------------------
 
-function ciYaml(o: { branches: string[]; checks: string[]; useCustomToken: boolean; workingDirectory: string }): string {
+function ciYaml(o: { branches: string[]; checks: string[]; useCustomToken: boolean; workingDirectory: string; database?: string; supabaseSeed?: boolean }): string {
     return `name: Continuous Integration
 
 # The repo's package.json scripts are what CI runs; see
@@ -80,7 +132,7 @@ jobs:
         uses: Pursuit-Amsterdam/workflows/.github/workflows/ci.yml@v2
         with:
             checks: ${o.checks.join(' ')}
-${o.workingDirectory !== '.' ? `            working-directory: ${o.workingDirectory}\n` : ''}${o.useCustomToken ? '            # The @pursuit-amsterdam packages are private.\n            use-custom-token: true\n' : ''}        secrets: inherit
+${o.workingDirectory !== '.' ? `            working-directory: ${o.workingDirectory}\n` : ''}${o.database ? `            # Boots the local Supabase stack: every migration must apply, and dbtest runs the pgTAP suite.\n            database: ${o.database}\n` : ''}${o.supabaseSeed ? '            supabase-seed: true\n' : ''}${o.useCustomToken ? '            # The @pursuit-amsterdam packages are private.\n            use-custom-token: true\n' : ''}        secrets: inherit
 `;
 }
 
@@ -179,6 +231,7 @@ updates:
 
 export function migrate(facts: RepoFacts, sources: { file: string; text: string }[]): Migration {
     const files = new Map<string, string | null>();
+    const patches: Patch[] = [];
     const checklist: string[] = [];
     const envVars: Migration['envVars'] = [];
     const report: string[] = [];
@@ -205,13 +258,19 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
     for (const j of all) nodeVersion ||= str(j.with['node-version']);
 
     // --- CI: one web-ci call, and nothing else that is CI. A backend-ci next to
-    // it means turbo and a backend/package.json; that is handwork.
+    // it that only ran the pgTAP suite (tellr) folds in as `database: supabase`
+    // plus a `dbtest` check; one with Python means turbo and a backend/package.json,
+    // and that is handwork.
     const ciFiles = workflows.filter(w => w.jobs.some(j => j.kind === 'web-ci' || j.kind === 'backend-ci'));
     const webCi = all.filter(j => j.kind === 'web-ci');
+    const backendCi = all.filter(j => j.kind === 'backend-ci');
+    const b = backendCi[0]?.with ?? {};
+    const supabaseOnly =
+        backendCi.length === 1 && !truthy(b['run-python-checks']) && truthy(b['run-supabase-test']) && !truthy(b['postgres-enabled']) && ['', '.', './'].includes(str(b['working-directory']));
     let ciConverted = false;
-    if (all.some(j => j.kind === 'backend-ci')) {
+    if (backendCi.length > 0 && !supabaseOnly) {
         checklist.push('CI calls `backend-ci` (Python): left as it is. v2 runs Python checks through `package.json` scripts and turbo; see the migration examples in docs/v2.');
-    } else if (webCi.length === 1 && ciFiles.length === 1 && ciFiles[0]!.jobs.every(j => j.kind === 'web-ci')) {
+    } else if (webCi.length === 1 && ciFiles.every(f => f.jobs.every(j => j.kind === 'web-ci' || j.kind === 'backend-ci'))) {
         const w = webCi[0]!.with;
         const wanted: [string, string][] = [];
         if (truthy(w['run-lint'] ?? true)) wanted.push(['run-lint', 'lint']);
@@ -241,11 +300,32 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
         if (truthy(w['onepassword_enabled'])) {
             checklist.push(`v1 CI loaded the 1Password item \`${str(w['onepassword_vault'])}/${str(w['onepassword_item'])}\`; v2 CI runs without it. If lint, typecheck or tests need those values, add \`onepassword-vault\`/\`onepassword-item\` to \`ci.yml\` and \`OP_SERVICE_ACCOUNT_TOKEN\` to the \`integration\` environment. Otherwise remove \`OP_SERVICE_ACCOUNT_TOKEN\` from \`integration\`.`);
         }
+        if (supabaseOnly) {
+            // The pgTAP suite becomes the `dbtest` script; the patches add it to the
+            // branch's own package.json (and turbo.json), so main keeps its own copy.
+            checks.push('dbtest');
+            if (pkg?.scripts?.['dbtest'] && pkg.scripts['dbtest'] !== DBTEST_SCRIPT) {
+                checklist.push(`\`package.json\` already has a \`dbtest\` script (\`${pkg.scripts['dbtest']}\`): CI runs it as the pgTAP check; make sure it is \`${DBTEST_SCRIPT}\`.`);
+            } else if (pkg && !/"scripts"\s*:\s*\{\n/.test(facts.packageJson ?? '')) {
+                checklist.push(`Add \`"dbtest": "${DBTEST_SCRIPT}"\` to the scripts in \`package.json\`: the file has no scripts block to patch.`);
+            } else patches.push(dbtestScriptPatch);
+            if (facts.turboJson !== null) {
+                if (/"(tasks|pipeline)"\s*:\s*\{\n/.test(facts.turboJson)) patches.push(dbtestTurboPatch);
+                else checklist.push('`turbo.json`: add the root task `"//#dbtest": { "cache": false }` to `tasks` by hand (turbo runs no root script without it).');
+            }
+            const cli = deps['supabase'];
+            if (!cli || !EXACT.test(cli)) {
+                checklist.push(`CI installs the Supabase CLI pinned in \`package.json\` and needs an exact version (got ${cli ? `\`${cli}\`` : 'none'}): \`pnpm add -D -E supabase@latest\`. v1 installed \`latest\` on every run.`);
+            } else if (facts.supabaseConfig?.includes('[local_smtp]') && older(cli, LOCAL_SMTP_SINCE)) {
+                checklist.push(`\`supabase/config.toml\` has \`[local_smtp]\`, which the CLI reads since ${LOCAL_SMTP_SINCE}, but \`package.json\` pins \`supabase\` ${cli}: \`supabase start\` fails in CI (v1 installed \`latest\`, which hid this). Bump it: \`pnpm add -D -E supabase@latest\`.`);
+            }
+            if (truthy(b['seed'])) checklist.push('v1 `backend-ci` seeded the local stack (`seed: true`); v2 passes `supabase-seed: true`, which keeps `supabase/seed.sql`.');
+        }
         if (checks.length === 0) {
             checklist.push('No CI check has a matching `package.json` script: `ci.yml` was not written. Add the scripts first.');
         } else {
-            const old = ciFiles[0]!.wf.file;
-            if (old !== 'ci.yml') files.set(path(old), null);
+            const olds = ciFiles.map(f => f.wf.file);
+            for (const old of olds) if (old !== 'ci.yml') files.set(path(old), null);
             files.set(
                 path('ci.yml'),
                 ciYaml({
@@ -253,9 +333,10 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
                     checks,
                     useCustomToken: privatePackages,
                     workingDirectory: str(w['working-directory']).replace(/^\.\/(.+)$/, '$1') || '.',
+                    ...(supabaseOnly ? { database: 'supabase', supabaseSeed: truthy(b['seed']) } : {}),
                 }),
             );
-            report.push(`${old} → ci.yml (checks: ${checks.join(' ')})`);
+            report.push(`${olds.join(' + ')} → ci.yml (checks: ${checks.join(' ')}${supabaseOnly ? '; database: supabase, the pgTAP suite as dbtest' : ''})`);
             ciConverted = true;
         }
     } else if (webCi.length > 0) {
@@ -378,5 +459,5 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
         if (jest && !deps['@testing-library/jest-dom']) checklist.push('`@pursuit-amsterdam/jest-config` without `@testing-library/jest-dom`: the react/next presets need it.');
         if (/^[~^]?6\./.test(deps['typescript'] ?? '')) checklist.push('TypeScript 6: the test types (`jest`, `@testing-library/jest-dom`) belong in `types` in `tsconfig.json`.');
     }
-    return { files, checklist, envVars, report };
+    return { files, patches, checklist, envVars, report };
 }
