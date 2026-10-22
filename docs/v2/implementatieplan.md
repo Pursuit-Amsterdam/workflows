@@ -27,7 +27,7 @@
 
 - **Plak 4, CD naar Swarm** (Task 16–18): `deploy-swarm` met `pre-deploy`, `cd-swarm`, gp-container-tracking-webapp en gp-map-webapp.
 - **Plak 5, de rest** (Task 19, 20): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI.
-- **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
+- **Plak 6** (Task 24–29): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`, en de blueprint-familie (groep C).
 - **Pakketten, release-flow** (Task 22c, 22 oktober 2026): `release-draft.yml` staat in alle negen pakketrepo's (banner-kit en de acht andere); een senior publiceert de draft die na een versiebump klaarstaat. De vijf banner-repo's volgen in Task 22d: PR's met review, Pages bij een release, en eerst banner-kit 0.10.0 met een preview-map zonder de interne notities.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
 - **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
@@ -642,7 +642,7 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] Derde en vierde migratie (22 oktober 2026), elk `--apply`, merge, staging via v2, `setup-consumer --apply`, tweede run `no changes`:
   - unconsultants-website: #66 (`develop`), #67 (`main`), meteen groen (typecheck, test, build). Staging @ a3b4ba7.
   - scm-executives-website: #111, #112; geen tests, dus `test` uit `checks` (de checklist voorspelde het). `prepare-package` kwam mee. Staging @ feea0e1. De ruleset "Copilot review for default branch" (februari 2026) weg.
-  - Lege `Preview`-environments weg in beide. all-connect-solutions-website overgeslagen (opgezegd); multifill-planning-tool wacht.
+  - Lege `Preview`-environments weg in beide. all-connect-solutions-website en foodcabinet-website overgeslagen (beide opgezegd, 22 oktober 2026); multifill-planning-tool wacht.
 - [x] Vijfde migratie (22 oktober 2026, door Bas zelf): variantzorg-frontend, #149 (`develop`) en #150 (`main`), staging via v2 om 15:48; `setup-consumer` gedaan (tweede run `no changes`), audit alleen de hoofdletters in de environmentnamen. Daarbij gevonden: `setup-node-pnpm` pinde `pnpm/action-setup` v4.3.0 (Node 20) → v6.1.0 (#105).
 - [x] Zesde migratie (22 oktober 2026): nextjs-feature-flags, #3 (`develop`) en #4 (`main`), gemerged om 21:14 nadat Bas de klassieke protectie had losgemaakt (`enforce_admins` plus de oude checknaam blokkeerden ook de admin); `setup-consumer --apply` (9 wijzigingen, tweede run `no changes`), audit alleen de Vercel-secrets die op org-niveau staan (`VERCEL_TOKEN`, `VERCEL_ORG_ID`). Pakketrepo met een demo-app op Vercel: het script deed CI, check-pr, `CODEOWNERS` en Dependabot; met de hand `cd.yml` → gate (`allow-prerelease`) + `cd-vercel` + `cd-packages`, `release-package.yml` (release `created`, `setup-node-pnpm@main`, `npm publish`) weg, `release-draft.yml` met `package-dir: packages/core`. `CUSTOM_GITHUB_TOKEN` is niet beschikbaar voor deze repo; zoals v1 en web-essentials-cli leest de CI de privépakketten met `GITHUB_TOKEN`, met `packages: read` op de aanroeper (v1 zette geen permissions; de v2-aanroeper zet `contents: read` en kreeg een 403 op `eslint-config`). Na de merge: `setup-consumer`, `packages/core` ophogen vóór de eerste release (tags gaan van `0.6.0-beta.1` naar `v*`; `0.6.0-beta.1` staat al in de registry), `VERCEL_TOKEN`/`VERCEL_ORG_ID` op `production` controleren (de v1-run kreeg ze uit de org), PR #2 `develop` laten bijhalen.
 - [x] Zevende migratie (22 oktober 2026): tellr-webapp, met de hand (het script laat `ci.yml` met rust zodra er een `backend-ci` naast `web-ci` staat): #454 (`develop`) en #455 (`main`), beide groen. Het script deed `cd.yml` (gate + cd-vercel, de acceptance-job weg: er is geen acceptance-branch), `check-pr.yml`, `storybook-cd.yml` → `cd-pages@v2` vanuit `apps/webapp`, `CODEOWNERS`, `dependabot.yml` en `OP_VAULT`/`OP_ITEM` op `staging` en `Production`. Met de hand: `ci.yml` (één `run-ci` met `dbtest` en `database: supabase`, 1Password zoals in v1), het rootscript `dbtest`, `//#dbtest` in `turbo.json`, en de Supabase CLI naar 2.121.0 (zie Task 19 stap 4). Migraties blijven via de Supabase-integratie gaan (de check "Supabase Preview" staat op de PR), zoals basko. Drie keer rood voordat het groen was; de eerste twee zijn lessen voor het script:
@@ -662,6 +662,27 @@ De andere pakketrepo's (20 oktober 2026):
 - [ ] Stap 2: `pnpm audit:consumers -- workflows-example gp-map-webapp gp-container-tracking-webapp template-nextjs-vercel tms-test gp-groot-automations translations-management` → 0 bevindingen.
 - [ ] Stap 3: commit `chore: remove v1 workflows and actions from v2`.
 - [ ] Stap 4 (**handwerk**): zet de default branch van deze repo op `v2`. Consumers merken niets (hun refs zijn expliciet), maar vanaf nu draaien `schedule` en `workflow_dispatch` vanaf `v2`, en toont de Actions-tab de v2-workflows. Verwacht: de eerstvolgende wekelijkse audit draait vanzelf.
+
+### Task 29: de blueprint-familie en sluyter op `v2` (groep C, **handwerk**, met Sam)
+
+**Onderzocht (22 oktober 2026):** automations-blueprint, bnext-automations, integrators-automations, gp-groot-automations en sluyter-logistics-automations. Alle vijf van Sam Titarsolej.
+
+**Wat het is.** automations-blueprint is een "fork-and-fill"-skelet: FastAPI-API plus Celery-worker (`apps/backend`, uv) en een Next.js-dashboard (`apps/web`), als Turborepo met in `apps/backend/package.json` dunne `uv run`-scripts voor `lint`, `test` en `build`. integrators-automations (template v0.6.2, actief, VM 20.229.241.18 met Key Vault) en bnext-automations (v0.4.0, actief) zijn instanties: `template/sync.py` haalt de template-bestanden op, en het MANIFEST markeert `.github/**` als `sync`. **De workflows van een instantie zijn dus eigendom van de blueprint**; `template-drift.yml` meldt elke lokale wijziging als drift. gp-groot-automations is de voorloper zonder template (stil sinds 19 augustus 2026, branch `port-to-blueprint`, VM 4.231.114.19). sluyter-logistics-automations is één Python 3.13-app op een Azure Queue (stil sinds mei 2026) met alleen `release.yml`: bij een release een image naar GHCR via `setup-version` en `run-docker-build-push` rechtstreeks op `@main`.
+
+**Wat ze draaien (v1):** `web-ci` en `backend-ci` (die laatste slaat al zijn stappen over, zie de [auditbevindingen](naslag/auditbevindingen.md)), een eigen `image-ci.yml` (paths-filter, Docker-build met health-probe), `check-pr`, en `cd.yml` op een `v*`-tag naar `vm-cd` met `migrate-image`, 1Password uit `vars`, bij integrators ook `migrate-env` en een environment-keuze. Geen staging.
+
+**Wat v2 al dekt:** alles. `ci.yml` met turbo, `database: postgres` en `redis`; `ci-images` in plaats van `image-ci.yml`; `cd-gate` plus `cd-swarm` met `migrate-image`, `migrate-env`, `pre-deploy` en dezelfde secret-id `NODE_AUTH_TOKEN` voor de Docker-build. Het [Swarm-migratievoorbeeld](naslag/migratievoorbeelden.md#migration) geldt; productie alleen bij een release.
+
+**Besluiten vooraf, met Sam:**
+- [ ] **Key Vault.** De blueprint-`cd.yml` geeft `keyvault-name` en `keyvault-secrets` mee (Cloudflare-origin-certificaat naar Azure Key Vault), inputs die alleen op de nooit gemergde branch `feature/keyvault-from-1password` bestaan. `vm-cd@main` en `cd-swarm@v2` kennen ze niet; bnext haalde ze op 22 oktober 2026 weg omdat CD met een `startup_failure` stopte ("Unbreak CD"). Keuze: `sync-keyvault` in `cd-swarm`, of het certificaat met de hand op de VM (wat bnext nu doet).
+- [ ] **Variabelennamen.** De blueprint leest `VM_HOST`/`VM_USER`; integrators, gp-groot en de standaard gebruiken `VM_SSH_HOST`/`VM_SSH_USER`. bnext heeft op `production` en de repo geen enkele variabele; of ze org-breed staan is zonder `admin:org` niet te zien. Gelijktrekken in de blueprint.
+- [ ] **Rode CI.** In v2 draaien `ruff` en `pytest` echt. Per instantie een opruim-PR inplannen.
+
+**Stappen:**
+- [ ] Stap 1: automations-blueprint naar v2, één PR naar `main`: `ci.yml` (twee jobs: `run-ci` en `run-ci-images`, `image-ci.yml` weg), `cd.yml` (gate + cd-swarm, `release: published` in plaats van de tag-push), `check-pr.yml`, `CODEOWNERS`. Daarna een template-versie taggen.
+- [ ] Stap 2: `template/sync.py` in integrators-automations en bnext-automations; per repo `setup-consumer --apply` (tag-ruleset, `production` alleen tags `v*`), `VM_SSH_*`, `OP_VAULT`/`OP_ITEM` op `production`; eerste release door een senior.
+- [ ] Stap 3: gp-groot-automations pas na de merge van `port-to-blueprint`; dan komt v2 mee met de sync.
+- [ ] Stap 4: sluyter-logistics-automations, na een levensteken van Sam: `release.yml` op `@v2` (beide actions blijven bestaan met dezelfde interface), plus `check-pr.yml`, `CODEOWNERS` en een `ci.yml` met een `package.json` met `"lint": "uv run ruff check ."`.
 
 ---
 
