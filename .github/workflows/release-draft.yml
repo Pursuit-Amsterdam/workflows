@@ -1,0 +1,125 @@
+name: "Release Draft"
+
+# After a merge to the default branch of a package repo, prepares the release a
+# senior publishes: a draft with the tag taken from package.json's version, so
+# nobody types it over, and the release notes already in place. A draft makes
+# no tag, so the tag ruleset (only seniors create v* tags) still decides who
+# publishes. Publishing starts cd-gate as any release does, and cd-packages
+# publishes the package.
+#
+# Idempotent: the tag exists (released, or being released) -> nothing; a draft
+# for this version already points at this commit -> nothing; a draft at an
+# older commit is moved to this one, with fresh notes; drafts for other
+# versions are removed, so a stale one never waits to be published. Published
+# releases are never touched.
+
+on:
+  workflow_call:
+    inputs:
+      package-dir:
+        description: "Directory with the package.json whose version names the release. In a monorepo: the package that decides the release version."
+        required: false
+        type: string
+        default: "."
+      notes-command:
+        description: >
+          Shell command that prints the release notes to stdout, run in the
+          repo with VERSION in its environment (e.g. `node scripts/release-notes.mjs "$VERSION"`).
+          Empty = the notes GitHub generates from the merged pull requests.
+        required: false
+        type: string
+        default: ""
+    outputs:
+      action:
+        description: "none | created | updated"
+        value: ${{ jobs.draft.outputs.action }}
+      tag:
+        description: "The release tag, v<version>"
+        value: ${{ jobs.draft.outputs.tag }}
+      url:
+        description: "The draft's page, when one was created or updated"
+        value: ${{ jobs.draft.outputs.url }}
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # One draft at a time per repo: two merges in a row must not race.
+    concurrency:
+      group: release-draft
+      cancel-in-progress: false
+    outputs:
+      action: ${{ steps.draft.outputs.action }}
+      tag: ${{ steps.draft.outputs.tag }}
+      url: ${{ steps.draft.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Everything through `gh api`, so the decision runs unchanged in
+      # scripts/release-draft-cases.sh against a fake gh.
+      - name: Prepare the release draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PACKAGE_DIR: ${{ inputs.package-dir }}
+          NOTES_COMMAND: ${{ inputs.notes-command }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          default=$(gh api "repos/{owner}/{repo}" --jq .default_branch)
+          if [ "$REF" != "refs/heads/$default" ]; then
+            echo "::error::release drafts are made from $default only (this run is on $REF)"; exit 1
+          fi
+          version=$(jq -r '.version // empty' "$PACKAGE_DIR/package.json")
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::$PACKAGE_DIR/package.json has no semver version (got '${version:-nothing}')"; exit 1
+          fi
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          # The tag exists: this version is released, or a release is being published right now.
+          if gh api "repos/{owner}/{repo}/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag exists: $version is released. Nothing to do."
+            echo "action=none" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # Drafts only (published releases are never touched): this version's, and stale ones.
+          same_id=""; same_target=""; removed=()
+          while IFS=$'\t' read -r id dtag target; do
+            [ -n "$id" ] || continue
+            if [ "$dtag" = "$tag" ]; then same_id=$id; same_target=$target
+            else gh api -X DELETE "repos/{owner}/{repo}/releases/$id" >/dev/null; removed+=("$dtag"); fi
+          done < <(gh api "repos/{owner}/{repo}/releases" --paginate --jq '.[] | select(.draft) | "\(.id)\t\(.tag_name)\t\(.target_commitish)"')
+          [ ${#removed[@]} -eq 0 ] || echo "Removed stale draft(s): ${removed[*]} (superseded by $tag)"
+
+          if [ -n "$same_id" ] && [ "$same_target" = "$SHA" ]; then
+            echo "Draft $tag already points at $SHA. Nothing to do."
+            echo "action=none" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          # The notes: the repo's own command, or what GitHub generates from the merged PRs.
+          notes=$(mktemp)
+          if [ -n "$NOTES_COMMAND" ]; then
+            VERSION=$version bash -c "$NOTES_COMMAND" > "$notes"
+            [ -s "$notes" ] || { echo "::error::notes-command printed nothing for $version"; exit 1; }
+          else
+            gh api -X POST "repos/{owner}/{repo}/releases/generate-notes" -f tag_name="$tag" -f target_commitish="$SHA" --jq .body > "$notes"
+          fi
+          prerelease=false; [[ "$version" == *-* ]] && prerelease=true
+
+          if [ -n "$same_id" ]; then
+            url=$(gh api -X PATCH "repos/{owner}/{repo}/releases/$same_id" -f target_commitish="$SHA" -F body=@"$notes" --jq .html_url)
+            echo "Moved draft $tag to $SHA: $url"
+            echo "action=updated" >> "$GITHUB_OUTPUT"
+          else
+            url=$(gh api -X POST "repos/{owner}/{repo}/releases" -f tag_name="$tag" -f target_commitish="$SHA" -f name="$tag" -F draft=true -F prerelease="$prerelease" -F body=@"$notes" --jq .html_url)
+            echo "Draft $tag ready at $SHA: $url"
+            echo "action=created" >> "$GITHUB_OUTPUT"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Release draft **$tag** is ready: $url. A senior publishes it; that creates the tag and starts the gate." >> "$GITHUB_STEP_SUMMARY"
