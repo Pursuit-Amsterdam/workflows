@@ -542,8 +542,9 @@ De andere pakketrepo's (20 oktober 2026):
 - snappcar blijft zoals het is (shellscripts, geen banner-kit), maar gaat wel naar `v2`.
 
 **Stap 1, banner-kit 0.10.0** (de eerste echte release via de draft):
-- [ ] `banner-kit build` schrijft naast de huidige uitvoer een preview-map `site/` (in `.gitignore`): `index.html`, `editor.js`, `banners.json`, de bannermappen met HTML, assets en PNG's; **niet** `notes.md`, `spec.json`, `_src/` en `*.orig.*`. Een test (eerst rood) bouwt de kitchen-sink-fixture en controleert dat die bestanden ontbreken en de rest er is. `docs/upgrading.md` krijgt `## 0.9.0 → 0.10.0`; de versie gaat naar 0.10.0.
-- [ ] PR → `main`; na de merge staat de draft `v0.10.0` klaar met die sectie als notities; een senior publiceert; gate + `cd-packages` publiceren het pakket. Daarmee is de draft-flow voor het eerst echt gebruikt.
+- [x] `banner-kit build` schrijft naast de huidige uitvoer een preview-map `site/` (in `.gitignore`): `index.html`, `editor.js`, `banners.json`, de bannermappen met HTML, assets en PNG's; **niet** `notes.md`, `spec.json`, `_src/` en `*.orig.*`. Een test (eerst rood) bouwt de kitchen-sink-fixture en controleert dat die bestanden ontbreken en de rest er is. `docs/upgrading.md` krijgt `## 0.9.0 → 0.10.0`; de versie gaat naar 0.10.0.
+- [x] PR banner-kit#16 (22 oktober 2026; `src/site.mjs`, `test/site.test.mjs` eerst, 38 tests, `check-release` groen). Na de merge stond de draft `v0.10.0` klaar met de `upgrading.md`-sectie; gepubliceerd om 18:06; run 39828459032: gate `release -> production @ 353e53e`, `cd-packages` → `banner-kit@0.10.0` in de registry. De eerste release via de draft-flow. De release toont `github-actions[bot]` als auteur (zie Task 22c).
+  - Nog niet in 0.10.0: `templates/project` (wat `init` in een nieuwe campagnerepo zet) heeft nog de oude `deploy.yml` en npm. Dat volgt zodra stap 2 de v2-bestanden voor een banner-repo bewezen heeft; die worden dan de template.
 
 **Stap 2, de vier banner-kit-repo's** (triodos eerst: daar wordt gewerkt, dus daar valt een fout het snelst op; dan novacollege, offlimits, warmtefonds). Per repo één PR `feature/workflows-v2` → `main`:
 - [ ] pnpm (`packageManager`, `pnpm-lock.yaml` in plaats van `package-lock.json`, `.nvmrc`), banner-kit naar `^0.10.0`, `.gitignore` met `site/`.
