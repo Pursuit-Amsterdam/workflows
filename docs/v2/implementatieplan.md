@@ -28,6 +28,7 @@
 - **Plak 4, CD naar Swarm** (Task 16–18): `deploy-swarm` met `pre-deploy`, `cd-swarm`, gp-container-tracking-webapp en gp-map-webapp.
 - **Plak 5, de rest** (Task 19, 20): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI.
 - **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
+- **Pakketten, release-flow** (Task 22c): `release-draft.yml` (de workflow zet de release klaar met de juiste tag, een senior publiceert), banner-kit op `v2`, daarna de andere pakketrepo's; de vijf banner-repo's zijn geanalyseerd, nog niet ingepland.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
 - **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
 
@@ -506,6 +507,29 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] web-essentials-js (#8, pnpm 11): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/web-essentials`. CI faalde eerst met een 401 op de privépakketten: de `CUSTOM_GITHUB_TOKEN` van de repo (gezet op 7 mei) was verlopen. Lokaal installeerde pnpm 11 met dezelfde `.npmrc` en een geldige token zonder problemen. Met een nieuwe PAT groen; gemerged, CI op `main` groen, rulesets op `main`. pnpm 11 werkt dus met v2.
 - [x] text-extract (#8 naar `develop`, #9 naar `main`): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/text-extract`. De deploy van de demo-app is weg: die draaide nooit (geen Vercel-project). De default branch is nu `main` (was `develop`). `main` had "include administrators" aan, waardoor ook een admin niet zonder review kon mergen; vervangen door de rulesets (up-to-date uit op `main`, aan op `develop`).
 - Later: web-essentials-py (Python, wheel bij de release; cd-packages is alleen npm). translations-management-js staat bij Task 22 stap 3.
+
+### Task 22c: `release-draft.yml` en banner-kit op `v2`
+
+**Aanleiding (22 oktober 2026):** bij elk pakket op `v2` maakt een senior de release met de hand en typt de tag over; klopt die niet met `version` in `package.json`, dan weigert `cd-packages` (veilig, maar een omweg). banner-kit doet het andersom: de merge naar `main` ís de release; `release.yml` maakt de tag en de GitHub-release zelf met `GITHUB_TOKEN` en publiceert met `npm publish`. Dat past niet bij de tag-ruleset (alleen seniors maken `v*`-tags) en niet bij "een senior publiceert". Besloten: het v2-model, met een **draft-release** als brug: de workflow zet hem klaar met de juiste tag, een senior klikt op Publish.
+
+**Bestanden:** maak `.github/workflows/release-draft.yml` (`workflow_call`): de aanroeper start hem op `push` naar `main`. Leest `version` uit `package.json` (input `package-dir`, standaard `.`; in een monorepo wijst de aanroeper het pakket aan dat de versie van de release bepaalt). Bestaat de tag `v<version>` of een gepubliceerde release ervoor al, dan doet hij niets. Staat er een draft voor een andere versie, dan verwijdert hij die (nooit een verouderde draft laten staan). Anders maakt hij een draft-release: `tag_name` `v<version>`, `target_commitish` de sha van de push, notities uit een bestand (input `notes-file`, voor banner-kit het resultaat van `scripts/release-notes.mjs`) of anders de automatische notities van GitHub (`generate_release_notes`). Alleen `contents: write`; een draft maakt geen tag, dus `GITHUB_TOKEN` volstaat en de tag-ruleset blijft gelden: pas bij Publish ontstaat de tag, op naam van de senior. Idempotent: een tweede push zonder versiebump verandert niets. Daarna loopt het als overal: de release start de gate, `cd-packages` publiceert.
+
+- [ ] Stap 1: schrijf en lint; `scripts/release-draft-cases.sh` in `pnpm test` voor de beslissing (tag bestaat / release bestaat / draft voor andere versie / nieuw) tegen een nep-`gh`.
+- [ ] Stap 2: voorbeeldrepo: versiebump van `example-lib` mergen naar `main` → één draft `v<versie>` met notities; dezelfde commit opnieuw pushen → niets; tweede bump vóór Publish → oude draft weg, nieuwe staat klaar; Publish door een senior → gate, `cd-packages`, pakket onder `latest`. Een niet-senior kan de draft niet publiceren (tag-ruleset).
+- [ ] Stap 3: commit `feat: add release-draft.yml`.
+
+**banner-kit op `v2`** (repo zonder `develop`: `feature/*` → `main`; geen deploy, een pakket bij een release). Nu: npm zonder lockfile en `packageManager`, CI op Node 18 en 22 met de eigen PR-checks `release-check` (versiebump + sectie in `docs/upgrading.md`) en `pixels` (visuele regressie), geen bescherming, geen environments.
+
+- [ ] Stap 4: PR `feature/workflows-v2` → `main`:
+  - pnpm: `packageManager`, `pnpm-lock.yaml` (ook voor een library: `--frozen-lockfile` maakt CI reproduceerbaar; het pakket zelf bevat hem niet), `.nvmrc` met `26`. Node 18 vervalt zonder `compat`-job; `engines` van `>=18` naar `>=22` (de consumenten bouwen met 22; **open:** of meteen `>=26`).
+  - Scripts: `smoke` (`node ./bin/cli.mjs --help`), `check-pack` zoals de configpakketten (elk item in `files` bestaat, dan `pnpm pack --dry-run`).
+  - Eén `ci.yml`: `run-ci` → `ci.yml@v2` met `checks: test smoke check-pack`; `release-check` en `pixels` blijven als eigen jobs in datzelfde bestand (één `workflow_run`-event). `check-pr.yml`, `CODEOWNERS`.
+  - `cd.yml`: gate (`allow-prerelease: true`) + `cd-packages@v2` met `build: none`; `release.yml` wordt de aanroeper van `release-draft.yml` met `notes-file` uit `scripts/release-notes.mjs`; `npm publish` en het zelf taggen weg.
+  - `dependabot.yml` voor `github-actions` (het pakket heeft geen npm-dependencies).
+- [ ] Stap 5: na de merge `setup-consumer --apply` (environment `production` met tags `v*`, rulesets op `main` met `run-check-pr / pipeline` en `run-ci / pipeline`, tag-ruleset); eerste release via de draft, door een senior; audit schoon op de bekende punten.
+- [ ] Stap 6: de andere pakketrepo's krijgen `release-draft.yml` als aanroeper (configpakketten, text-extract, translations-management-js, web-essentials-cli; web-essentials-js met `package-dir` van het pakket dat de versie bepaalt).
+
+**De vijf banner-repo's** (novacollege, offlimits, triodos, warmtefonds, snappcar `-html-banners`; analyse 22 oktober 2026, **nog niet ingepland**): alleen `main`, geen CI, geen check-pr, geen bescherming; elke push naar `main` deployt naar GitHub Pages op `<klant>.banners.pursuit.amsterdam`, de link die de klant krijgt. Vier gebruiken banner-kit (`^0.5.0` tot `^0.9.0`) met een identieke `deploy.yml` (npm, `CUSTOM_GITHUB_TOKEN`); snappcar is de oude opzet met shellscripts, zonder banner-kit. Voor `v2` staan drie dingen in de weg: (1) `deploy.yml` uploadt de hele repo maar haalt eerst `banners/*/notes.md` weg (interne notities naast de klantlink); `cd-pages` publiceert een map en kan dat niet, dus banner-kit moet eerst naar een eigen uitvoermap zonder notities bouwen; (2) npm → pnpm in elke repo; (3) de werkwijze: nu rechtstreeks pushen naar `main`, met v2 een PR met review. Pas oppakken na een besluit over (3), en na banner-kit zelf.
 
 ### Task 23: `cd-pages.yml`
 
