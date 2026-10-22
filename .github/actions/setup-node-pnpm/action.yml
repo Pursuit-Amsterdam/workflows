@@ -34,13 +34,34 @@ runs:
         node-version: ${{ inputs.node-version }}
         cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
 
-    - name: Configure npm auth for GitHub Packages
+    # A working-directory inside a pnpm workspace (apps/webapp of a monorepo)
+    # has no lockfile of its own, and pnpm reads registry auth from the
+    # workspace root's .npmrc, not from a package's. So the auth and the
+    # install go to the nearest ancestor with pnpm-workspace.yaml, when there
+    # is one; the build still runs in working-directory.
+    - name: Find the install root
+      id: root
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
+        start=$(pwd)
+        top=$(git rev-parse --show-toplevel 2>/dev/null || echo "${GITHUB_WORKSPACE:-/}")
+        dir=$start
+        while [ ! -f "$dir/pnpm-workspace.yaml" ]; do
+          if [ "$dir" = "$top" ] || [ "$dir" = "/" ]; then dir=$start; break; fi
+          dir=$(dirname "$dir")
+        done
+        [ "$dir" = "$start" ] || echo "Workspace root: $dir (working-directory is a package in it)"
+        echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+    # Appended, not written: the repo's own .npmrc settings stay.
+    - name: Configure npm auth for GitHub Packages
+      shell: bash
+      working-directory: ${{ steps.root.outputs.dir }}
+      run: |
         if [ -n "${NODE_AUTH_TOKEN}" ]; then
           echo "Configuring GitHub Packages authentication..."
-          printf "@pursuit-amsterdam:registry=https://npm.pkg.github.com\nalways-auth=true\n" > .npmrc
+          printf "@pursuit-amsterdam:registry=https://npm.pkg.github.com\nalways-auth=true\n" >> .npmrc
           printf "//npm.pkg.github.com/:_authToken=%s\n" "${NODE_AUTH_TOKEN}" >> .npmrc
           echo "✓ Authentication configured"
         else
@@ -53,7 +74,7 @@ runs:
     # outdated pnpm-lock.yaml fails here instead of silently resolving anew.
     - name: Install dependencies
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ steps.root.outputs.dir }}
       run: pnpm install --frozen-lockfile
       env:
         NODE_AUTH_TOKEN: ${{ inputs.node-auth-token }}
