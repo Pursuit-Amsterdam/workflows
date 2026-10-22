@@ -558,7 +558,8 @@ De andere pakketrepo's (20 oktober 2026):
 - [ ] Na de merge `setup-consumer --apply` (rulesets op `main`, `production`-environment, tag-ruleset) en de branchregel op `github-pages`: alleen tags `v*` (zoals in de voorbeeldrepo). Eerste release door een senior; de Pages-site geeft 200 en bevat geen `notes.md`.
 
 **Stap 3, snappcar-html-banners:**
-- [ ] Minimale `package.json` (`packageManager`, `"build": "./generate-manifest.sh"`), lege lockfile, `.nvmrc`; `ci.yml` met `checks: build`; `check-pr.yml`, `CODEOWNERS`; `cd.yml` zoals stap 2 met `output-directory: .` (de repo is de site, zoals nu; er zijn geen notities). Daarna `setup-consumer --apply` en een release door een senior.
+- [x] snappcar-html-banners#8 (22 oktober 2026, gemerged): minimale `package.json` (`build` = `./generate-manifest.sh`, `zip`), lege lockfile, `.nvmrc`; `ci.yml` met `checks: build` (zonder custom token: geen pakketten); `check-pr.yml`, `CODEOWNERS`, Dependabot voor de actions; `cd.yml` zoals stap 2 met `output-directory: .`. `pnpm build` geeft lokaal en in CI hetzelfde `banners.json`.
+  - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior.
 
 - [ ] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md).
 
