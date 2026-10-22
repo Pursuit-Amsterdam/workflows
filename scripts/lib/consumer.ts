@@ -2,7 +2,7 @@
 // Pursuit-Amsterdam/workflows. The audit and setup-consumer expect different
 // things of a repo depending on that.
 import { ORG, get, readFile } from './github.ts';
-import { jobs, parseWorkflow, type Workflow } from './workflow.ts';
+import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
 /** Calls that produce a required check: `<caller job> / pipeline`. */
@@ -24,6 +24,10 @@ export interface Consumer {
     swarm: boolean;
     supabase: boolean;
     pages: boolean;
+    /** Releases through cd-gate: a release tag is how this repo goes live, whatever the target. */
+    releases: boolean;
+    /** Calls cd-pages from a workflow that runs on a release: Pages is published from the release tag. */
+    pagesOnRelease: boolean;
     hasDevelop: boolean;
     hasAcceptance: boolean;
     usesCustomToken: boolean;
@@ -69,6 +73,8 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         swarm: /cd-swarm\.yml@|vm-cd\.yml@/.test(all),
         supabase: all.includes('cd-supabase.yml@'),
         pages: /(cd-pages|storybook-cd)\.yml@/.test(all),
+        releases: all.includes('cd-gate.yml@'),
+        pagesOnRelease: workflows.some(wf => wf.text.includes('cd-pages.yml@') && 'release' in triggers(wf)),
         hasDevelop: await branchExists(repo, 'develop'),
         hasAcceptance: await branchExists(repo, 'acceptance'),
         usesCustomToken: all.includes('use-custom-token: true'),

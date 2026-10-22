@@ -260,13 +260,16 @@ for (const repo of repos) {
         } else if (lc === 'acceptance') {
             if (!allowed.includes('branch acceptance')) say(repo, 'environments', 'acceptance does not allow acceptance');
             if (!allowed.includes(`branch ${def}`)) say(repo, 'environments', `acceptance does not allow ${def}: workflow_run runs with that ref`);
+        } else if (lc === 'github-pages') {
+            if (c.pagesOnRelease && !allowed.includes('tag v*')) say(repo, 'environments', 'github-pages does not allow tags v*: Pages is published from a release');
         } else if (lc === 'production') {
             if (!allowed.includes('tag v*')) say(repo, 'environments', 'production does not allow tags v*: a release cannot deploy');
             for (const a of allowed.filter(a => a.startsWith('branch ') && a !== `branch ${def}`)) say(repo, 'environments', `production allows ${a}`);
         }
     }
     // Only seniors create release tags: a tag ruleset on v*, whenever production exists.
-    if (envName('production') !== undefined) {
+    // ...and whenever a release is how the repo goes live (Pages published from the release tag).
+    if (envName('production') !== undefined || c.releases) {
         let tagRuleset = false;
         for (const r of rulesets.filter(r => r.target === 'tag' && r.enforcement === 'active')) {
             const rs = await get<Ruleset>(`/repos/{owner}/{repo}/rulesets/{ruleset_id}`, { ...p, ruleset_id: r.id });
