@@ -12,7 +12,7 @@
 // values: GitHub refuses an empty variable, so missing variables and secrets
 // are todos. CODEOWNERS and the workflow files are migrate-consumer's job.
 // Needs a token with repo admin: the local `gh` login, or GH_TOKEN.
-import { loadConsumer, producedChecks, type Consumer } from './lib/consumer.ts';
+import { loadConsumer, producedChecks, usesOnePassword, type Consumer } from './lib/consumer.ts';
 import { ORG, get, list, octokit } from './lib/github.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
@@ -265,8 +265,9 @@ async function todos(c: Consumer, envs: Map<string, EnvRef>): Promise<void> {
     const p = { owner: ORG, repo };
     const repoSecrets = await names('/repos/{owner}/{repo}/actions/secrets', p, 'secrets');
     if (c.deploys) {
-        const vars = ['OP_VAULT', 'OP_ITEM', ...(c.swarm ? ['VM_SSH_HOST', 'VM_SSH_USER'] : []), ...(c.supabase ? ['SUPABASE_PROJECT_REF'] : [])];
-        const secrets = ['OP_SERVICE_ACCOUNT_TOKEN', ...(c.vercel ? ['VERCEL_TOKEN'] : []), ...(c.swarm ? ['VM_SSH_PRIVATE_KEY'] : []), ...(c.supabase ? ['SUPABASE_ACCESS_TOKEN'] : [])];
+        const onePassword = await usesOnePassword(c, [...envs.values()].filter(e => !e.created).map(e => e.name));
+        const vars = [...(onePassword ? ['OP_VAULT', 'OP_ITEM'] : []), ...(c.swarm ? ['VM_SSH_HOST', 'VM_SSH_USER'] : []), ...(c.supabase ? ['SUPABASE_PROJECT_REF'] : [])];
+        const secrets = [...(onePassword ? ['OP_SERVICE_ACCOUNT_TOKEN'] : []), ...(c.vercel ? ['VERCEL_TOKEN'] : []), ...(c.swarm ? ['VM_SSH_PRIVATE_KEY'] : []), ...(c.supabase ? ['SUPABASE_ACCESS_TOKEN'] : [])];
         const knownHostsOnRepo = repoSecrets.includes('VM_SSH_KNOWN_HOSTS');
         for (const e of ['staging', 'acceptance', 'production']) {
             const ref = envs.get(e);

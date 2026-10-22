@@ -577,6 +577,8 @@ De andere pakketrepo's (20 oktober 2026):
   - `jest` faalt zonder tests: v1 draaide `test --passWithNoTests`. qpido heeft geen tests, dus `test` uit `checks`; het script waarschuwt ervoor (#94).
   - `build` faalt zonder `REVALIDATE_SECRET_KEY`: v1 CI laadde 1Password. `build` uit `checks`, CD bouwt met de waarden; het script waarschuwt ervoor (#94).
   - Daarna groen (`lint typecheck`). #88 en #87 gemerged; staging via v2 (gate `workflow_run -> staging @ 9faa543`, Vercel `staging`). `setup-consumer --apply`, tweede run `no changes`; `OP_SERVICE_ACCOUNT_TOKEN` van `integration` weg. Productie bij de volgende release.
+- [x] Tweede migratie (22 oktober 2026): developer-onboarding-project, `--apply` → #25 (`develop`) en #26 (`main`), meteen groen (lint, typecheck, test, build). Gemerged; staging via v2 (gate `workflow_run -> staging @ 51e8d55`). `setup-consumer --apply`: de klassieke protectie eiste `build-and-test` en `check-pr`, checks die niet meer bestonden.
+  - Bijgesteld: de app haalt zijn waarden uit Vercel, niet uit 1Password. Audit en `setup-consumer` melden `OP_VAULT`, `OP_ITEM` en `OP_SERVICE_ACCOUNT_TOKEN` nu alleen als de repo 1Password gebruikt (de workflows noemen het, of een deploy-environment heeft er al een van).
 
 ### Task 27: README op `v2`
 
