@@ -110,7 +110,14 @@ runs:
           echo "Seeding disabled: removing supabase/seed.sql for this run"
           rm supabase/seed.sql
         fi
-        timeout "${WAIT_TIMEOUT}s" supabase start || { echo "::error::supabase start did not finish within ${WAIT_TIMEOUT}s"; exit 1; }
+        # 124 is timeout's own exit code; anything else is the CLI's (a config.toml
+        # the pinned CLI does not understand, a migration that fails, Docker).
+        rc=0; timeout "${WAIT_TIMEOUT}s" supabase start || rc=$?
+        if [ "$rc" -eq 124 ]; then
+          echo "::error::supabase start did not finish within ${WAIT_TIMEOUT}s"; exit 1
+        elif [ "$rc" -ne 0 ]; then
+          echo "::error::supabase start failed (exit $rc): see its output above. A config.toml key the CLI rejects means the pinned supabase version in package.json is older than the config."; exit 1
+        fi
 
     # `supabase status -o env` prints KEY="value" lines. Keys are masked before
     # anything else is written.
