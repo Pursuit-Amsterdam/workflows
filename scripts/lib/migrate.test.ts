@@ -158,6 +158,14 @@ test('a CI flag without a package.json script is left out and noted', () => {
     assert.equal(m.files.has('.github/workflows/web-ci.yml'), false, 'a ci.yml stays ci.yml');
 });
 
+test('qpido lessons: jest without --passWithNoTests, and a build behind 1Password', () => {
+    const pkg = JSON.stringify({ packageManager: 'pnpm@11.28.6', scripts: { lint: 'eslint', typecheck: 'tsc', test: 'jest', build: 'next build' } });
+    const ci = WEB_CI("            onepassword_enabled: true\n            onepassword_vault: v\n            onepassword_item: i\n").replace('run-build: false', 'run-build: true');
+    const m = migrate(facts({ packageJson: pkg }), [{ file: 'web-ci.yml', text: ci }]);
+    assert.ok(m.checklist.some(l => l.includes('--passWithNoTests')), 'no-tests warning');
+    assert.ok(m.checklist.some(l => l.includes('`build`') && l.includes('1Password')), 'build behind 1Password');
+});
+
 test('CI that loaded 1Password: dropped, on the checklist', () => {
     const m = migrate(facts(), [{ file: 'web-ci.yml', text: WEB_CI("            onepassword_enabled: true\n            onepassword_vault: v\n            onepassword_item: i\n") }]);
     assert.doesNotMatch(m.files.get('.github/workflows/ci.yml')!, /onepassword/);

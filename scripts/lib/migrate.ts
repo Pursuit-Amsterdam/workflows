@@ -227,8 +227,16 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
         if (testCommand && testCommand !== 'test --passWithNoTests' && testCommand !== 'test') {
             checklist.push(`v1 CI ran tests with \`${testCommand}\`; v2 runs the \`test\` script. Put those flags in the script.`);
         }
+        // v1's default was `test --passWithNoTests`: a repo without tests passed. v2 runs the script as it is.
+        const testScript = pkg?.scripts?.['test'] ?? '';
+        if (checks.includes('test') && !testCommand && /\bjest\b/.test(testScript) && !testScript.includes('--passWithNoTests')) {
+            checklist.push('v1 CI ran `test --passWithNoTests`; v2 runs `jest` as the script says, which fails when the repo has no tests. If it has none: drop `test` from `checks` (or add `--passWithNoTests` to the script).');
+        }
         if (truthy(w['codegen']) || truthy(w['generate-graphql'])) {
             checklist.push('v1 CI generated code first (`codegen`/`generate-*`). v2 CI only runs scripts: make `typecheck` or `build` run the generator, or add it to `checks`.');
+        }
+        if (truthy(w['onepassword_enabled']) && checks.includes('build')) {
+            checklist.push('v1 CI loaded 1Password, and v2 CI runs `build` without it: a build that checks its environment fails (qpido: `REVALIDATE_SECRET_KEY`). Then drop `build` from `checks`; CD builds with the 1Password values before it deploys.');
         }
         if (truthy(w['onepassword_enabled'])) {
             checklist.push(`v1 CI loaded the 1Password item \`${str(w['onepassword_vault'])}/${str(w['onepassword_item'])}\`; v2 CI runs without it. If lint, typecheck or tests need those values, add \`onepassword-vault\`/\`onepassword-item\` to \`ci.yml\` and \`OP_SERVICE_ACCOUNT_TOKEN\` to the \`integration\` environment. Otherwise remove \`OP_SERVICE_ACCOUNT_TOKEN\` from \`integration\`.`);
