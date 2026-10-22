@@ -572,7 +572,11 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] Stap 1: dry run op klonen van qpido-website (twee deploy-jobs), copy-mvp (geen `develop`), web-essentials-dashboard (alleen productie) en foodcabinet-website (acceptance): uitvoer zoals het migratievoorbeeld, `actionlint` schoon; foodcabinet houdt zijn CD (acceptance) met een checklistpunt.
 - [x] Stap 2: gp-groot-automations. Ruling: `backend-ci` (Python via turbo en `backend/package.json`) en `vm-cd` (Swarm) zet het script niet om; die repo's (groep C: gp-groot, automations-blueprint, integrators-automations, sluyter) blijven handwerk, zoals gp-map en container-tracking. Uitvoer: alleen check-pr, `.nvmrc`, Dependabot, met checklistpunten voor CI, CD en de ontbrekende `package.json`; `actionlint` schoon.
 - [x] Stap 3: commit `feat: add migrate-consumer script`.
-- [ ] Eerste echte migratie met `--apply`: wacht op een go.
+- [x] Eerste echte migratie (22 oktober 2026): qpido-website, `--apply` → draft-PR's #87 (`develop`) en #88 (`main`), `OP_VAULT`/`OP_ITEM` op `staging` en `production`. Drie keer rood, drie lessen in het script:
+  - 403 op `@pursuit-amsterdam/web-essentials`: v1 CI zette geen `use-custom-token`, v1 CD wel. Het script geeft CI nu het custom token zodra de repo private pakketten gebruikt (#93).
+  - `jest` faalt zonder tests: v1 draaide `test --passWithNoTests`. qpido heeft geen tests, dus `test` uit `checks`; het script waarschuwt ervoor (#94).
+  - `build` faalt zonder `REVALIDATE_SECRET_KEY`: v1 CI laadde 1Password. `build` uit `checks`, CD bouwt met de waarden; het script waarschuwt ervoor (#94).
+  - Daarna groen (`lint typecheck`). #88 en #87 gemerged; staging via v2 (gate `workflow_run -> staging @ 9faa543`, Vercel `staging`). `setup-consumer --apply`, tweede run `no changes`; `OP_SERVICE_ACCOUNT_TOKEN` van `integration` weg. Productie bij de volgende release.
 
 ### Task 27: README op `v2`
 
