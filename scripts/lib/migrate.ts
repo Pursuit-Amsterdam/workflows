@@ -270,23 +270,26 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
             checklist.push(`CD (\`${cd.wf.file}\`) was not converted: ${problems.join('; ')}. Migrate it by hand to gate + cd-vercel.`);
         } else {
             const w = deploys[0]!.with;
-            const staging = envs.includes('staging');
-            const stagingBranch = staging ? (facts.hasDevelop ? 'develop' : 'main') : null;
+            // Without develop, staging never ran in practice (it listened on develop,
+            // or waited for a manual start): those repos deploy production on a
+            // release, and have no staging environment in GitHub or Vercel.
+            const staging = envs.includes('staging') && facts.hasDevelop;
+            const stagingBranch = staging ? 'develop' : null;
             const codegen = truthy(w['codegen']) ? scriptName(str(w['codegen_command']) || 'codegen') : '';
             if (cd.wf.file !== 'cd.yml') files.set(path(cd.wf.file), null);
             files.set(path('cd.yml'), cdYaml({ stagingBranch, useCustomToken: truthy(w['use-custom-token']), buildMode: str(w['build-mode']) || 'github', codegen, preparePackage: truthy(w['prepare-package']) }));
-            report.push(`${cd.wf.file} → cd.yml (gate + cd-vercel; ${envs.join(' and ')})`);
+            report.push(`${cd.wf.file} → cd.yml (gate + cd-vercel; ${staging ? 'staging and production' : 'production'})`);
             for (const j of deploys) {
                 const env = str(j.with['environment']).toLowerCase();
+                if (env === 'staging' && !staging) continue;
                 if (truthy(j.with['onepassword_enabled']) && str(j.with['onepassword_vault']) && str(j.with['onepassword_item'])) {
                     envVars.push({ environment: env, name: 'OP_VAULT', value: str(j.with['onepassword_vault']) });
                     envVars.push({ environment: env, name: 'OP_ITEM', value: str(j.with['onepassword_item']) });
                 }
             }
-            if (stagingBranch === 'main') {
-                checklist.push('No `develop` branch: CI on `main` now deploys to staging (`branch-targets: main=staging`), a release to production. v1 deployed staging only by hand.');
-            }
-            if (!staging) checklist.push('v1 CD deployed production only: so does v2 (a release; no staging).');
+            if (envs.includes('staging') && !facts.hasDevelop) {
+                checklist.push('No `develop` branch: v2 CD deploys production only, on a release, as this repo did in practice (v1 staging listened on `develop`). For staging: create `develop` and a custom environment `staging` in Vercel, then set `branch-targets: develop=staging` and the `workflow_run` trigger on `develop`.');
+            } else if (!staging) checklist.push('v1 CD deployed production only: so does v2 (a release; no staging).');
             if (codegen) checklist.push(`Codegen before the build: the \`${codegen}\` script (from v1 \`codegen_command\`). Check that it exists in \`package.json\`.`);
             checklist.push('Optional: add `health-path` to the deploy job (a path that answers 2xx without a redirect, e.g. `/` or `/api/health`), so CD checks the app after a deploy.');
         }

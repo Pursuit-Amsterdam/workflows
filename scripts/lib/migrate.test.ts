@@ -161,15 +161,18 @@ test('production only: no workflow_run, empty branch-targets', () => {
     assert.ok(m.checklist.some(l => l.includes('production only')));
 });
 
-test('no develop: staging follows main', () => {
+test('no develop: production only, as those repos deploy in practice', () => {
     const m = migrate(facts({ hasDevelop: false }), [
         { file: 'web-ci.yml', text: WEB_CI() },
         { file: 'web-cd.yml', text: WEB_CD('staging', 'production') },
     ]);
     assert.deepEqual(yaml(m.files, '.github/workflows/ci.yml').on.push!.branches, ['main']);
     const cd = yaml(m.files, '.github/workflows/cd.yml');
-    assert.deepEqual(cd.on.workflow_run!.branches, ['main']);
-    assert.deepEqual(cd.jobs.gate!.with, { 'branch-targets': 'main=staging' });
+    assert.equal(cd.on.workflow_run, undefined);
+    assert.deepEqual(cd.jobs.gate!.with, { 'branch-targets': '' });
+    assert.ok(m.checklist.some(l => l.includes('No `develop`') && l.includes('Vercel')));
+    // the staging 1Password names have no environment to go to
+    assert.deepEqual(m.envVars.map(v => v.environment), ['production', 'production']);
 });
 
 test('acceptance: CD left alone, on the checklist', () => {

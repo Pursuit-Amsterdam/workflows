@@ -223,7 +223,8 @@ for (const repo of repos) {
     const envName = (e: string): string | undefined => envs.find(n => n.toLowerCase() === e);
     const expected = [
         ...(hasCi ? ['integration'] : []),
-        ...(deploys ? ['staging', 'production', ...(hasAcceptance ? ['acceptance'] : [])] : []),
+        // Staging follows develop; a repo without develop deploys production only.
+        ...(deploys ? [...(hasDevelop ? ['staging'] : []), 'production', ...(hasAcceptance ? ['acceptance'] : [])] : []),
         ...(publishes && !deploys ? ['production'] : []),
     ];
     for (const e of expected) {
