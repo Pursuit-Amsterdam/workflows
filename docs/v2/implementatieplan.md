@@ -28,7 +28,7 @@
 - **Plak 4, CD naar Swarm** (Task 16–18): `deploy-swarm` met `pre-deploy`, `cd-swarm`, gp-container-tracking-webapp en gp-map-webapp.
 - **Plak 5, de rest** (Task 19, 20): `cd-supabase` (machine-account is handwerk), Deno-typecheck in CI.
 - **Plak 6** (Task 24–28): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`.
-- **Pakketten, release-flow** (Task 22c, 22 oktober 2026): `release-draft.yml` staat in alle negen pakketrepo's (banner-kit en de acht andere); een senior publiceert de draft die na een versiebump klaarstaat. De vijf banner-repo's krijgen ook PR's met review (besloten); eerst moet banner-kit naar een eigen uitvoermap bouwen, zonder de interne notities.
+- **Pakketten, release-flow** (Task 22c, 22 oktober 2026): `release-draft.yml` staat in alle negen pakketrepo's (banner-kit en de acht andere); een senior publiceert de draft die na een versiebump klaarstaat. De vijf banner-repo's volgen in Task 22d: PR's met review, Pages bij een release, en eerst banner-kit 0.10.0 met een preview-map zonder de interne notities.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
 - **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
 
@@ -531,7 +531,31 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] Stap 6 (22 oktober 2026): de aanroeper staat in alle acht pakketrepo's. Eén PR naar `main` voor jest-config#6, eslint-config#20, prettier-config#3, typescript-config#3, web-essentials-cli#6, web-essentials-js#9 (`package-dir: packages/web-essentials`); voor text-extract (#10 `main`, #11 `develop`; `packages/core`) en translations-management-js (#94, #95; `packages/translation-management`) hetzelfde bestand twee keer. Op `main` zei elke eerste run "<tag> exists: <versie> is released. Nothing to do."; de eerste echte draft komt bij de volgende versiebump.
   - Bijgesteld onderweg (#103): web-essentials-js releaset als `v3.5.0+3` bij `version` 3.5.0 (cd-packages leest dat als 3.5.0). release-draft zocht alleen de exacte tag en zou een draft `v3.5.0` hebben gemaakt voor een versie die al uit is. Hij telt nu ook `v<versie>+*` als gereleased (`v1.2.30` en `v1.2.3-rc.1` niet); test eerst, 43 gevallen.
 
-**De vijf banner-repo's** (novacollege, offlimits, triodos, warmtefonds, snappcar `-html-banners`; analyse 22 oktober 2026, **nog niet ingepland**): alleen `main`, geen CI, geen check-pr, geen bescherming; elke push naar `main` deployt naar GitHub Pages op `<klant>.banners.pursuit.amsterdam`, de link die de klant krijgt. Vier gebruiken banner-kit (`^0.5.0` tot `^0.9.0`) met een identieke `deploy.yml` (npm, `CUSTOM_GITHUB_TOKEN`); snappcar is de oude opzet met shellscripts, zonder banner-kit. Voor `v2` staan drie dingen in de weg: (1) `deploy.yml` uploadt de hele repo maar haalt eerst `banners/*/notes.md` weg (interne notities naast de klantlink); `cd-pages` publiceert een map en kan dat niet, dus banner-kit moet eerst naar een eigen uitvoermap zonder notities bouwen; (2) npm → pnpm in elke repo; (3) de werkwijze: nu rechtstreeks pushen naar `main`, met v2 een PR met review. Pas oppakken na een besluit over (3), en na banner-kit zelf.
+### Task 22d: banner-kit bouwt een preview-map; de vijf banner-repo's op `v2`
+
+**Aanleiding (22 oktober 2026):** de vijf banner-repo's (novacollege, offlimits, triodos, warmtefonds, snappcar `-html-banners`) hebben alleen `main`, geen CI, geen check-pr, geen bescherming; elke push naar `main` deployt de **hele repo** naar GitHub Pages op `<klant>.banners.pursuit.amsterdam`, de link die de klant krijgt. Vier gebruiken banner-kit (`^0.5.0` tot `^0.9.0`) met een identieke `deploy.yml` (npm, `CUSTOM_GITHUB_TOKEN`), die vlak vóór de upload `banners/*/notes.md` verwijdert: interne notities naast de klantlink. snappcar is de oude opzet met shellscripts, zonder banner-kit.
+
+**Besloten (22 oktober 2026):**
+- De banner-repo's krijgen PR's met review, zoals elke repo.
+- **Pages wordt gepubliceerd bij een release, niet bij elke merge naar `main`.** Wat de klant ziet is productie, en productie gaat alleen via een release door een senior (de tag-ruleset). `cd-pages` staat daarvoor achter de gate (input `ref`, bewezen in de voorbeeldrepo). Prijs: elke iteratie die de klant moet zien, vraagt een release; tussendoor kijkt het team lokaal met `banner-kit dev`.
+- `cd-pages` publiceert één map en kent geen opruimstap. Daarom bouwt banner-kit eerst een **preview-map** (`site/`), met alleen wat de klant mag zien; de repo blijft de bron.
+- snappcar blijft zoals het is (shellscripts, geen banner-kit), maar gaat wel naar `v2`.
+
+**Stap 1, banner-kit 0.10.0** (de eerste echte release via de draft):
+- [x] `banner-kit build` schrijft naast de huidige uitvoer een preview-map `site/` (in `.gitignore`): `index.html`, `editor.js`, `banners.json`, de bannermappen met HTML, assets en PNG's; **niet** `notes.md`, `spec.json`, `_src/` en `*.orig.*`. Een test (eerst rood) bouwt de kitchen-sink-fixture en controleert dat die bestanden ontbreken en de rest er is. `docs/upgrading.md` krijgt `## 0.9.0 → 0.10.0`; de versie gaat naar 0.10.0.
+- [x] PR banner-kit#16 (22 oktober 2026; `src/site.mjs`, `test/site.test.mjs` eerst, 38 tests, `check-release` groen). Na de merge stond de draft `v0.10.0` klaar met de `upgrading.md`-sectie; gepubliceerd om 18:06; run 39828459032: gate `release -> production @ 353e53e`, `cd-packages` → `banner-kit@0.10.0` in de registry. De eerste release via de draft-flow. De release toont `github-actions[bot]` als auteur (zie Task 22c).
+  - Nog niet in 0.10.0: `templates/project` (wat `init` in een nieuwe campagnerepo zet) heeft nog de oude `deploy.yml` en npm. Dat volgt zodra stap 2 de v2-bestanden voor een banner-repo bewezen heeft; die worden dan de template.
+
+**Stap 2, de vier banner-kit-repo's** (triodos eerst: daar wordt gewerkt, dus daar valt een fout het snelst op; dan novacollege, offlimits, warmtefonds). Per repo één PR `feature/workflows-v2` → `main`:
+- [ ] pnpm (`packageManager`, `pnpm-lock.yaml` in plaats van `package-lock.json`, `.nvmrc`), banner-kit naar `^0.10.0`, `.gitignore` met `site/`.
+- [ ] `ci.yml` met `checks: build` (`banner-kit build`: elke spec rendert, het manifest klopt, de preview-map ontstaat), `use-custom-token` (banner-kit is privé). `check-pr.yml`, `CODEOWNERS`, `dependabot.yml` (npm met de GitHub Packages-registry, en github-actions).
+- [ ] `cd.yml`: `release: published` + `workflow_dispatch` → gate (zonder `branch-targets`: er is geen staging) → `cd-pages@v2` met `ref`, `build-command: build`, `output-directory: site`, `use-custom-token`; `deploy.yml` weg. Een merge naar `main` deployt dus niets meer; de eerste release daarna zet de huidige stand live.
+- [ ] Na de merge `setup-consumer --apply` (rulesets op `main`, `production`-environment, tag-ruleset) en de branchregel op `github-pages`: alleen tags `v*` (zoals in de voorbeeldrepo). Eerste release door een senior; de Pages-site geeft 200 en bevat geen `notes.md`.
+
+**Stap 3, snappcar-html-banners:**
+- [ ] Minimale `package.json` (`packageManager`, `"build": "./generate-manifest.sh"`), lege lockfile, `.nvmrc`; `ci.yml` met `checks: build`; `check-pr.yml`, `CODEOWNERS`; `cd.yml` zoals stap 2 met `output-directory: .` (de repo is de site, zoals nu; er zijn geen notities). Daarna `setup-consumer --apply` en een release door een senior.
+
+- [ ] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md).
 
 ### Task 23: `cd-pages.yml`
 
