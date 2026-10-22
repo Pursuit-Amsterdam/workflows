@@ -81,8 +81,15 @@ runs:
           name="${kv%%=*}"
           value="${kv#*=}"
 
-          # Mask values in logs
-          echo "::add-mask::$value"
+          # Mask concealed (password) fields only. Plain-text fields are
+          # non-secret config (WORKER_REPLICAS, LOG_LEVEL, NEXT_PUBLIC_*), and
+          # GitHub redacts a masked value EVERYWHERE it appears in output — so
+          # masking a short one (e.g. WORKER_REPLICAS=3) shreds every log and
+          # job summary containing that character. Same CONCEALED test the
+          # build-args branch below already uses.
+          if [[ "$ftype" == "CONCEALED" ]]; then
+            echo "::add-mask::$value"
+          fi
 
           # Export to GitHub env (supports multiline)
           {
