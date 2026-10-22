@@ -192,6 +192,8 @@ with:
   database: supabase
 ```
 
+Twee dingen die tellr leerde. Met turbo telt CI alleen scripts van workspace-pakketten; een rootscript als `dbtest` hoort dan als roottask `"//#dbtest": { "cache": false }` in `turbo.json`. En CI installeert de Supabase CLI die `package.json` exact pint (v1 nam `latest`): die versie moet de `config.toml` kennen, `[local_smtp]` bijvoorbeeld sinds 2.108.0. `migrate-consumer` doet beide: het zet `dbtest` en de roottask als patch op de eigen `package.json` en `turbo.json` van elke branch, en waarschuwt voor een te oude of niet-exacte CLI.
+
 gp-groot / automations-blueprint / integrators-automations · vóór → ná
 
 ```
