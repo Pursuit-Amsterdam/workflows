@@ -22,6 +22,16 @@ function token(): string {
 const quiet = (): void => {};
 export const octokit = new Octokit({ auth: token(), log: { debug: quiet, info: quiet, warn: quiet, error: quiet } });
 
+// Octokit sends no X-GitHub-Api-Version, so GitHub answers with 2022-11-28,
+// which it retires on 10 Mar 2028 and flags with Deprecation/Sunset headers
+// that @octokit/request prints as warnings. Pin the current version instead.
+// Changes since 2022-11-28 that touch these scripts: none (a directory
+// listing reports submodules as type "submodule" instead of "file").
+export const GITHUB_API_VERSION = '2026-03-10';
+octokit.hook.before('request', options => {
+    options.headers['x-github-api-version'] ??= GITHUB_API_VERSION;
+});
+
 function status(err: unknown): number | undefined {
     return typeof err === 'object' && err !== null && 'status' in err ? Number(err.status) : undefined;
 }
