@@ -71,7 +71,7 @@ test('expected: what the label says', () => {
         NEXT_PUBLIC_API_URL: 'plain', NEXT_PUBLIC_SENTRY_DSN: 'plain', STRIPE_PUBLISHABLE_KEY: 'plain', APP_HOST: 'plain', WORKER_REPLICAS: 'plain', LOG_LEVEL: 'plain',
         ACME_EMAIL: 'plain', AUTH_MICROSOFT_ENTRA_ID: 'plain', VERCEL_ORG_ID: 'plain', API_URL: 'plain', CORS_ORIGINS: 'plain', S3_BUCKET: 'plain',
         FEATURE_X: 'unsure', AUTH_TRUST_HOST: 'plain', ASANA_WORKSPACE: 'unsure',
-        PUBLIC_SITE_TOKEN: 'plain', SUPABASE_PUBLIC_ANON_KEY: 'plain', NEXT_PUBLIC_SECRET_SAUCE: 'plain', SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
+        NEXT_PRIVATE_DEBUG_CACHE: 'plain', PUBLIC_SITE_TOKEN: 'plain', SUPABASE_PUBLIC_ANON_KEY: 'plain', NEXT_PUBLIC_SECRET_SAUCE: 'plain', SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
     };
     for (const [label, want] of Object.entries(cases)) assert.equal(expected(label), want, label);
 });

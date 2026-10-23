@@ -40,8 +40,9 @@ export type Expected = 'concealed' | 'plain' | 'unsure';
 export function expected(label: string): Expected {
     if (CREDENTIALED_URL.test(label)) return 'concealed';
     // Starts with NEXT_PUBLIC_ or contains PUBLIC: public by nature. PUBLISHABLE is
-    // Stripe's word for the same; KEY_VAULT is a vault's name, not a key.
-    if (/^NEXT_PUBLIC_|PUBLIC|PUBLISHABLE|KEY_VAULT/i.test(label)) return 'plain';
+    // Stripe's word for the same; KEY_VAULT is a vault's name, not a key;
+    // NEXT_PRIVATE_* are Next.js's internal switches (NEXT_PRIVATE_DEBUG_CACHE=1).
+    if (/^NEXT_PUBLIC_|^NEXT_PRIVATE_|PUBLIC|PUBLISHABLE|KEY_VAULT/i.test(label)) return 'plain';
     if (SECRET_LABEL.test(label)) return 'concealed';
     if (CONFIG_LABEL.test(label)) return 'plain';
     return 'unsure';
