@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { onePasswordRefs, reviewField, state } from './vaults.ts';
+import { expected, onePasswordRefs, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -60,4 +60,22 @@ test('reviewField: short values damage the logs once masked', () => {
 test('state: concealed or plain', () => {
     assert.equal(state({ type: 'CONCEALED' }), 'concealed');
     for (const type of ['STRING', 'URL', 'EMAIL', '']) assert.equal(state({ type }), 'plain', type || 'empty');
+});
+
+test('expected: what the label says', () => {
+    const cases: Record<string, ReturnType<typeof expected>> = {
+        JWT_SECRET_KEY: 'concealed', DATABASE_URL: 'concealed', DATABASE_URL_SYNC: 'concealed', REDIS_URL: 'concealed', SMTP_PASSWORD: 'concealed', VERCEL_TOKEN: 'concealed',
+        AZURE_OPENAI_KEY: 'concealed', SENTRY_DSN: 'concealed', AUTH_MICROSOFT_ENTRA_SECRET: 'concealed', OP_SERVICE_ACCOUNT_TOKEN: 'concealed', CLOUDFLARE_ORIGIN_CERT: 'concealed',
+        NEXT_PUBLIC_API_URL: 'plain', NEXT_PUBLIC_SENTRY_DSN: 'plain', STRIPE_PUBLISHABLE_KEY: 'plain', APP_HOST: 'plain', WORKER_REPLICAS: 'plain', LOG_LEVEL: 'plain',
+        ACME_EMAIL: 'plain', AUTH_MICROSOFT_ENTRA_ID: 'plain', VERCEL_ORG_ID: 'plain', API_URL: 'plain', CORS_ORIGINS: 'plain', S3_BUCKET: 'plain',
+        FEATURE_X: 'unsure', AUTH_TRUST_HOST: 'plain', ASANA_WORKSPACE: 'unsure',
+        SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
+    };
+    for (const [label, want] of Object.entries(cases)) assert.equal(expected(label), want, label);
+});
+
+test('reviewField: a public build-time value kept as password breaks the build-args', () => {
+    assert.match(reviewField({ label: 'NEXT_PUBLIC_API_URL', type: 'CONCEALED', length: 30 }) ?? '', /build-arg/);
+    assert.match(reviewField({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }) ?? '', /config kept as password/);
+    assert.equal(reviewField({ label: 'FEATURE_X', type: 'STRING', length: 30 }), null, 'unsure stays quiet');
 });

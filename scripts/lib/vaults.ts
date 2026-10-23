@@ -21,12 +21,26 @@ export function onePasswordRefs(wf: Workflow): VaultRef[] {
     return refs;
 }
 
-// A label that usually holds a secret. Public keys, hosts, emails and
-// NEXT_PUBLIC_* values are config and may stay plain text.
-const SECRET_LABEL = /(SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|CREDENTIAL|API_KEY|ACCESS_KEY|_KEY$|_KEY_|SIGNING|SALT|DSN|DATABASE_URL|CONNECTION_STRING|JWT)/i;
-const PUBLIC_LABEL = /^NEXT_PUBLIC_|PUBLIC_KEY|PUBLISHABLE/i;
+// What a label usually holds. Config may stay plain; a secret belongs in a
+// password field (concealed): that is what gets masked, and what never goes
+// into an image as a build-arg. A connection string carries a password.
+const SECRET_LABEL = /(SECRET|TOKEN|PASS|PWD|KEY|PRIVATE|CREDENTIAL|LICENSE|SIGNING|SALT|DSN|CONNECTION_STRING|JWT|SERVICE_ACCOUNT|CERT)/i;
+const CREDENTIALED_URL = /^(DATABASE|DB|POSTGRES|POSTGRESQL|PG|MYSQL|REDIS|MONGO|MONGODB|AMQP|RABBITMQ|KAFKA|SMTP|ELASTIC|QUEUE|STORAGE)[A-Z_]*_(URL|URI)/i;
+const CONFIG_LABEL = /^NEXT_PUBLIC_|PUBLIC_KEY|PUBLISHABLE|(^|_)(HOST|HOSTNAME|PORT|URL|URI|DOMAIN|ORIGIN|ORIGINS|EMAIL|FROM|NAME|ID|REGION|BUCKET|REPLICAS|LEVEL|ENV|ENVIRONMENT|MODE|LOCALE|TIMEZONE|TZ|VERSION|PREFIX|PATH|DIR|TIMEOUT|LIMIT|SIZE|COUNT|ENABLED|DISABLED|FLAG|FLAGS)$|^(DEBUG|NODE_ENV|LOG_LEVEL|CORS_ORIGINS|APP_HOST|API_HOST|ACME_EMAIL)$/i;
 /** GitHub masks a value everywhere it appears in output: a 1-character value removes that character from every log line. */
 const SHORT = 4;
+
+export type Expected = 'concealed' | 'plain' | 'unsure';
+
+/** What the label says the field should be. */
+export function expected(label: string): Expected {
+    if (CREDENTIALED_URL.test(label)) return 'concealed';
+    // Public by nature, or a name rather than a secret (AZURE_KEY_VAULT is the vault's name).
+    if (/^NEXT_PUBLIC_/i.test(label) || /PUBLIC_KEY|PUBLISHABLE|KEY_VAULT/i.test(label)) return 'plain';
+    if (SECRET_LABEL.test(label)) return 'concealed';
+    if (CONFIG_LABEL.test(label)) return 'plain';
+    return 'unsure';
+}
 
 export interface Field {
     label: string;
@@ -43,12 +57,13 @@ export function state(f: Pick<Field, 'type'>): 'concealed' | 'plain' {
 /** What to do with a field, or null when it is fine as it is. */
 export function reviewField(f: Field): string | null {
     if (f.label === 'notesPlain') return null;
-    const concealed = f.type === 'CONCEALED';
-    if (!concealed && SECRET_LABEL.test(f.label) && !PUBLIC_LABEL.test(f.label)) {
-        return 'looks like a secret: set it to password';
-    }
+    const now = state(f);
+    const want = expected(f.label);
+    if (now === 'plain' && want === 'concealed') return 'looks like a secret: set it to password';
+    if (now === 'concealed' && /^NEXT_PUBLIC_/i.test(f.label)) return 'a public build-time value kept as password: it is not passed as a build-arg, make it plain';
     if (f.length > 0 && f.length <= SHORT) {
-        return concealed ? 'short password: masking it damages the logs, make it plain or longer' : 'short: damages the logs while masked (fixed by #23)';
+        return now === 'concealed' ? 'short password: masking it damages the logs, make it plain or longer' : 'short: damages the logs while masked (fixed by #23)';
     }
+    if (now === 'concealed' && want === 'plain') return 'looks like config kept as password: fine, only masked for nothing';
     return null;
 }

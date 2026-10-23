@@ -2,9 +2,10 @@
 // every field in them: concealed (a password field) or plain. That state
 // decides what setup-onepassword masks once PR #23 (main) is on v2, and what
 // may go into an image as a build-arg. Read-only; prints labels, states and
-// value lengths, never a value. A field gets a note when it looks like a
-// secret but is plain (set it to password), or when it is short (masking a
-// short value damages every log line that contains it).
+// value lengths, never a value. Per field also what the label suggests
+// (concealed, plain or unsure), and a note when the two differ, when a
+// NEXT_PUBLIC_* value is a password (then it is not a build-arg), or when a
+// value is short (masking a short value damages every log line with it).
 //
 //   pnpm review-vaults                         # every consumer repo
 //   pnpm review-vaults -- gp-map-webapp tellr-webapp
@@ -16,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
-import { onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
+import { expected, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
@@ -99,7 +100,7 @@ for (const u of items) {
     flagged += n;
     console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${[...u.repos].join(', ')}`);
     const width = Math.max(12, ...rows.map(r => r.label.length));
-    for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars${r.note ? `  ${r.note}` : ''}`);
+    for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars  ${`(${expected(r.label)})`.padEnd(11)}${r.note ? ` ${r.note}` : ''}`);
     console.log();
 }
 console.log(`${flagged} field(s) to look at, ${unreadable} item(s) unreadable.`);
