@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { onePasswordRefs, reviewField } from './vaults.ts';
+import { onePasswordRefs, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -50,9 +50,14 @@ test('reviewField: a plain-text field that looks like a secret', () => {
     assert.equal(reviewField({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'concealed is fine');
 });
 
-test('reviewField: short values shred the logs once masked', () => {
-    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /masked today.*#23/);
-    assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /concealed.*2 chars/);
+test('reviewField: short values damage the logs once masked', () => {
+    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short.*#23/);
+    assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /short password/);
     assert.equal(reviewField({ label: 'LOG_LEVEL', type: 'STRING', length: 5 }), null);
     assert.equal(reviewField({ label: 'notesPlain', type: 'STRING', length: 1 }), null, 'notes are not exported');
+});
+
+test('state: concealed or plain', () => {
+    assert.equal(state({ type: 'CONCEALED' }), 'concealed');
+    for (const type of ['STRING', 'URL', 'EMAIL', '']) assert.equal(state({ type }), 'plain', type || 'empty');
 });

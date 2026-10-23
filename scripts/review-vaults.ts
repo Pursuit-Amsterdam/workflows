@@ -1,13 +1,14 @@
-// Which 1Password items the consumer repos deploy with, and which fields in
-// them deserve a look before setup-onepassword masks only CONCEALED fields
-// (PR #23 on main): a secret kept as plain text would then be in the logs, and
-// a short value shreds the logs as long as it is masked. Read-only; prints
-// labels, types and value lengths, never a value.
+// Which 1Password items the consumer repos deploy with, and the state of
+// every field in them: concealed (a password field) or plain. That state
+// decides what setup-onepassword masks once PR #23 (main) is on v2, and what
+// may go into an image as a build-arg. Read-only; prints labels, states and
+// value lengths, never a value. A field gets a note when it looks like a
+// secret but is plain (set it to password), or when it is short (masking a
+// short value damages every log line that contains it).
 //
 //   pnpm review-vaults                         # every consumer repo
 //   pnpm review-vaults -- gp-map-webapp tellr-webapp
 //   pnpm review-vaults -- --list               # only which repo uses which item, no 1Password access
-//   pnpm review-vaults -- --all                # every field, not only the flagged ones
 //
 // Needs the local `gh` login (environments and workflows) and the 1Password
 // CLI signed in as a person with access to the vaults (`brew install
@@ -15,11 +16,10 @@
 import { execFileSync } from 'node:child_process';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
-import { onePasswordRefs, reviewField, type VaultRef } from './lib/vaults.ts';
+import { onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
-const showAll = args.includes('--all');
 const repos = args.filter(a => !a.startsWith('--'));
 
 // --- which repo uses which item: the environments' OP_VAULT/OP_ITEM, and the workflow inputs
@@ -71,15 +71,15 @@ for (const u of items) {
         continue;
     }
     const rows = fields
-        .filter(f => f.value !== null && f.value !== undefined && f.label)
-        .map(f => ({ label: f.label!, type: f.type ?? '', length: f.value!.length }))
-        .map(f => ({ ...f, why: reviewField(f) }))
-        .filter(f => showAll || f.why);
-    const n = rows.filter(r => r.why).length;
+        .filter(f => f.label && f.label !== 'notesPlain')
+        .map(f => ({ label: f.label!, type: f.type ?? '', length: f.value?.length ?? 0 }))
+        .map(f => ({ ...f, note: reviewField(f) }));
+    const n = rows.filter(r => r.note).length;
     flagged += n;
-    if (!rows.length) continue;
-    console.log(`${vault}/${item}: ${n} to look at\n    ${[...u.repos].join(', ')}`);
-    for (const r of rows) console.log(`    ${r.label.padEnd(36)} ${r.type.padEnd(10)} ${String(r.length).padStart(4)} chars  ${r.why ?? ''}`);
+    console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${[...u.repos].join(', ')}`);
+    const width = Math.max(12, ...rows.map(r => r.label.length));
+    for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars${r.note ? `  ${r.note}` : ''}`);
+    console.log();
 }
-console.log(`\n${flagged} field(s) to look at, ${unreadable} item(s) unreadable.`);
+console.log(`${flagged} field(s) to look at, ${unreadable} item(s) unreadable.`);
 process.exit(flagged || unreadable ? 1 : 0);

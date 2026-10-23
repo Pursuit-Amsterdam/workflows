@@ -35,17 +35,20 @@ export interface Field {
     length: number;
 }
 
-/** Why a field deserves a look, or null. */
+/** `concealed` (a password field) or `plain`: what 1Password shows, and what decides masking and build-args. */
+export function state(f: Pick<Field, 'type'>): 'concealed' | 'plain' {
+    return f.type === 'CONCEALED' ? 'concealed' : 'plain';
+}
+
+/** What to do with a field, or null when it is fine as it is. */
 export function reviewField(f: Field): string | null {
     if (f.label === 'notesPlain') return null;
     const concealed = f.type === 'CONCEALED';
     if (!concealed && SECRET_LABEL.test(f.label) && !PUBLIC_LABEL.test(f.label)) {
-        return 'plain text but looks like a secret: set the field to password, or it is in the logs once only concealed fields are masked';
+        return 'looks like a secret: set it to password';
     }
     if (f.length > 0 && f.length <= SHORT) {
-        return concealed
-            ? `concealed but ${f.length} chars: masking it removes every "${'…'}" of that length from the logs; make it config (plain text) or longer`
-            : `${f.length} chars: masked today, which shreds the logs (the #23 symptom); harmless once only concealed fields are masked`;
+        return concealed ? 'short password: masking it damages the logs, make it plain or longer' : 'short: damages the logs while masked (fixed by #23)';
     }
     return null;
 }
