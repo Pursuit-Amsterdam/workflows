@@ -35,8 +35,9 @@ export type Expected = 'concealed' | 'plain' | 'unsure';
 /** What the label says the field should be. */
 export function expected(label: string): Expected {
     if (CREDENTIALED_URL.test(label)) return 'concealed';
-    // Public by nature, or a name rather than a secret (AZURE_KEY_VAULT is the vault's name).
-    if (/^NEXT_PUBLIC_/i.test(label) || /PUBLIC_KEY|PUBLISHABLE|KEY_VAULT/i.test(label)) return 'plain';
+    // Starts with NEXT_PUBLIC_ or contains PUBLIC: public by nature. PUBLISHABLE is
+    // Stripe's word for the same; KEY_VAULT is a vault's name, not a key.
+    if (/^NEXT_PUBLIC_|PUBLIC|PUBLISHABLE|KEY_VAULT/i.test(label)) return 'plain';
     if (SECRET_LABEL.test(label)) return 'concealed';
     if (CONFIG_LABEL.test(label)) return 'plain';
     return 'unsure';
