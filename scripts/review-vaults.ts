@@ -99,6 +99,7 @@ const ask = async (q: string): Promise<string> => (rl ? (await rl.question(q)).t
 let flagged = 0;
 let unreadable = 0;
 let changed = 0;
+let failed = 0;
 let offered = 0;
 let quit = false;
 for (const u of items) {
@@ -152,13 +153,17 @@ for (const u of items) {
             const after = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: { label?: string; type?: string }[] }).fields?.find(x => x.label === r.label);
             const now = after ? state({ type: after.type ?? '' }) : 'unknown';
             changed += now === f.to ? 1 : 0;
+            if (now !== f.to) failed++;
             console.log(`      ${r.label} is now ${now}${now === f.to ? '' : ' (not what was asked: check it in the app)'}`);
         } catch (err) {
+            failed++;
             console.log(`      could not change ${r.label}: ${opError(err)}`);
         }
     }
     console.log();
 }
 rl?.close();
-console.log(`${flagged} field(s) to look at, ${unreadable} item(s) unreadable. ${apply ? `${changed} changed.` : `${offered} change(s) available; dry run, run again with --apply to be asked per field.`}${quit ? ' Stopped at your request.' : ''}`);
-process.exit(flagged - changed > 0 || unreadable ? 1 : 0);
+console.log(`${quit ? 'Stopped at your request.' : 'That was the last item.'} ${flagged} field(s) to look at in ${items.length} item(s)${unreadable ? `, ${unreadable} unreadable` : ''}. ${apply ? `${changed} changed, ${failed} failed.` : `${offered} change(s) available; dry run, run again with --apply to be asked per field.`}`);
+// Findings are the point of a review, not a failure; an item that could not
+// be read or changed is.
+process.exit(unreadable || failed ? 1 : 0);
