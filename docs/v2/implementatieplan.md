@@ -370,7 +370,7 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
 
 **Besloten: buiten scope.** Alles op de host is provisioning: mappen, netwerk, `acme`-volume, en dus ook een certificaat op schijf of in Key Vault. v2 controleert dat in `pre-deploy` en plaatst het niet; dat was al het principe. Een certificaat dat tot 2041 geldig is rechtvaardigt geen nieuwe input plus een overlay-regel voor elke Swarm-repo. gp-map staging houdt runbook stap 7, de blueprint houdt Key Vault en `refresh-cert.sh`. Opnieuw bekijken als v2 infra-as-code gaat ondersteunen. De scopegrens staat in [cd.md](naslag/cd.md#cd-swarm).
 
-- [ ] Los hiervan, klein: `setup-onepassword` breekt op een meerregelig veld. `jq -r` geeft de waarde als losse regels en `mapfile` maakt er losse entries van (regel twee wordt een variabele `MIIB`, regel drie krijgt de naam `-----END CERTIFICATE-----`); `::add-mask::` maskeert alleen de eerste regel. Het is nog niet opgevallen, dus geen item in gebruik heeft zo'n veld. Fix: velden als `@base64` uit `jq`, per regel maskeren, en meteen de openstaande `hotfix/mask-concealed-fields-only` (alleen CONCEALED maskeren) meenemen. Met een cases-script tegen een nep-`op`.
+- Los hiervan: `setup-onepassword` breekt op een meerregelig veld; samen met PR #23 opgepakt in Task 6 (stap 5 en 6), zie de PR van `review-vaults`.
 
 ### Task 17: `cd-swarm.yml`
 
