@@ -11,11 +11,13 @@ jobs:
     staging:
         uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
         with:
+            environment: 'staging'
             onepassword_vault: my-site-staging
             onepassword_item: my-site-staging-secrets
     production:
         uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
         with:
+            environment: Production
             onepassword_vault: 'my-site-production'
             onepassword_item: "my-site-production-secrets"
     swarm:
@@ -25,8 +27,8 @@ jobs:
             onepassword_item: \${{ vars.OP_ITEM }}
 `);
     assert.deepEqual(onePasswordRefs(v1), [
-        { vault: 'my-site-staging', item: 'my-site-staging-secrets' },
-        { vault: 'my-site-production', item: 'my-site-production-secrets' },
+        { vault: 'my-site-staging', item: 'my-site-staging-secrets', environment: 'staging' },
+        { vault: 'my-site-production', item: 'my-site-production-secrets', environment: 'production' },
     ]);
     const v2 = parseWorkflow('ci.yml', `on: push
 jobs:

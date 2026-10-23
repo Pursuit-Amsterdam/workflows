@@ -11,6 +11,7 @@
 //   pnpm review-vaults -- gp-map-webapp tellr-webapp
 //   pnpm review-vaults -- --list               # only which repo uses which item, no 1Password access
 //   pnpm review-vaults -- --apply              # ask per field, and change the type on "y"
+//   pnpm review-vaults -- --env staging        # only the items of that environment (also ci, or a workflow file name)
 //
 // Dry run by default: every field whose fix is a type change (plain to
 // password, or a NEXT_PUBLIC_ password to text) is shown with the exact
@@ -30,18 +31,23 @@ import { expected, fix, onePasswordRefs, reviewField, state, type VaultRef } fro
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
 const apply = args.includes('--apply');
+// --env staging, or --env=staging
+const envIndex = args.indexOf('--env');
+const envFilter = (args.find(a => a.startsWith('--env='))?.slice(6) ?? (envIndex >= 0 ? args[envIndex + 1] : '') ?? '').toLowerCase();
 if (apply && !process.stdin.isTTY) {
     console.error('--apply asks a question per field and needs a terminal.');
     process.exit(2);
 }
-const repos = args.filter(a => !a.startsWith('--'));
+const repos = args.filter((a, i) => !a.startsWith('--') && !(envIndex >= 0 && i === envIndex + 1));
 
 // --- which repo uses which item: the environments' OP_VAULT/OP_ITEM, and the workflow inputs
-const users = new Map<string, { ref: VaultRef; repos: Set<string> }>();
+// `where` is the environment (lowercase) when known, else the workflow file.
+const users = new Map<string, { ref: VaultRef; uses: { repo: string; where: string }[] }>();
 const add = (ref: VaultRef, repo: string, where: string): void => {
+    if (envFilter && where.toLowerCase() !== envFilter) return;
     const key = `${ref.vault}/${ref.item}`;
-    const u = users.get(key) ?? { ref, repos: new Set<string>() };
-    u.repos.add(`${repo} (${where})`);
+    const u = users.get(key) ?? { ref: { vault: ref.vault, item: ref.item }, uses: [] };
+    if (!u.uses.some(x => x.repo === repo && x.where === where)) u.uses.push({ repo, where });
     users.set(key, u);
 };
 const all = repos.length ? repos : await orgRepos();
@@ -56,15 +62,15 @@ for (const repo of all) {
         const vars = (await get<{ variables: { name: string; value: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/variables', { ...p, environment_name, per_page: 100 }))?.variables ?? [];
         const vault = vars.find(v => v.name === 'OP_VAULT')?.value;
         const item = vars.find(v => v.name === 'OP_ITEM')?.value;
-        if (vault && item) add({ vault, item }, repo, environment_name);
+        if (vault && item) add({ vault, item }, repo, environment_name.toLowerCase());
     }
-    for (const wf of c.workflows) for (const ref of onePasswordRefs(wf)) add(ref, repo, wf.file);
+    for (const wf of c.workflows) for (const ref of onePasswordRefs(wf)) add(ref, repo, ref.environment ?? (wf.file.startsWith('ci') ? 'ci' : wf.file));
 }
 
 const items = [...users.values()].sort((a, b) => `${a.ref.vault}/${a.ref.item}`.localeCompare(`${b.ref.vault}/${b.ref.item}`));
-console.log(`${items.length} item(s) across ${new Set(items.flatMap(u => [...u.repos].map(r => r.split(' ')[0]))).size} repo(s)\n`);
+console.log(`${items.length} item(s) across ${new Set(items.flatMap(u => u.uses.map(x => x.repo))).size} repo(s)${envFilter ? ` for environment '${envFilter}'` : ''}\n`);
 if (listOnly) {
-    for (const u of items) console.log(`${u.ref.vault}/${u.ref.item}\n    ${[...u.repos].join(', ')}`);
+    for (const u of items) console.log(`${u.ref.vault}/${u.ref.item}\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}`);
     process.exit(0);
 }
 
@@ -99,7 +105,7 @@ for (const u of items) {
     const { vault, item } = u.ref;
     if (!visible.has(vault)) {
         unreadable++;
-        console.log(`${vault}/${item}: no access to this vault for the signed-in account\n    ${[...u.repos].join(', ')}\n`);
+        console.log(`${vault}/${item}: no access to this vault for the signed-in account\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}\n`);
         continue;
     }
     let fields: { label?: string; type?: string; value?: string }[];
@@ -107,7 +113,7 @@ for (const u of items) {
         fields = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: typeof fields }).fields ?? [];
     } catch (err) {
         unreadable++;
-        console.log(`${vault}/${item}: cannot read (${opError(err)})\n    ${[...u.repos].join(', ')}\n`);
+        console.log(`${vault}/${item}: cannot read (${opError(err)})\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}\n`);
         continue;
     }
     const rows = fields
@@ -116,7 +122,7 @@ for (const u of items) {
         .map(f => ({ ...f, note: reviewField(f) }));
     const n = rows.filter(r => r.note).length;
     flagged += n;
-    console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${[...u.repos].join(', ')}`);
+    console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}`);
     const width = Math.max(12, ...rows.map(r => r.label.length));
     for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars  ${`(${expected(r.label)})`.padEnd(11)}${r.note ? ` ${r.note}` : ''}`);
     // The offers: one per field whose fix is a type change. A label that

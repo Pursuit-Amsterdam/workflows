@@ -6,6 +6,8 @@ import { jobs, type Workflow } from './workflow.ts';
 export interface VaultRef {
     vault: string;
     item: string;
+    /** The environment the job deploys to (its `environment` input or key, lowercase), when it names one literally. */
+    environment?: string;
 }
 
 /** The `onepassword_vault`/`_item` (v1) and `onepassword-vault`/`-item` (v2) inputs of the jobs; `${{ vars.* }}` references are the environments' business. */
@@ -16,7 +18,9 @@ export function onePasswordRefs(wf: Workflow): VaultRef[] {
         const vault = String(w['onepassword-vault'] ?? w['onepassword_vault'] ?? '');
         const item = String(w['onepassword-item'] ?? w['onepassword_item'] ?? '');
         if (!vault || !item || vault.includes('${{') || item.includes('${{')) continue;
-        if (!refs.some(r => r.vault === vault && r.item === item)) refs.push({ vault, item });
+        const env = String(w['environment'] ?? (typeof job.environment === 'string' ? job.environment : '') ?? '').toLowerCase();
+        const ref: VaultRef = { vault, item, ...(env && !env.includes('${{') ? { environment: env } : {}) };
+        if (!refs.some(r => r.vault === vault && r.item === item && r.environment === ref.environment)) refs.push(ref);
     }
     return refs;
 }
