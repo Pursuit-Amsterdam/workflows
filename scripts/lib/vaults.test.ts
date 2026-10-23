@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { expected, onePasswordRefs, reviewField, state } from './vaults.ts';
+import { expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -78,4 +78,13 @@ test('reviewField: a public build-time value kept as password breaks the build-a
     assert.match(reviewField({ label: 'NEXT_PUBLIC_API_URL', type: 'CONCEALED', length: 30 }) ?? '', /build-arg/);
     assert.match(reviewField({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }) ?? '', /config kept as password/);
     assert.equal(reviewField({ label: 'FEATURE_X', type: 'STRING', length: 30 }), null, 'unsure stays quiet');
+});
+
+test('fix: the type-only assignment for op item edit', () => {
+    assert.deepEqual(fix({ label: 'RESEND_API_KEY', type: 'STRING', length: 36 }), { assignment: 'RESEND_API_KEY[password]', to: 'concealed' });
+    assert.deepEqual(fix({ label: 'NEXT_PUBLIC_API_URL', type: 'CONCEALED', length: 30 }), { assignment: 'NEXT_PUBLIC_API_URL[text]', to: 'plain' });
+    assert.deepEqual(fix({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }), { assignment: 'APP_HOST[text]', to: 'plain' });
+    assert.equal(fix({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }), null, 'a short value needs a new value, not a type');
+    assert.equal(fix({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'nothing to fix');
+    assert.equal(fix({ label: 'api.key', type: 'STRING', length: 40 }), null, 'a dot would be read as a section');
 });

@@ -68,3 +68,18 @@ export function reviewField(f: Field): string | null {
     if (now === 'concealed' && want === 'plain') return 'looks like config kept as password: fine, only masked for nothing';
     return null;
 }
+
+/**
+ * The one-line fix for a note, as a field assignment for `op item edit`
+ * (`LABEL[password]` or `LABEL[text]`: the type only, no value), or null when
+ * the fix needs a new value or the label cannot be addressed that way (a dot
+ * or brackets in it would be read as a section or a type).
+ */
+export function fix(f: Field): { assignment: string; to: 'concealed' | 'plain' } | null {
+    if (!/^[A-Za-z0-9_-]+$/.test(f.label)) return null;
+    const now = state(f);
+    const want = expected(f.label);
+    if (now === 'plain' && want === 'concealed') return { assignment: `${f.label}[password]`, to: 'concealed' };
+    if (now === 'concealed' && (/^NEXT_PUBLIC_/i.test(f.label) || want === 'plain')) return { assignment: `${f.label}[text]`, to: 'plain' };
+    return null;
+}

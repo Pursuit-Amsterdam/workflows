@@ -10,17 +10,25 @@
 //   pnpm review-vaults                         # every consumer repo
 //   pnpm review-vaults -- gp-map-webapp tellr-webapp
 //   pnpm review-vaults -- --list               # only which repo uses which item, no 1Password access
+//   pnpm review-vaults -- --report             # never ask, only report (also what happens without a terminal)
+//
+// In a terminal, every field with a fix that is only a type change (plain to
+// password, or a NEXT_PUBLIC_ password to text) gets a question; "y" runs
+// `op item edit <item> 'LABEL[password]'`, the type only, no value. A short
+// value needs a new value and is only reported.
 //
 // Needs the local `gh` login (environments and workflows) and the 1Password
 // CLI signed in as a person with access to the vaults (`brew install
 // 1password-cli`, `op signin`); the service accounts see one vault each.
 import { execFileSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
-import { expected, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
+import { expected, fix, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
+const reportOnly = args.includes('--report') || !process.stdin.isTTY;
 const repos = args.filter(a => !a.startsWith('--'));
 
 // --- which repo uses which item: the environments' OP_VAULT/OP_ITEM, and the workflow inputs
@@ -75,8 +83,12 @@ try {
 // reported as "no access" without a call per item.
 const visible = new Set((JSON.parse(op(['vault', 'list', '--format', 'json'])) as { name: string }[]).map(v => v.name));
 process.stderr.write(`Signed in with access to ${visible.size} vault(s).\n\n`);
+const rl = reportOnly ? null : createInterface({ input: process.stdin, output: process.stdout });
+const ask = async (q: string): Promise<string> => (rl ? (await rl.question(q)).trim().toLowerCase() : 'n');
 let flagged = 0;
 let unreadable = 0;
+let changed = 0;
+let quit = false;
 for (const u of items) {
     const { vault, item } = u.ref;
     if (!visible.has(vault)) {
@@ -101,7 +113,35 @@ for (const u of items) {
     console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${[...u.repos].join(', ')}`);
     const width = Math.max(12, ...rows.map(r => r.label.length));
     for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars  ${`(${expected(r.label)})`.padEnd(11)}${r.note ? ` ${r.note}` : ''}`);
+    // The questions: one per field whose fix is a type change. A label that
+    // occurs twice in the item cannot be addressed by name: left to the app.
+    if (!quit && rl) {
+        const counts = new Map<string, number>();
+        for (const r of rows) counts.set(r.label, (counts.get(r.label) ?? 0) + 1);
+        for (const r of rows) {
+            if (!r.note || quit) continue;
+            const f = fix(r);
+            if (!f) continue;
+            if ((counts.get(r.label) ?? 0) > 1) {
+                console.log(`    ${r.label}: occurs ${counts.get(r.label)} times in this item, change it in the 1Password app`);
+                continue;
+            }
+            const answer = await ask(`    → set ${r.label} to ${f.to === 'concealed' ? 'password' : 'text'} with \`op item edit '${item}' --vault '${vault}' '${f.assignment}'\`? [y/N/q] `);
+            if (answer === 'q') { quit = true; break; }
+            if (answer !== 'y' && answer !== 'yes') continue;
+            try {
+                op(['item', 'edit', item, '--vault', vault, f.assignment, '--format', 'json']);
+                const after = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: { label?: string; type?: string }[] }).fields?.find(x => x.label === r.label);
+                const now = after ? state({ type: after.type ?? '' }) : 'unknown';
+                changed += now === f.to ? 1 : 0;
+                console.log(`      ${r.label} is now ${now}${now === f.to ? '' : ' (not what was asked: check it in the app)'}`);
+            } catch (err) {
+                console.log(`      could not change ${r.label}: ${opError(err)}`);
+            }
+        }
+    }
     console.log();
 }
-console.log(`${flagged} field(s) to look at, ${unreadable} item(s) unreadable.`);
-process.exit(flagged || unreadable ? 1 : 0);
+rl?.close();
+console.log(`${flagged} field(s) to look at, ${changed} changed, ${unreadable} item(s) unreadable.${quit ? ' Stopped at your request.' : ''}`);
+process.exit(flagged - changed > 0 || unreadable ? 1 : 0);
