@@ -124,7 +124,8 @@ for (const u of items) {
     flagged += n;
     console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}`);
     const width = Math.max(12, ...rows.map(r => r.label.length));
-    for (const r of rows) console.log(`    ${r.note ? '!' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars  ${`(${expected(r.label)})`.padEnd(11)}${r.note ? ` ${r.note}` : ''}`);
+    // `!` a problem, with what to do; `?` a label the rules cannot place (tell the rules in lib/vaults.ts).
+    for (const r of rows) console.log(`    ${r.note ? '!' : expected(r.label) === 'unsure' ? '?' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars${r.note ? `  ${r.note}` : ''}`);
     // The offers: one per field whose fix is a type change. A label that
     // occurs twice in the item cannot be addressed by name: left to the app.
     const counts = new Map<string, number>();
