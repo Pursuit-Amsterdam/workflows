@@ -170,6 +170,16 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 - [x] Stap 2: test in de voorbeeldrepo met een tijdelijke workflow: `database: postgres` → `psql "$DATABASE_URL" -c 'select 1'` slaagt; `redis: true` → `redis-cli -u "$REDIS_URL" ping` geeft `PONG`; `database: banana` → de validatiestap faalt met de melding; `onepassword-item: x` zonder vault → faalt vóór er iets gestart is.
 - [x] Stap 3: commit `feat(actions): add setup-services and split setup-supabase from run-supabase-test`.
 
+**Uitbreiding (23 oktober 2026): `setup-onepassword` maskeert alleen nog wachtwoordvelden, en kan meerregelige velden aan.** Twee dingen die op `main` open staan of daar nooit opvielen:
+- **PR #23 op `main`** (`hotfix/mask-concealed-fields-only`, 8 september 2026, bewust draft): de action maskeert elk veld, ook platte config. GitHub redigeert een gemaskeerde waarde overal in de output, dus `WORKER_REPLICAS=3` in de gp-map-kluis haalde elke `3` uit alle logs en samenvattingen. Fix: dezelfde `CONCEALED`-test die al bepaalt wat in een image mag, ook op de maskeerregel. Staat **niet** op `v2`; `v2` verschilt van `main` alleen in de vastgepinde action-versies, en via `setup-services` zit de action in elke `ci-*` en `cd-*`.
+- **Meerregelige velden** (gevonden 22 oktober 2026 bij het certificaat-onderzoek, Task 16): `jq -r` geeft een meerregelige waarde als losse regels, `mapfile` maakt er losse entries van (regel twee wordt een variabele `MIIB`, regel drie krijgt de naam `-----END CERTIFICATE-----`), en `::add-mask::` maskeert alleen de eerste regel. Nog niet opgevallen, dus geen item in gebruik heeft zo'n veld.
+
+Voorwaarde voor #23, uit de draft-opmerking: eerst elke kluis nalopen, want een geheim dat als platte tekst in een item staat komt daarna in de logs. Daarvoor `scripts/review-vaults.ts` (`pnpm review-vaults`): verzamelt per repo de items uit `OP_VAULT`/`OP_ITEM` op de environments en uit de `onepassword_*`-inputs in de v1-YAML, leest ze met de `op`-CLI van een mens met toegang tot alle kluizen, en toont per veld alleen label, type en lengte van de waarde, nooit de waarde. Gemeld: platte tekst met een label dat op een geheim lijkt (naar wachtwoord zetten), en korte waarden (die schaven logs kapot zolang ze gemaskeerd worden; een kort wachtwoordveld blijft dat ook na #23). `--list` toont alleen welke repo welk item gebruikt. Gp-map is al nagelopen (#23).
+
+- [x] Stap 4 (23 oktober 2026): `scripts/review-vaults.ts` plus `scripts/lib/vaults.ts` met tests (`node --test`: de inputs uit v1- en v2-YAML, `${{ vars.* }}` overgeslagen, de labelregels, de korte waarden). `--list` op vier repo's: zeven items, waaronder het staging-item van tellr dat ook in `ci.yml` staat.
+- [ ] Stap 5 (**handwerk**, Bas): `pnpm review-vaults` over alle repo's; platte-tekstvelden die geheim zijn op wachtwoord zetten, korte wachtwoordvelden naar platte tekst of langer.
+- [ ] Stap 6: #23 en de meerregelige fix samen in `setup-onepassword` op `v2`: velden als `@base64` uit `jq`, per veld decoderen, alleen `CONCEALED` maskeren en per regel; een cases-script tegen een nep-`op` (CONCEALED gemaskeerd, platte tekst niet, een PEM heel door `GITHUB_ENV`). Pas na stap 5. Op `main` blijft #23 aan Bas.
+
 ### Task 7: `ci.yml`
 
 **Bestanden:**
