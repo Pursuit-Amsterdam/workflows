@@ -10,7 +10,8 @@
     "audit:consumers": "node scripts/audit-consumers.ts",
     "audit:consumers:remote": "gh workflow run audit-consumers.yml --ref v2",
     "setup-consumer": "node scripts/setup-consumer.ts",
-    "migrate-consumer": "node scripts/migrate-consumer.ts"
+    "migrate-consumer": "node scripts/migrate-consumer.ts",
+    "review-vaults": "node scripts/review-vaults.ts"
   },
   "devDependencies": {
     "@octokit/rest": "22.0.1",
