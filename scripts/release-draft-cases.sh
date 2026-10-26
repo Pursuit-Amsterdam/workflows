@@ -98,7 +98,12 @@ refute "  no draft created" logged "POST repos/{owner}/{repo}/releases "
 check "a +N tag for this version: nothing to do" run_step draft '"1.2.3"' FAKE_TAGS="v1.2.3+2"
 check "  says so" said "v1.2.3+2 exists"
 refute "  no draft created" logged "POST repos/{owner}/{repo}/releases "
-check "a tag that only starts the same: not this version" run_step draft '"1.2.3"' FAKE_TAGS="v1.2.30 v1.2.3-rc.1"
+# Older repos tagged without the v (nextjs-feature-flags: 0.6.0-beta.1): that version is out too
+check "a tag without the v for this version: nothing to do" run_step draft '"0.6.0-beta.1"' FAKE_TAGS="0.5.0-beta.3 0.6.0-beta.1"
+check "  says so" said "0.6.0-beta.1 exists"
+refute "  no draft created" logged "POST repos/{owner}/{repo}/releases "
+check "an unprefixed tag with build metadata: nothing to do" run_step draft '"1.2.3"' FAKE_TAGS="1.2.3+1"
+check "a tag that only starts the same: not this version" run_step draft '"1.2.3"' FAKE_TAGS="v1.2.30 v1.2.3-rc.1 1.2.30"
 check "  draft created" logged "tag_name=v1.2.3"
 
 # --- a new draft
