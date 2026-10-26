@@ -85,8 +85,11 @@ jobs:
           # The tag exists: this version is released, or a release is being published
           # right now. A tag with build metadata (v1.2.3+2) counts: cd-packages
           # publishes that as 1.2.3 too.
-          tag_re=$(printf '%s' "$tag" | sed 's/[.+]/\\&/g')
-          existing=$(gh api "repos/{owner}/{repo}/git/matching-refs/tags/$tag" --jq '.[].ref | ltrimstr("refs/tags/")' | grep -E -m1 "^${tag_re}(\+|$)" || true)
+          # Older repos tagged without the v (0.6.0-beta.1): that tag counts as well.
+          version_re=$(printf '%s' "$version" | sed 's/[.+]/\\&/g')
+          existing=$( { gh api "repos/{owner}/{repo}/git/matching-refs/tags/$tag" --jq '.[].ref | ltrimstr("refs/tags/")'
+                        gh api "repos/{owner}/{repo}/git/matching-refs/tags/$version" --jq '.[].ref | ltrimstr("refs/tags/")'; } \
+                      | grep -E -m1 "^v?${version_re}(\+|$)" || true)
           if [ -n "$existing" ]; then
             echo "$existing exists: $version is released. Nothing to do."
             echo "action=none" >> "$GITHUB_OUTPUT"; exit 0
