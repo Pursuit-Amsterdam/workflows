@@ -36,7 +36,7 @@
 
 **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)):
 
-- seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); up-to-date verplicht op `develop`, niet op `main` (anders blokkeert elke `develop` → `main`);
+- seniors mogen hun eigen PR mergen, een junior laat reviewen door een senior; per beschermde branch twee rulesets (checks zonder bypass, review met bypass voor admins); up-to-date alleen verplicht op `main` van een repo zonder `develop` (anders blokkeert elke PR tussen twee beschermde branches, zoals `develop` → `main` en `main` → `develop`);
 - staging op Vercel is het custom environment `staging` (`--target=staging`); deploy-vercel weigert alles behalve `staging` en `production`;
 - de gate wacht bij een release of handmatige start op CI die nog loopt (hooguit 20 minuten);
 - het CMS start deploys met `workflow_dispatch` (`environment`, `release_id`) op het CD-bestand uit zijn projectinstelling; de standaardnamen zijn `ci.yml` en `cd.yml`;
@@ -633,6 +633,7 @@ De andere pakketrepo's (20 oktober 2026):
   - Geen lege variabelen: GitHub weigert een variabele zonder waarde. Ontbrekende variabelen en secrets zijn `todo`'s.
   - Laat staan en meldt (`note`): environmentnamen met hoofdletters (hernoemen gooit de secrets weg), extra branchregels, environments buiten de standaard, andere rulesets op dezelfde branch. Bestaande wachttijd en reviewers van een environment blijven.
   - Een bestaande ruleset met dezelfde naam wordt bijgewerkt; zo zijn de rulesets van de eerdere migraties meteen goed.
+- Bijgesteld (26 oktober 2026): up-to-date ook uit op `develop` en `acceptance`; alleen `main` van een repo zonder `develop` houdt het. Een terug-merge `main` → `develop` na een hotfix stond op "out-of-date", en "Update branch" werd geweigerd, want dat zet een merge-commit op de beschermde `main` (variantzorg-frontend #152, multifill-planning-tool #296). Hetzelfde geldt voor `develop` → `acceptance`. De audit meldt up-to-date nu op elke branch van een repo met `develop`.
 - [x] Stap 1: `pnpm lint`; dry run op acht ingerichte repo's (workflows-example, tellr, pursuit-website, integrators, tms-test, gp-container-tracking, text-extract, eslint-config): geen wijzigingen behalve de rulesets op `acceptance` in de voorbeeldrepo en `production` + tag-ruleset in gp-container-tracking (niet uitgevoerd: daar is staging de productie). Daarna in de voorbeeldrepo de tag-ruleset verwijderd en up-to-date op `develop` uitgezet; `--apply` zet beide terug plus de rulesets op `acceptance`. `pnpm audit:consumers -- workflows-example` meldt daarna alleen de workflowbestanden (geen CI-push op `acceptance`, geen `dependabot.yml`), niets van de inrichting.
 - [x] Stap 2: tweede run: `no changes`.
 - [x] Stap 3: commit `feat: add setup-consumer script`.

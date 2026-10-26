@@ -198,11 +198,11 @@ for (const repo of repos) {
         if (!checks.some(c => /^run-ci(-[a-z]+)? \/ pipeline$/.test(c.context))) say(repo, 'protection', `${branch}: no required run-ci* / pipeline check`);
         // Source pinned to GitHub Actions: with "any source" a status from any token counts.
         for (const c of checks.filter(c => c.app !== ACTIONS_APP_ID)) say(repo, 'protection', `${branch}: required check '${c.context}' not pinned to GitHub Actions`);
-        // Up-to-date on develop, not on the default branch when develop exists:
-        // develop is always behind main after a release (merge commits), and
-        // "Update branch" would push straight onto the protected develop.
-        if (branch === def && hasDevelop) {
-            if (strict) say(repo, 'protection', `${branch}: requires up-to-date branches, which blocks every develop -> ${branch} PR`);
+        // Up-to-date only on the default branch of a repo without develop. With develop,
+        // PRs run between protected branches (develop -> main, main -> develop,
+        // develop -> acceptance), and "Update branch" would push onto the protected head.
+        if (branch !== def || hasDevelop) {
+            if (strict) say(repo, 'protection', `${branch}: requires up-to-date branches, which blocks PRs from another protected branch into ${branch}`);
         } else if (!strict) {
             say(repo, 'protection', `${branch}: not requiring up-to-date branches`);
         }
