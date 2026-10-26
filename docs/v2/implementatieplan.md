@@ -14,6 +14,8 @@
 
 ## Stand van zaken (20 oktober 2026, einde dag)
 
+> De actuele stand per repo, en wat `v2` nog mist, staat in [voortgang](voortgang.md#progress).
+
 **Af:**
 
 - **Plak 0–2** (Task 1–12): `v2` is beschermd en test zichzelf; `ci.yml`, `ci-images.yml` en de gate staan erop; de gate is met 21 scenario's getest.

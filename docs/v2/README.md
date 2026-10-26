@@ -41,6 +41,7 @@ Het voorstel bestaat uit twee delen. Het betoog is voor wie beslist; de naslag i
 3. [Uitrol](uitrol.md): een branch `v2`, en de volgorde van overstappen.
 4. [Beslissingen](beslissingen.md): wat besloten is, en waarom.
 5. [Implementatieplan](implementatieplan.md): 28 taken in zeven plakken, elk met een test in de voorbeeldrepo.
+6. [Voortgang](voortgang.md): per repo hoe ver de migratie is, en wat `v2` nog mist.
 
 **Naslag**
 
