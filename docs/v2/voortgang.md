@@ -2,7 +2,7 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 26 oktober 2026.** 29 van de 49 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 11 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28.
+**Stand: 26 oktober 2026.** 30 van de 49 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 11 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28.
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
@@ -24,25 +24,24 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | banner-kit | pakket, release via draft | v0.10.0 |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (18)
+## Op v2, wacht op de eerste release (19)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
 | Groep | Repo's |
 | --- | --- |
-| Vercel | developer-onboarding-project, unconsultants-website, scm-executives-website, nextjs-feature-flags (0.6.0 in voorbereiding, #9) |
+| Vercel | multifill-planning-tool, developer-onboarding-project, unconsultants-website, scm-executives-website, nextjs-feature-flags (0.6.0 in voorbereiding, #9) |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
 | Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (19)
+## Nog v1 (18)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
 | `migrate-consumer` kan het | blenheim-masters-landingpage, city-real-estate-website, github-wrapped-2025, intersekse-website, asana-task-generator, provincie-utrecht-demo, pursuit-projects-dashboard, translations-management-dashboard, weber-ddc | routine; de checklist van het script (geen tests, een build die 1Password nodig heeft) |
-| Wacht | multifill-planning-tool | op Bas |
 | Eigen handwerk | foodcabinet-website (acceptance; `cd-vercel` kent geen acceptance), big-chef-webapp (eigen `api-ci`) | een besluit per repo |
 | Edge functions | web-essentials-dashboard | `cd-supabase` met een organization-token (Sam) |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
@@ -73,4 +72,5 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 26 oktober 2026 | multifill-planning-tool naar `v2` met `migrate-consumer`: #292 (`main`) en #293 (`develop`). `build` uit `checks`, omdat `next build` de Supabase-waarden uit 1Password nodig heeft; lint, typecheck en de 191 tests draaien zonder env. Migraties blijven via de Supabase-integratie gaan. Staging via `v2` (run 40321197983, `workflow_run -> staging @ 5617a2a`). Nog doen: `setup-consumer --apply` en `OP_SERVICE_ACCOUNT_TOKEN` weg van `integration`. |
 | 26 oktober 2026 | variantzorg-frontend: security-fixes (Node 24.22.1, Next.js 15.5.28) als v2026.10.26 via `v2` naar productie; naar `develop` via een feature-branch met `main` erin (#152), omdat een `main` → `develop`-PR niet up-to-date kan zonder in `main` te schrijven; staging via `v2`. tellr-website en tellr-webapp: v2026.10.26 via `v2` naar productie. `release-draft`: een tag zonder `v` (`0.6.0-beta.1`) telt nu als gereleased (#126); nextjs-feature-flags kreeg daardoor een onterechte draft `v0.6.0-beta.1`, die bij de volgende release vanzelf verdwijnt. Eerste versie van dit overzicht. |
