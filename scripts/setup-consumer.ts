@@ -329,9 +329,10 @@ for (const repo of repos) {
         const onBranch = branch === def ? c : await loadConsumer(repo, branch);
         const checks = onBranch ? producedChecks(onBranch) : [];
         if (checks.length === 0) add({ repo, kind: 'todo', message: `${branch}: no check-pr or CI caller in its workflows: no checks ruleset, classic protection stays` });
-        // Up to date on develop and acceptance; not on the default branch when develop exists,
-        // where develop is behind after every release and "Update branch" would push onto it.
-        if (checks.length) await upsertRuleset(repo, rulesets, checksRuleset(branch, checks, !(branch === def && c.hasDevelop)));
+        // Up to date only on the default branch of a repo without develop. Elsewhere a PR's head
+        // is protected too (develop -> main, main -> develop, develop -> acceptance), so
+        // "Update branch" would push onto it, which the rulesets refuse.
+        if (checks.length) await upsertRuleset(repo, rulesets, checksRuleset(branch, checks, branch === def && !c.hasDevelop));
         await upsertRuleset(repo, rulesets, reviewRuleset(branch));
         const ours = [checksRuleset(branch, [], false).name, reviewRuleset(branch).name];
         for (const r of rulesets.filter(r => r.target === 'branch' && !ours.includes(r.name) && !r.name.startsWith('protect '))) {
