@@ -62,6 +62,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 ## Handwerk dat openstaat
 
+- **Team `senior-developers`: "Only notify requested team members" aan** (Code review in de teaminstellingen; een maintainer van het team of een org-owner). Nu mailt elke PR alle vier seniors, omdat CODEOWNERS het hele team aanvraagt. De trigger voor een review is de PR in het Asana-ticket.
 - **Dependabot-secret `CUSTOM_GITHUB_TOKEN` op org-niveau** (Sam). Zonder die secret faalt Dependabot in elke repo met private pakketten.
 - **`CUSTOM_GITHUB_TOKEN` op repo-niveau verloopt.** Een klassieke PAT; in blenheim, city en pursuit-projects-dashboard gaf hij een 401, ongebruikt sinds hij gezet was. Wie een repo migreert: CI op de PR laat het zien. Alternatief: `GITHUB_TOKEN` met `packages: read`, mits elk privépakket de repo leestoegang geeft (Manage Actions access, alleen door een pakketbeheerder).
 - **`VERCEL_TOKEN` als environment-secret** op `staging` en `production` in plaats van op org- of repo-niveau.
@@ -72,6 +73,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 27 oktober 2026 | Klacht: elke PR mailt alle seniors. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS vraagt het hele team aan, en het team stuurt dat naar iedereen. Besluit: "Only notify requested team members" aan, automatisch toewijzen uit; de PR in het Asana-ticket is de trigger. In de standaardinrichting; zetten door een owner. |
 | 27 oktober 2026 | Minder ruis in `pnpm audit:consumers`: een repo op v1 (aanroepen op `@main`, geen `@v2`) krijgt één regel met het `migrate-consumer`-commando in plaats van al zijn bevindingen; hoofdletters in environmentnamen worden niet meer gemeld. |
 | 27 oktober 2026 | Alle tests op `node:test` (`pnpm test`): de vijf `*-cases.sh` zijn `tests/*.test.ts` geworden, de nep-CLI's losse bestanden in `tests/fakes/` (door shellcheck). check-pr draait nu één tabel door zowel het script in `check-pr.yml` als `check-pr.sh`. De deploy-vercel-check op `--prod` keek op tekst en liet `--prodx` door; nu op hele argumenten. 90 tests. |
 | 27 oktober 2026 | snappcar-html-banners: `setup-consumer --apply` (rulesets op `main`, tag-ruleset, `github-pages` alleen `tag v*`); audit 0 bevindingen. Wacht nu alleen op de eerste release. |
