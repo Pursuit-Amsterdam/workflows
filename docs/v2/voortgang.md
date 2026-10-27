@@ -66,12 +66,13 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 - **`CUSTOM_GITHUB_TOKEN` op repo-niveau verloopt.** Een klassieke PAT; in blenheim, city en pursuit-projects-dashboard gaf hij een 401, ongebruikt sinds hij gezet was. Wie een repo migreert: CI op de PR laat het zien. Alternatief: `GITHUB_TOKEN` met `packages: read`, mits elk privépakket de repo leestoegang geeft (Manage Actions access, alleen door een pakketbeheerder).
 - **`VERCEL_TOKEN` als environment-secret** op `staging` en `production` in plaats van op org- of repo-niveau.
 - **Oude PR's naar `main` van de workflows-repo:** #22 (packages: read) en #25 (Supabase edge functions) zijn achterhaald door `v2`; #23 gaat op in punt 3; #26 (Key Vault) is buiten scope (23 oktober 2026). Sluiten.
-- Cosmetisch: hoofdletters in environmentnamen (`Staging`, `Production`); hernoemen kan niet zonder de secrets opnieuw te zetten.
+- Cosmetisch: hoofdletters in environmentnamen (`Staging`, `Production`); hernoemen kan niet zonder de secrets opnieuw te zetten. GitHub maakt geen verschil, de audit meldt het niet meer.
 
 ## Logboek
 
 | Datum | Wat |
 | --- | --- |
+| 27 oktober 2026 | Minder ruis in `pnpm audit:consumers`: een repo op v1 (aanroepen op `@main`, geen `@v2`) krijgt één regel met het `migrate-consumer`-commando in plaats van al zijn bevindingen; hoofdletters in environmentnamen worden niet meer gemeld. |
 | 27 oktober 2026 | Alle tests op `node:test` (`pnpm test`): de vijf `*-cases.sh` zijn `tests/*.test.ts` geworden, de nep-CLI's losse bestanden in `tests/fakes/` (door shellcheck). check-pr draait nu één tabel door zowel het script in `check-pr.yml` als `check-pr.sh`. De deploy-vercel-check op `--prod` keek op tekst en liet `--prodx` door; nu op hele argumenten. 90 tests. |
 | 27 oktober 2026 | snappcar-html-banners: `setup-consumer --apply` (rulesets op `main`, tag-ruleset, `github-pages` alleen `tag v*`); audit 0 bevindingen. Wacht nu alleen op de eerste release. |
 | 27 oktober 2026 | README op `v2` herschreven (Task 27): een korte ingang in het Nederlands, de inputs staan in de YAML-bestanden zelf. `naslag/concept-yaml.md` weg: de concepten van vóór de bouw liepen achter op de echte bestanden. Open vinkjes in het implementatieplan nagelopen: gp-map productie via `v2` gedaan, de rulesets nog niet (klassieke protectie op `main` en `develop`); snappcar-html-banners mist `setup-consumer` (geen rulesets, geen tag-ruleset, `github-pages` zonder tags `v*`), de vier banner-kit-repo's alleen de Dependabot-secret. |
