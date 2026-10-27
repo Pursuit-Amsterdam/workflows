@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Fake gh for release-draft: answers `gh api` from env (FAKE_TAGS: tags that
+# exist, FAKE_RELEASES: the releases JSON) and logs every call to GH_LOG. A
+# `body=@file` field is logged with the file's content, so the notes can be
+# checked.
+[ "$1" = api ] || { echo "fake gh: only api is supported" >&2; exit 2; }
+shift
+method=GET; path=; jq_expr=; fields=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -X) method=$2; shift ;;
+    --jq) jq_expr=$2; shift ;;
+    --paginate) ;;
+    -f|-F) case "$2" in body=@*) fields+=("body=$(cat "${2#body=@}")") ;; *) fields+=("$2") ;; esac; shift ;;
+    *) path=$1 ;;
+  esac
+  shift
+done
+echo "gh api $method $path ${fields[*]:-}" >>"$GH_LOG"
+out=
+case "$method $path" in
+  "GET repos/{owner}/{repo}") out='{"default_branch":"main"}' ;;
+  "GET repos/{owner}/{repo}/git/matching-refs/tags/"*)
+    prefix=${path##*/}; out='['; sep=
+    for t in ${FAKE_TAGS:-}; do case "$t" in "$prefix"*) out+="$sep{\"ref\":\"refs/tags/$t\"}"; sep=, ;; esac; done
+    out+=']' ;;
+  "GET repos/{owner}/{repo}/releases") out=${FAKE_RELEASES:-[]} ;;
+  "POST repos/{owner}/{repo}/releases/generate-notes") out='{"body":"generated notes"}' ;;
+  "POST repos/{owner}/{repo}/releases") out='{"id":99,"html_url":"https://github.com/o/r/releases/tag/new"}' ;;
+  "PATCH repos/{owner}/{repo}/releases/"*) out='{"html_url":"https://github.com/o/r/releases/tag/updated"}' ;;
+  "DELETE repos/{owner}/{repo}/releases/"*) exit 0 ;;
+  *) echo "fake gh: unexpected $method $path" >&2; exit 2 ;;
+esac
+if [ -n "$jq_expr" ]; then printf '%s' "$out" | jq -r "$jq_expr"; else printf '%s\n' "$out"; fi

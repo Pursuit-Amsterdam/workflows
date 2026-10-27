@@ -2,7 +2,8 @@ name: Continuous Integration
 
 # CI of this repo itself: the same `pnpm lint` and `pnpm test` a developer
 # runs locally (see package.json). actionlint covers every workflow and
-# action, shellcheck the scripts, check-pr-cases the merge rules.
+# action, shellcheck the scripts, the node tests the merge rules and the
+# steps of the actions and workflows.
 
 on:
   pull_request:

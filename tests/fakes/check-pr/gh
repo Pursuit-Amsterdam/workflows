@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake gh for check-pr: `gh api repos/<repo>/branches/develop` answers from
+# FAKE_DEVELOP: true (the branch exists), false (404), anything else (an error).
+case "${FAKE_DEVELOP:-true}" in
+  true) echo develop ;;
+  false) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+  *) echo "gh: Bad credentials (HTTP 401)" >&2; exit 1 ;;
+esac
