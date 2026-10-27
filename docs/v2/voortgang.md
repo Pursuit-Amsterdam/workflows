@@ -2,7 +2,7 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 27 oktober 2026.** 38 van de 49 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 12 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28.
+**Stand: 27 oktober 2026.** 37 van de 47 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 12 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. foodcabinet-website en unconsultants-website tellen niet meer mee: geen klant meer, ze worden gearchiveerd.
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
@@ -25,25 +25,25 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app na een re-run (zie logboek) |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (26)
+## Op v2, wacht op de eerste release (25)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
 | Groep | Repo's |
 | --- | --- |
-| Vercel | multifill-planning-tool, translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, unconsultants-website, scm-executives-website |
+| Vercel | multifill-planning-tool, translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
 | Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (10)
+## Nog v1 (9)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
 | `migrate-consumer` kan het | provincie-utrecht-demo | routine; de checklist van het script (geen tests, een build die 1Password nodig heeft) |
-| Eigen handwerk | foodcabinet-website (acceptance; `cd-vercel` kent geen acceptance), big-chef-webapp (eigen `api-ci`) | een besluit per repo |
+| Eigen handwerk | big-chef-webapp (eigen `api-ci`) | een besluit |
 | Edge functions | web-essentials-dashboard | `cd-supabase` met een organization-token (Sam) |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
 | Opgezegd | all-connect-solutions-website | overslaan |
@@ -55,12 +55,11 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 1 | `cd-supabase` met edge functions op een echt project (Task 19 stap 3–4) | gebouwd en getest met cases | organization-token met een machine-account dat alleen lid is van de projecten die het nodig heeft (Sam); kandidaat web-essentials-dashboard |
 | 2 | Deno-typecheck in CI (Task 20) | niet gebouwd | hoort bij 1 |
 | 3 | `setup-onepassword`: meerregelige velden, alleen `CONCEALED` maskeren (Task 6 stap 6) | open | eerst `pnpm review-vaults` (Task 6 stap 5, Bas) |
-| 4 | Acceptance op Vercel | `cd-vercel` weigert acceptance | besluit voor foodcabinet-website |
-| 5 | Wekelijkse audit als workflow (Task 24 stap 3–5) | script klaar | GitHub App aanmaken (handwerk) |
-| 6 | banner-kit `templates/project`: `init` met de v2-bestanden en pnpm | open | geen: de bestanden van triodos zijn bewezen |
-| 7 | README op `v2` (Task 27) | open | geen |
-| 8 | v1 weg van `v2` en de default branch op `v2` (Task 28) | open | pas als alle v1-repo's over zijn |
-| 9 | Python-pakketten publiceren | `cd-packages` is alleen npm | web-essentials-py |
+| 4 | Wekelijkse audit als workflow (Task 24 stap 3–5) | script klaar | GitHub App aanmaken (handwerk) |
+| 5 | banner-kit `templates/project`: `init` met de v2-bestanden en pnpm | open | geen: de bestanden van triodos zijn bewezen |
+| 6 | README op `v2` (Task 27) | open | geen |
+| 7 | v1 weg van `v2` en de default branch op `v2` (Task 28) | open | pas als alle v1-repo's over zijn |
+| 8 | Python-pakketten publiceren | `cd-packages` is alleen npm | web-essentials-py |
 
 ## Handwerk dat openstaat
 
@@ -74,7 +73,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
-| 27 oktober 2026 | multifill-planning-tool af: `setup-consumer --apply` gedaan (rulesets op `main` en `develop`, tag-ruleset, geen klassieke protectie), `integration` zonder secrets. translations-management-dashboard: de Storybook-deploy naar Pages was al uitgezet (alleen `workflow_dispatch`, laatste run in juni), niet rood; `storybook-cd.yml` weg (#84), GitHub Pages uit, environment `github-pages` weg. Storybook blijft lokaal (`pnpm storybook`). |
+| 27 oktober 2026 | multifill-planning-tool af: `setup-consumer --apply` gedaan (rulesets op `main` en `develop`, tag-ruleset, geen klassieke protectie), `integration` zonder secrets. translations-management-dashboard: de Storybook-deploy naar Pages was al uitgezet (alleen `workflow_dispatch`, laatste run in juni), niet rood; `storybook-cd.yml` weg (#84), GitHub Pages uit, environment `github-pages` weg. Storybook blijft lokaal (`pnpm storybook`). foodcabinet-website en unconsultants-website uit het overzicht: geen klant meer, Bas archiveert ze; daarmee vervalt ook acceptance op Vercel. |
 | 26 oktober 2026 | translations-management-dashboard naar `v2` (#82, #83); staging via `v2` (run 40352232959, `workflow_run -> staging @ 407bc21`). Storybook staat op `cd-pages@v2`, maar faalt tot GitHub Pages aan staat (30 van 30 runs rood). Een oude ruleset `main` (1 review, geen bypass) blokkeerde de merge, ook voor een admin: weggehaald, de standaard-rulesets komen van `setup-consumer`. weber-ddc naar `v2` (#31, daarna `develop` → `main` #32): alleen CI (`build`, de enige check met een script) en check-pr, geen CD. De PR naar `main` (#30) was niet nodig en kon niet: `main` liep 39 commits achter, zonder `packageManager`. `setup-consumer` pas na `develop` → `main`, anders vraagt de ruleset op `main` de v1-checknaam. |
 | 26 oktober 2026 | Zes repo's naar `v2` met de herschrijving van `migrate-consumer`: blenheim-masters-landingpage, city-real-estate-website en pursuit-projects-dashboard (staging via `v2`: runs 40349393945, 40349340210, 40349505480), github-wrapped-2025, intersekse-website en asana-task-generator (alleen productie). Per repo: `test` uit `checks` zonder tests (blenheim, github-wrapped), `build` uit `checks` als de build 1Password nodig heeft (city: CMS-URL, asana: `OPENAI_API_KEY`), een `typecheck`-script waar het ontbrak (city, intersekse, asana), de nooit geslaagde Storybook-deploy weg (dashboard), `check-pr.yml` toegevoegd (asana). intersekse en asana hadden sinds augustus en december rode CI; nu groen. Pakketten: blenheim, dashboard en github-wrapped lezen met `GITHUB_TOKEN` en `packages: read` (zoals v1-CI); city met een vernieuwde `CUSTOM_GITHUB_TOKEN`, want `web-essentials` geeft city geen Actions-toegang (403). asana: de oude `develop` (al in `main`) weg, zodat het een repo zonder `develop` is. |
 | 26 oktober 2026 | nextjs-feature-flags v0.6.0 via `v2`: het pakket gepubliceerd, de demo-app eerst rood. v1 bouwde in CD de hele workspace (turbo) vóór `vercel build`; v2 doet dat niet meer, dus `next build` van de demo-app vond `packages/core/dist` niet. Opgelost met de Build Command van het Vercel-project (`cd ../.. && pnpm turbo run build --filter=@pursuit-amsterdam/feature-flags-demo-app`) en een re-run (run 40323168785, poging 2); nog vastleggen in `packages/demo-app/vercel.json`. Geldt voor elke Vercel-app die een workspace-pakket met een build nodig heeft. |
