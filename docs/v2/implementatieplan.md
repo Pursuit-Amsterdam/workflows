@@ -677,10 +677,10 @@ De andere pakketrepo's (20 oktober 2026):
 
 ### Task 28: v1 weg op `v2`
 
-- [ ] Stap 1: verwijder op `v2`: `web-ci.yml`, `backend-ci.yml`, `fullstack-ci.yml`, `web-cd.yml`, `backend-cd.yml`, `vm-cd.yml`, `storybook-cd.yml`, `codegen.yml`, `run-pnpm-build-test`, `run-python-checks`, `run-supabase-test`, `deploy-supabase`; verwijder `head-ref`/`base-ref` uit `check-pr.yml`.
-- [ ] Stap 2: `pnpm audit:consumers -- workflows-example gp-map-webapp gp-container-tracking-webapp template-nextjs-vercel tms-test gp-groot-automations translations-management` → 0 bevindingen.
-- [ ] Stap 3: commit `chore: remove v1 workflows and actions from v2`.
-- [ ] Stap 4 (**handwerk**): zet de default branch van deze repo op `v2`. Consumers merken niets (hun refs zijn expliciet), maar vanaf nu draaien `schedule` en `workflow_dispatch` vanaf `v2`, en toont de Actions-tab de v2-workflows. Verwacht: de eerstvolgende wekelijkse audit draait vanzelf.
+- [x] Stap 1: verwijder op `v2`: `web-ci.yml`, `backend-ci.yml`, `fullstack-ci.yml`, `web-cd.yml`, `backend-cd.yml`, `vm-cd.yml`, `storybook-cd.yml`, `codegen.yml`, `run-pnpm-build-test`, `run-python-checks`, `run-supabase-test`, `deploy-supabase`; verwijder `head-ref`/`base-ref` uit `check-pr.yml`. (27 oktober 2026, met CLAUDE.md bijgewerkt.)
+- [x] Stap 2 (27 oktober 2026): de audit leest alleen de default branch en zoekt niet naar v1-bestanden op `@v2`, dus in plaats daarvan een scan van 49 consumer-repo's op `main`, `develop`, `acceptance` en `staging`: 0 aanroepen van een v1-workflow of -action met `@v2`, 0 aanroepen van `check-pr.yml@v2` met `head-ref`/`base-ref`. Alleen v1-aanroepers (`@main`) geven die nog mee; `migrate-consumer` haalt ze weg. Geen blokkade meer om op alle v1-repo's te wachten: v1 pint `@main`, en `main` blijft staan.
+- [x] Stap 3: commit `chore: remove v1 workflows and actions from v2`.
+- [ ] Stap 4 (**handwerk**): zet de default branch van deze repo op `v2`. Consumers merken niets (hun refs zijn expliciet), maar vanaf nu draaien `schedule` en `workflow_dispatch` vanaf `v2`, en toont de Actions-tab de v2-workflows. Verwacht: de eerstvolgende wekelijkse audit draait vanzelf. Nog niet: de default branch blijft `main` zolang er v1-repo's zijn (besluit Bas, 27 oktober 2026); tot dan draait de wekelijkse audit niet vanzelf.
 
 ### Task 29: de blueprint-familie en sluyter op `v2` (groep C, **handwerk**, met Sam)
 

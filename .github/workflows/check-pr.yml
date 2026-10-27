@@ -1,23 +1,10 @@
 name: Check and Validate PR branch
 
 # Head and base come from the pull_request event, so callers pass no inputs.
-# head-ref and base-ref stay declared (optional, unused) until every caller
-# has dropped them: an unknown input is a startup_failure for the caller.
 # check-pr.sh in the repo root mirrors this script for local runs: edit both.
 
 on:
   workflow_call:
-    inputs:
-      head-ref:
-        description: "Deprecated, ignored: the head branch is read from the pull_request event"
-        required: false
-        type: string
-        default: ""
-      base-ref:
-        description: "Deprecated, ignored: the base branch is read from the pull_request event"
-        required: false
-        type: string
-        default: ""
 
 jobs:
   pipeline:
