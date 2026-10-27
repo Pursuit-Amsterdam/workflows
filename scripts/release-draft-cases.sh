@@ -15,12 +15,13 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 # One file per step id: $tmp/step-<id>.sh
-python3 - "$workflow" "$tmp" <<'EOF'
-import sys, yaml
-workflow, out = sys.argv[1], sys.argv[2]
-for step in yaml.safe_load(open(workflow))["jobs"]["draft"]["steps"]:
-    if "id" in step and "run" in step:
-        open(f"{out}/step-{step['id']}.sh", "w").write(step["run"])
+NODE_PATH="$root/node_modules" node - "$workflow" "$tmp" <<'EOF'
+const fs = require('fs');
+const { parse } = require('yaml');
+const [file, out] = process.argv.slice(2);
+for (const step of parse(fs.readFileSync(file, 'utf8')).jobs.draft.steps) {
+    if (step.id && step.run) fs.writeFileSync(`${out}/step-${step.id}.sh`, step.run);
+}
 EOF
 
 # The fake gh answers `gh api` from env (FAKE_TAGS: tags that exist,

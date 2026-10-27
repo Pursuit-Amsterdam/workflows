@@ -17,16 +17,14 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 # The step's run: script, and the order of the steps.
-python3 - "$action" "$tmp" <<'EOF'
-import sys, yaml
-action, out = sys.argv[1], sys.argv[2]
-steps = yaml.safe_load(open(action))["runs"]["steps"]
-with open(f"{out}/order", "w") as f:
-    for s in steps:
-        f.write((s.get("id") or s.get("name", "")) + "\n")
-for s in steps:
-    if s.get("id") == "pre-deploy":
-        open(f"{out}/step-pre-deploy.sh", "w").write(s["run"])
+NODE_PATH="$root/node_modules" node - "$action" "$tmp" <<'EOF'
+const fs = require('fs');
+const { parse } = require('yaml');
+const [file, out] = process.argv.slice(2);
+const steps = parse(fs.readFileSync(file, 'utf8')).runs.steps;
+fs.writeFileSync(`${out}/order`, steps.map((s) => `${s.id || s.name || ''}\n`).join(''));
+const pre = steps.find((s) => s.id === 'pre-deploy');
+if (pre) fs.writeFileSync(`${out}/step-pre-deploy.sh`, pre.run);
 EOF
 
 # The fake ssh logs its arguments and runs the last one (the remote command)
