@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Fake supabase: logs every call to SUPABASE_LOG; `secrets set` also logs the
+# env file it got, `secrets list` prints FAKE_LIVE_SECRETS as the JSON the real
+# one prints, `db push` logs the password it sees.
+echo "supabase $*" >>"$SUPABASE_LOG"
+case "$1 $2" in
+  "secrets set")
+    while [ $# -gt 0 ]; do [ "$1" = --env-file ] && sed 's/^/  file: /' "$2" >>"$SUPABASE_LOG"; shift; done ;;
+  "secrets list")
+    printf '['; sep=; for n in ${FAKE_LIVE_SECRETS:-}; do printf '%s{"name":"%s","value":"digest"}' "$sep" "$n"; sep=,; done; echo ']' ;;
+  "db push")
+    echo "password seen: ${SUPABASE_DB_PASSWORD:-none}" >>"$SUPABASE_LOG" ;;
+esac

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake vercel: logs every call to VERCEL_LOG, and behaves just enough: pull
+# writes the env file vercel build reads, deploy prints progress on stderr and
+# the URL on stdout (or no URL, with FAKE_NO_URL).
+echo "vercel $*" >>"$VERCEL_LOG"
+case "$1" in
+  pull)
+    for a in "$@"; do case "$a" in --environment=*) mkdir -p .vercel; : >".vercel/.env.${a#--environment=}.local" ;; esac; done ;;
+  deploy)
+    echo "Uploading..." >&2
+    [ -n "${FAKE_NO_URL:-}" ] || echo "https://app-abc123.vercel.app" ;;
+esac

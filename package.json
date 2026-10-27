@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "pnpm@11.28.5",
   "scripts": {
-    "lint": "actionlint && shellcheck -s bash check-pr.sh scripts/*.sh && tsc",
-    "test": "scripts/check-pr-cases.sh && scripts/deploy-vercel-cases.sh && scripts/deploy-swarm-cases.sh && scripts/cd-supabase-cases.sh && scripts/release-draft-cases.sh && node --test scripts/lib/",
+    "lint": "actionlint && shellcheck -s bash check-pr.sh tests/fakes/*/* && tsc",
+    "test": "node --test 'scripts/lib/*.test.ts' 'tests/*.test.ts'",
     "audit:consumers": "node scripts/audit-consumers.ts",
     "audit:consumers:remote": "gh workflow run audit-consumers.yml --ref v2",
     "setup-consumer": "node scripts/setup-consumer.ts",

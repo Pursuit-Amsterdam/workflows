@@ -3,7 +3,7 @@ BASE="develop"
 HAS_DEVELOP="true"
 # Local mirror of the script in .github/workflows/check-pr.yml: edit both.
 # Set HEAD, BASE and HAS_DEVELOP (does the repo have a develop branch?) above
-# and run it, or run scripts/check-pr-cases.sh for
+# and run it, or run `node --test tests/check-pr.test.ts` for
 # the whole table. Cases for the version branches:
 #   feature/x → v2 ✅   develop → v2 ❌   v2 → main ❌   v2 → develop ❌
 
