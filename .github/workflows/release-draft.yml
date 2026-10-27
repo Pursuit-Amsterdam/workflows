@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Everything through `gh api`, so the decision runs unchanged in
-      # scripts/release-draft-cases.sh against a fake gh.
+      # tests/release-draft.test.ts against a fake gh.
       - name: Prepare the release draft
         id: draft
         env:

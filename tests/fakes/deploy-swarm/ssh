@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Fake ssh: logs its arguments to SSH_LOG and runs the last one (the remote
+# command) with the script on stdin, without the runner's environment, the way
+# the manager would.
+printf '%s\n' "$*" >"$SSH_LOG"
+remote=${*: -1}
+exec env -i PATH=/usr/bin:/bin HOME="$FAKE_HOME" bash -c "$remote"
