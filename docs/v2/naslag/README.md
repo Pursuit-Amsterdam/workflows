@@ -31,7 +31,6 @@ De auditbevindingen, alle inputs, bouwstenen, de standaardinrichting van een rep
 - [Migratievoorbeelden](migratievoorbeelden.md)
 - [Uitrol in detail](uitrol-in-detail.md)
 - [Detailbeslissingen](detailbeslissingen.md)
-- [Concept-YAML](concept-yaml.md)
 
 ---
 

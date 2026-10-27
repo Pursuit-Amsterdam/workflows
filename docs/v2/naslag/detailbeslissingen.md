@@ -23,4 +23,4 @@ Uitvoeringskeuzes die de principes niet raken. Elk met een aanbeveling.
 
 ---
 
-[← Uitrol in detail](uitrol-in-detail.md) · [Overzicht](../README.md) · [Concept-YAML →](concept-yaml.md)
+[← Uitrol in detail](uitrol-in-detail.md) · [Overzicht](../README.md)

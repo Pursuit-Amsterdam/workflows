@@ -57,9 +57,8 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 3 | `setup-onepassword`: meerregelige velden, alleen `CONCEALED` maskeren (Task 6 stap 6) | open | eerst `pnpm review-vaults` (Task 6 stap 5, Bas) |
 | 4 | Wekelijkse audit als workflow (Task 24 stap 3–5) | script klaar | GitHub App aanmaken (handwerk) |
 | 5 | banner-kit `templates/project`: `init` met de v2-bestanden en pnpm | open | geen: de bestanden van triodos zijn bewezen |
-| 6 | README op `v2` (Task 27) | open | geen |
-| 7 | Default branch op `v2` (Task 28 stap 4) | open | pas als alle v1-repo's over zijn; de v1-bestanden zijn al weg van `v2` |
-| 8 | Python-pakketten publiceren | `cd-packages` is alleen npm | web-essentials-py |
+| 6 | Default branch op `v2` (Task 28 stap 4) | open | pas als alle v1-repo's over zijn; de v1-bestanden zijn al weg van `v2` |
+| 7 | Python-pakketten publiceren | `cd-packages` is alleen npm | web-essentials-py |
 
 ## Handwerk dat openstaat
 
@@ -73,6 +72,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 27 oktober 2026 | README op `v2` herschreven (Task 27): een korte ingang in het Nederlands, de inputs staan in de YAML-bestanden zelf. `naslag/concept-yaml.md` weg: de concepten van vóór de bouw liepen achter op de echte bestanden. Open vinkjes in het implementatieplan nagelopen: gp-map productie via `v2` gedaan, de rulesets nog niet (klassieke protectie op `main` en `develop`); snappcar-html-banners mist `setup-consumer` (geen rulesets, geen tag-ruleset, `github-pages` zonder tags `v*`), de vier banner-kit-repo's alleen de Dependabot-secret. |
 | 27 oktober 2026 | v1 weg van `v2` (Task 28 stap 1–3): de acht v1-workflows, de vier v1-actions en `head-ref`/`base-ref` van `check-pr`. Een scan van alle consumer-repo's (`main`, `develop`, `acceptance`, `staging`) vond geen v1-bestand op `@v2` en geen `check-pr@v2` met die inputs. v1-repo's merken niets: ze pinnen `@main`. De default branch blijft `main`. |
 | 27 oktober 2026 | multifill-planning-tool af: `setup-consumer --apply` gedaan (rulesets op `main` en `develop`, tag-ruleset, geen klassieke protectie), `integration` zonder secrets. translations-management-dashboard: de Storybook-deploy naar Pages was al uitgezet (alleen `workflow_dispatch`, laatste run in juni), niet rood; `storybook-cd.yml` weg (#84), GitHub Pages uit, environment `github-pages` weg. Storybook blijft lokaal (`pnpm storybook`). foodcabinet-website en unconsultants-website uit het overzicht: geen klant meer, Bas archiveert ze; daarmee vervalt ook acceptance op Vercel. |
 | 26 oktober 2026 | translations-management-dashboard naar `v2` (#82, #83); staging via `v2` (run 40352232959, `workflow_run -> staging @ 407bc21`). Storybook staat op `cd-pages@v2`, maar faalt tot GitHub Pages aan staat (30 van 30 runs rood). Een oude ruleset `main` (1 review, geen bypass) blokkeerde de merge, ook voor een admin: weggehaald, de standaard-rulesets komen van `setup-consumer`. weber-ddc naar `v2` (#31, daarna `develop` → `main` #32): alleen CI (`build`, de enige check met een script) en check-pr, geen CD. De PR naar `main` (#30) was niet nodig en kon niet: `main` liep 39 commits achter, zonder `packageManager`. `setup-consumer` pas na `develop` → `main`, anders vraagt de ruleset op `main` de v1-checknaam. |

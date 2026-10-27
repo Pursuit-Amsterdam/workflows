@@ -10,7 +10,7 @@
 
 **Techniek:** GitHub Actions (reusable workflows, composite actions, `actions/github-script`), bash, `actionlint`, `shellcheck`, `gh`.
 
-**Spec:** [docs/v2](README.md), vooral [beslissingen](beslissingen.md#decided), [ci](naslag/ci.md), [cd](naslag/cd.md), [bouwstenen](naslag/bouwstenen.md), [standaardinrichting](naslag/standaardinrichting.md), [uitrol in detail](naslag/uitrol-in-detail.md) en de [concept-YAML](naslag/concept-yaml.md).
+**Spec:** [docs/v2](README.md), vooral [beslissingen](beslissingen.md#decided), [ci](naslag/ci.md), [cd](naslag/cd.md), [bouwstenen](naslag/bouwstenen.md), [standaardinrichting](naslag/standaardinrichting.md) en [uitrol in detail](naslag/uitrol-in-detail.md). De concept-YAML van vóór de bouw is op 27 oktober 2026 weggehaald: de bestanden in `.github/` zijn de bron.
 
 ## Stand van zaken (20 oktober 2026, einde dag)
 
@@ -163,7 +163,7 @@ Na deze plak draait `ci.yml@v2` in de voorbeeldrepo en in template-nextjs-vercel
 ### Task 6: `setup-services` en `setup-supabase`
 
 **Bestanden:**
-- Maak: `.github/actions/setup-services/action.yml` uit het [concept](naslag/concept-yaml.md) (blok `setup-services`).
+- Maak: `.github/actions/setup-services/action.yml` uit het concept (blok `setup-services`).
 - Maak: `.github/actions/setup-supabase/action.yml`: de stappen `Check for Supabase directory changes` tot en met `Start Supabase local services` uit `run-supabase-test/action.yml`, plus outputs `started`, `db-url`, `api-url`, `anon-key`, `service-role-key`, en een stap die `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` naar `$GITHUB_ENV` schrijft. CLI-versie: `supabase/setup-cli` zonder `version`, met een voorafgaande stap die faalt als `supabase` geen devDependency in `package.json` is.
 
 **Interface (gebruikt door Task 7, 8, 15, 18, 20):** inputs `database`, `redis`, `supabase-seed`, `supabase-skip-unchanged`, `postgres-*`, `onepassword-vault`, `onepassword-item`, `onepassword-token`, `onepassword-export-for-vercel`, `onepassword-export-build-args`; outputs `database-url`, `supabase-started`, `build-args`.
@@ -415,9 +415,9 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
   - [x] Eerste staging-deploy via v2: run 39573140260 (21 oktober 2026, 08:56, handmatig vanaf `develop` @ d59d390): gate `workflow_dispatch -> staging`, drie images gebouwd met smoketests, pre-deploy, migraties, stack `gp-map-staging` geüpdatet, health-check 200. (Gestart vlak vóór de hold; eerder ten onrechte als "niet gedeployd" gemeld.)
   - [x] Brug op `main` (gp-map-webapp#201, 22 oktober 2026): `main` draait de v1-CI nog als twee workflows ("Continuous Integration (Web)" en "(Backend)"), want de v2-CI hangt aan turbo, `backend/package.json` en de test-fix die alleen op `develop` staan, en `develop` mag nog niet naar `main`. `required-workflows` van de gate kiest daarom op de ref: een tag (release, productie vanaf `main`) wacht op die twee, al het andere (staging vanaf `develop`) op "Continuous Integration". `workflow_run` leest `cd.yml` van `main`, dus het kan niet per bestand. Getest op een branch en een tag in de voorbeeldrepo. Weg zodra `develop` naar `main` gaat.
   - Gevonden: `test_console_shows_the_documents_behind_the_judged_text` (backend) is instabiel: rood op #201, groen bij een herhaling (765/765).
-  - [ ] `setup-consumer --apply`: rulesets met per branch de checks van die branch (#89): `develop` `run-check-pr`, `run-ci`, `run-ci-images`; `main` `run-check-pr`, `run-ci`. Na de merge van `develop` naar `main` opnieuw, voor `run-ci-images` op `main`.
+  - [ ] `setup-consumer --apply`: rulesets met per branch de checks van die branch (#89): `develop` `run-check-pr`, `run-ci`, `run-ci-images`; `main` `run-check-pr`, `run-ci`. Na de merge van `develop` naar `main` opnieuw, voor `run-ci-images` op `main`. Nog niet (27 oktober 2026): `main` en `develop` hebben nog de klassieke protectie, alleen de tag-ruleset staat.
   - [ ] Rulesets op `develop` en `main` met `run-check-pr / pipeline`, `run-ci / pipeline` en `run-ci-images / pipeline` in plaats van de klassieke protectie.
-- [ ] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy. Kan nu al vanaf `main` (app-code gelijk aan v2026.09.14, alleen workflowbestanden erbij); `develop` naar `main` pas als die vrijgegeven is.
+- [x] Stap 3: release op gp-map door een senior; verwacht build, smoketest, push en een productiedeploy. Kan nu al vanaf `main` (app-code gelijk aan v2026.09.14, alleen workflowbestanden erbij); `develop` naar `main` pas als die vrijgegeven is. Gedaan: v2026.10.26 (26 oktober 2026), release-run groen.
 
 ---
 
@@ -575,15 +575,15 @@ De andere pakketrepo's (20 oktober 2026):
   - [x] `setup-consumer --apply` op de drie (Bas, 22 oktober 2026); `github-pages` staat op alleen `tag v*`. Audit op de vier: alleen nog de Dependabot-secret `CUSTOM_GITHUB_TOKEN` (handwerk, de waarde).
   - [ ] Eerste release per repo door een senior.
 - Per repo, zoals bij triodos: pnpm (`packageManager`, `pnpm-lock.yaml` in plaats van `package-lock.json`, `.nvmrc`), banner-kit naar `^0.10.0`, `.gitignore` met `site/`.
-- [ ] `ci.yml` met `checks: build` (`banner-kit build`: elke spec rendert, het manifest klopt, de preview-map ontstaat), `use-custom-token` (banner-kit is privé). `check-pr.yml`, `CODEOWNERS`, `dependabot.yml` (npm met de GitHub Packages-registry, en github-actions).
-- [ ] `cd.yml`: `release: published` + `workflow_dispatch` → gate (zonder `branch-targets`: er is geen staging) → `cd-pages@v2` met `ref`, `build-command: build`, `output-directory: site`, `use-custom-token`; `deploy.yml` weg. Een merge naar `main` deployt dus niets meer; de eerste release daarna zet de huidige stand live.
-- [ ] Na de merge `setup-consumer --apply` (rulesets op `main`, `production`-environment, tag-ruleset) en de branchregel op `github-pages`: alleen tags `v*` (zoals in de voorbeeldrepo). Eerste release door een senior; de Pages-site geeft 200 en bevat geen `notes.md`.
+- [x] `ci.yml` met `checks: build` (`banner-kit build`: elke spec rendert, het manifest klopt, de preview-map ontstaat), `use-custom-token` (banner-kit is privé). `check-pr.yml`, `CODEOWNERS`, `dependabot.yml` (npm met de GitHub Packages-registry, en github-actions).
+- [x] `cd.yml`: `release: published` + `workflow_dispatch` → gate (zonder `branch-targets`: er is geen staging) → `cd-pages@v2` met `ref`, `build-command: build`, `output-directory: site`, `use-custom-token`; `deploy.yml` weg. Een merge naar `main` deployt dus niets meer; de eerste release daarna zet de huidige stand live.
+- [ ] Na de merge `setup-consumer --apply` (rulesets op `main`, `production`-environment, tag-ruleset) en de branchregel op `github-pages`: alleen tags `v*` (zoals in de voorbeeldrepo). Eerste release door een senior; de Pages-site geeft 200 en bevat geen `notes.md`. `setup-consumer` gedaan op de vier (22 oktober 2026); de eerste release staat nog open.
 
 **Stap 3, snappcar-html-banners:**
 - [x] snappcar-html-banners#8 (22 oktober 2026, gemerged): minimale `package.json` (`build` = `./generate-manifest.sh`, `zip`), lege lockfile, `.nvmrc`; `ci.yml` met `checks: build` (zonder custom token: geen pakketten); `check-pr.yml`, `CODEOWNERS`, Dependabot voor de actions; `cd.yml` zoals stap 2 met `output-directory: .`. `pnpm build` geeft lokaal en in CI hetzelfde `banners.json`.
-  - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior.
+  - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior. Nog niet (audit 27 oktober 2026): geen ruleset op `main`, geen tag-ruleset, `github-pages` laat geen tags `v*` toe.
 
-- [ ] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md).
+- [x] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md). Gedaan (27 oktober 2026): de vier banner-kit-repo's alleen de Dependabot-secret `CUSTOM_GITHUB_TOKEN` (org-niveau, handwerk); snappcar mist `setup-consumer` (zie stap 3).
 
 ### Task 23: `cd-pages.yml`
 
@@ -620,7 +620,7 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] Stap 2: test Review Focus 4: in de voorbeeldrepo de regels van `acceptance` tijdelijk weggehaald → "environment 'acceptance' has no deployment branch policy: any branch may deploy to it"; regels teruggezet, melding weg. (De eerste poging miste hem: `gh --jq` geeft niets voor `null`.)
 - [ ] Stap 3: GitHub App aanmaken met alleen-lezen `administration`, `environments`, `secrets`, `contents`, `metadata`; installeren op de org (**handwerk**); app-id en private key als secrets op environment `audit`.
 - [ ] Stap 4: eerste run via `pnpm audit:consumers:remote`; verwacht een issue "Consumer audit" met de tabel. Werkt de dispatch niet omdat het bestand niet op de default branch staat, dan is dat de reden om Task 28 stap 4 naar voren te halen.
-- [ ] Stap 5: commit `feat: add audit-consumers script and weekly workflow`.
+- [ ] Stap 5: commit `feat: add audit-consumers script and weekly workflow`. Het script is gecommit (#72); `audit-consumers.yml` bestaat nog niet en volgt na stap 3.
 
 ### Task 25: `scripts/setup-consumer.ts`
 
@@ -672,8 +672,9 @@ De andere pakketrepo's (20 oktober 2026):
 
 ### Task 27: README op `v2`
 
-- [ ] Stap 1: herschrijf `README.md` op `v2`: per workflow en action de inputs uit de naslag, de standaardinrichting, en de drie scripts. Verwijder `framework` uit elk voorbeeld.
-- [ ] Stap 2: commit `docs: rewrite README for v2`. (Geen banner of tekstcorrectie op `main`: `main` van deze repo blijft onaangeroerd.)
+- [x] Stap 1: herschrijf `README.md` op `v2`: per workflow en action de inputs uit de naslag, de standaardinrichting, en de drie scripts. Verwijder `framework` uit elk voorbeeld.
+- [x] Stap 2: commit `docs: rewrite README for v2`. (Geen banner of tekstcorrectie op `main`: `main` van deze repo blijft onaangeroerd.)
+- Besluit Bas (27 oktober 2026): geen inputs in de README maar een korte ingang in het Nederlands; de `description`-velden in de YAML zijn de bron. `framework` staat in geen enkel voorbeeld.
 
 ### Task 28: v1 weg op `v2`
 
