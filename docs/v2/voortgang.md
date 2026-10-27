@@ -55,7 +55,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 1 | `cd-supabase` met edge functions op een echt project (Task 19 stap 3–4) | gebouwd en getest met cases | organization-token met een machine-account dat alleen lid is van de projecten die het nodig heeft (Sam); kandidaat web-essentials-dashboard |
 | 2 | Deno-typecheck in CI (Task 20) | niet gebouwd | hoort bij 1 |
 | 3 | `setup-onepassword`: meerregelige velden, alleen `CONCEALED` maskeren (Task 6 stap 6) | open | eerst `pnpm review-vaults` (Task 6 stap 5, Bas) |
-| 4 | Wekelijkse audit als workflow (Task 24 stap 3–5) | script klaar | GitHub App aanmaken (handwerk) |
+| 4 | Wekelijkse audit als workflow (Task 24 stap 3–5) | script klaar, ruis eruit | GitHub App: alleen een org-owner kan hem aanmaken (verzoek 27 oktober 2026); daarna de default branch op `v2` |
 | 5 | banner-kit `templates/project`: `init` met de v2-bestanden en pnpm | open | geen: de bestanden van triodos zijn bewezen |
 | 6 | Default branch op `v2` (Task 28 stap 4) | open | pas als alle v1-repo's over zijn; de v1-bestanden zijn al weg van `v2` |
 | 7 | Python-pakketten publiceren | `cd-packages` is alleen npm | web-essentials-py |
