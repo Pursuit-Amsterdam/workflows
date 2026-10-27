@@ -82,6 +82,14 @@ for (const repo of repos) {
     if (!c.calls) continue;
     audited++;
 
+    // A repo still on v1 gets one line: migrating it fixes the rest, so listing
+    // every gap would only bury the findings of the repos already on v2.
+    const onMain = c.workflows.filter(w => new RegExp(`${ORG}/workflows/\\.github/(workflows|actions)/[^@\\s]*@main`).test(w.text));
+    if (onMain.length > 0 && !/@v2\b/.test(c.all)) {
+        say(repo, 'version', `on v1 (${onMain.map(w => w.file).join(' ')}): migrate with \`pnpm migrate-consumer -- ${repo}\``);
+        continue;
+    }
+
     // What the repo calls decides what the standard expects of it.
     const { defaultBranch: def, workflows: wfs, all, hasCi, deploys, publishes, vercel, swarm, supabase, hasDevelop, hasAcceptance } = c;
     const fullAudit = deploys || publishes;
@@ -218,7 +226,7 @@ for (const repo of repos) {
         }
     }
 
-    // --- environments (names are case-insensitive to GitHub, but keep them lowercase)
+    // --- environments (names are case-insensitive to GitHub; Staging is staging)
     const envs = (await get<{ environments: { name: string }[] }>(`/repos/{owner}/{repo}/environments`, p))?.environments.map(e => e.name) ?? [];
     const envName = (e: string): string | undefined => envs.find(n => n.toLowerCase() === e);
     const expected = [
@@ -230,7 +238,6 @@ for (const repo of repos) {
     for (const e of expected) {
         const n = envName(e);
         if (n === undefined) say(repo, 'environments', `missing environment '${e}'`);
-        else if (n !== e) say(repo, 'environments', `environment '${e}' is not lowercase`);
     }
     // Branch rules per environment: this is what keeps a deploy from any other branch out.
     for (const e of envs) {
