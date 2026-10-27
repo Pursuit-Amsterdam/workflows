@@ -54,7 +54,6 @@ Het voorstel bestaat uit twee delen. Het betoog is voor wie beslist; de naslag i
 - [Migratievoorbeelden](naslag/migratievoorbeelden.md)
 - [Uitrol in detail](naslag/uitrol-in-detail.md)
 - [Detailbeslissingen](naslag/detailbeslissingen.md)
-- [Concept-YAML](naslag/concept-yaml.md)
 
 ---
 
