@@ -66,7 +66,8 @@ test('secrets: all keys present are set through an env file, never on the comman
 });
 
 test('migrations: without a password variable, link and push through the access token', () => {
-    for (const env of [{}, { SUPABASE_DB_PASSWORD: 'stale' }]) {
+    const variants: Record<string, string>[] = [{}, { SUPABASE_DB_PASSWORD: 'stale' }];
+    for (const env of variants) {
         const r = run('migrations', { DB_PASSWORD_VARIABLE: '', ...env });
         assert.equal(r.code, 0, r.output);
         assert.ok(r.log.includes('supabase db push'), r.log);
