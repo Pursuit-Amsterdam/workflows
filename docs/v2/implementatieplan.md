@@ -581,9 +581,9 @@ De andere pakketrepo's (20 oktober 2026):
 
 **Stap 3, snappcar-html-banners:**
 - [x] snappcar-html-banners#8 (22 oktober 2026, gemerged): minimale `package.json` (`build` = `./generate-manifest.sh`, `zip`), lege lockfile, `.nvmrc`; `ci.yml` met `checks: build` (zonder custom token: geen pakketten); `check-pr.yml`, `CODEOWNERS`, Dependabot voor de actions; `cd.yml` zoals stap 2 met `output-directory: .`. `pnpm build` geeft lokaal en in CI hetzelfde `banners.json`.
-  - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior. Nog niet (audit 27 oktober 2026): geen ruleset op `main`, geen tag-ruleset, `github-pages` laat geen tags `v*` toe.
+  - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior. `setup-consumer --apply` gedaan (Bas, 27 oktober 2026): rulesets op `main`, tag-ruleset, `github-pages` alleen `tag v*`; audit 0 bevindingen. Eerste release staat nog open.
 
-- [x] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md). Gedaan (27 oktober 2026): de vier banner-kit-repo's alleen de Dependabot-secret `CUSTOM_GITHUB_TOKEN` (org-niveau, handwerk); snappcar mist `setup-consumer` (zie stap 3).
+- [x] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md). Gedaan (27 oktober 2026): de vier banner-kit-repo's alleen de Dependabot-secret `CUSTOM_GITHUB_TOKEN` (org-niveau, handwerk); snappcar had nog geen `setup-consumer`, inmiddels gedaan (zie stap 3).
 
 ### Task 23: `cd-pages.yml`
 
