@@ -157,7 +157,7 @@ Deze scripts werken op de repo's die deze workflows gebruiken. Ze draaien met je
 
 Werk aan v2 gaat via een `feature/*`-branch vanaf `v2` en een PR naar `v2`. Een merge naar `v2` draait meteen in elke repo die `@v2` gebruikt.
 
-Je hebt nodig: Node uit `.nvmrc` (`nvm use`), pnpm, `actionlint`, `shellcheck` en `gh`. Op macOS: `brew install actionlint shellcheck gh`.
+Je hebt nodig: Node uit `.nvmrc` (`nvm use`), pnpm, `actionlint`, `shellcheck` en `gh`. Op macOS: `brew install pnpm actionlint shellcheck gh`. Node 26 levert geen corepack meer; pnpm kiest zelf de versie uit `packageManager`.
 
 1. Installeer de dependencies met `pnpm install`.
 2. Draai `pnpm lint`: actionlint, shellcheck en de typecheck van de scripts.
