@@ -2,11 +2,11 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 27 oktober 2026.** 37 van de 47 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 12 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. foodcabinet-website en unconsultants-website tellen niet meer mee: geen klant meer, ze worden gearchiveerd.
+**Stand: 28 oktober 2026.** 37 van de 45 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 13 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
-## Op v2, productie via v2 bewezen (12)
+## Op v2, productie via v2 bewezen (13)
 
 Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 
@@ -20,25 +20,26 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | tellr-website | Vercel, Storybook | v2026.10.26 (health 200) |
 | tellr-webapp | Vercel, Storybook | v2026.10.26 (v2-migratie en de Node-pin voor CVE-2026-111497) |
 | basko-healthcare-website | Vercel; migraties via de Supabase-integratie | v2026.10.26 |
+| multifill-planning-tool | Vercel; migraties via de Supabase-integratie | v2026.10.26 |
 | gp-map-webapp | Swarm | v2026.10.26; `main` draait nog de v1-CI, met de brug in de gate, tot `develop` naar `main` mag |
 | banner-kit | pakket, release via draft | v0.10.0 |
-| nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app na een re-run (zie logboek) |
+| nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app bouwt de workspace via `packages/demo-app/vercel.json` |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (25)
+## Op v2, wacht op de eerste release (24)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
 | Groep | Repo's |
 | --- | --- |
-| Vercel | multifill-planning-tool, translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
+| Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
 | Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (9)
+## Nog v1 (8)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
@@ -46,7 +47,6 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | Eigen handwerk | big-chef-webapp (eigen `api-ci`) | een besluit |
 | Edge functions | web-essentials-dashboard | `cd-supabase` met een organization-token (Sam) |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
-| Opgezegd | all-connect-solutions-website | overslaan |
 
 ## Wat v2 nog mist
 
@@ -62,7 +62,6 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 ## Handwerk dat openstaat
 
-- **Team `senior-developers`: "Only notify requested team members" aan** (Code review in de teaminstellingen; een maintainer van het team of een org-owner). Nu mailt elke PR alle vier seniors, omdat CODEOWNERS het hele team aanvraagt. De trigger voor een review is de PR in het Asana-ticket.
 - **Dependabot-secret `CUSTOM_GITHUB_TOKEN` op org-niveau** (Sam). Zonder die secret faalt Dependabot in elke repo met private pakketten.
 - **`CUSTOM_GITHUB_TOKEN` op repo-niveau verloopt.** Een klassieke PAT; in blenheim, city en pursuit-projects-dashboard gaf hij een 401, ongebruikt sinds hij gezet was. Wie een repo migreert: CI op de PR laat het zien. Alternatief: `GITHUB_TOKEN` met `packages: read`, mits elk privépakket de repo leestoegang geeft (Manage Actions access, alleen door een pakketbeheerder).
 - **`VERCEL_TOKEN` als environment-secret** op `staging` en `production` in plaats van op org- of repo-niveau.
@@ -73,6 +72,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 28 oktober 2026 | Stand nagelopen. multifill-planning-tool: v2026.10.26 via `v2` naar productie (run 40322590058, `cd-gate@v2` en `cd-vercel@v2`). nextjs-feature-flags: de Build Command staat nu in `packages/demo-app/vercel.json` op `develop`. Team `senior-developers`: "Only notify requested team members" staat aan, automatisch toewijzen uit. all-connect-solutions-website gearchiveerd, uit het overzicht. Ongewijzigd: geen andere repo heeft een release ná de migratie; gp-map-webapp heeft nog klassieke protectie en v1-CI op `main`; de oude PR's #22, #23, #25 en #26 staan nog open; de default branch is `main`. |
 | 27 oktober 2026 | Klacht: elke PR mailt alle seniors. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS vraagt het hele team aan, en het team stuurt dat naar iedereen. Besluit: "Only notify requested team members" aan, automatisch toewijzen uit; de PR in het Asana-ticket is de trigger. In de standaardinrichting; zetten door een owner. |
 | 27 oktober 2026 | Minder ruis in `pnpm audit:consumers`: een repo op v1 (aanroepen op `@main`, geen `@v2`) krijgt één regel met het `migrate-consumer`-commando in plaats van al zijn bevindingen; hoofdletters in environmentnamen worden niet meer gemeld. |
 | 27 oktober 2026 | Alle tests op `node:test` (`pnpm test`): de vijf `*-cases.sh` zijn `tests/*.test.ts` geworden, de nep-CLI's losse bestanden in `tests/fakes/` (door shellcheck). check-pr draait nu één tabel door zowel het script in `check-pr.yml` als `check-pr.sh`. De deploy-vercel-check op `--prod` keek op tekst en liet `--prodx` door; nu op hele argumenten. 90 tests. |
