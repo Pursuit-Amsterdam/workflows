@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Fake curl for the health check: logs its arguments to CURL_LOG and prints
+# what `-w '%{http_code} %{redirect_url}'` would: FAKE_CODE and FAKE_REDIRECT.
+echo "curl $*" >>"$CURL_LOG"
+printf '%s %s' "${FAKE_CODE:-200}" "${FAKE_REDIRECT:-}"
