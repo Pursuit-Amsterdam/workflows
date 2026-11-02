@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { onePasswordRefs, reviewField } from './vaults.ts';
+import { expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -11,11 +11,13 @@ jobs:
     staging:
         uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
         with:
+            environment: 'staging'
             onepassword_vault: my-site-staging
             onepassword_item: my-site-staging-secrets
     production:
         uses: Pursuit-Amsterdam/workflows/.github/workflows/web-cd.yml@main
         with:
+            environment: Production
             onepassword_vault: 'my-site-production'
             onepassword_item: "my-site-production-secrets"
     swarm:
@@ -25,8 +27,8 @@ jobs:
             onepassword_item: \${{ vars.OP_ITEM }}
 `);
     assert.deepEqual(onePasswordRefs(v1), [
-        { vault: 'my-site-staging', item: 'my-site-staging-secrets' },
-        { vault: 'my-site-production', item: 'my-site-production-secrets' },
+        { vault: 'my-site-staging', item: 'my-site-staging-secrets', environment: 'staging' },
+        { vault: 'my-site-production', item: 'my-site-production-secrets', environment: 'production' },
     ]);
     const v2 = parseWorkflow('ci.yml', `on: push
 jobs:
@@ -50,9 +52,41 @@ test('reviewField: a plain-text field that looks like a secret', () => {
     assert.equal(reviewField({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'concealed is fine');
 });
 
-test('reviewField: short values shred the logs once masked', () => {
-    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /masked today.*#23/);
-    assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /concealed.*2 chars/);
+test('reviewField: short values damage the logs once masked', () => {
+    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short.*#23/);
+    assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /short password/);
     assert.equal(reviewField({ label: 'LOG_LEVEL', type: 'STRING', length: 5 }), null);
     assert.equal(reviewField({ label: 'notesPlain', type: 'STRING', length: 1 }), null, 'notes are not exported');
+});
+
+test('state: concealed or plain', () => {
+    assert.equal(state({ type: 'CONCEALED' }), 'concealed');
+    for (const type of ['STRING', 'URL', 'EMAIL', '']) assert.equal(state({ type }), 'plain', type || 'empty');
+});
+
+test('expected: what the label says', () => {
+    const cases: Record<string, ReturnType<typeof expected>> = {
+        JWT_SECRET_KEY: 'concealed', DATABASE_URL: 'concealed', DATABASE_URL_SYNC: 'concealed', REDIS_URL: 'concealed', SMTP_PASSWORD: 'concealed', VERCEL_TOKEN: 'concealed',
+        AZURE_OPENAI_KEY: 'concealed', SENTRY_DSN: 'concealed', AUTH_MICROSOFT_ENTRA_SECRET: 'concealed', OP_SERVICE_ACCOUNT_TOKEN: 'concealed', CLOUDFLARE_ORIGIN_CERT: 'concealed',
+        NEXT_PUBLIC_API_URL: 'plain', NEXT_PUBLIC_SENTRY_DSN: 'plain', STRIPE_PUBLISHABLE_KEY: 'plain', APP_HOST: 'plain', WORKER_REPLICAS: 'plain', LOG_LEVEL: 'plain',
+        ACME_EMAIL: 'plain', AUTH_MICROSOFT_ENTRA_ID: 'plain', VERCEL_ORG_ID: 'plain', API_URL: 'plain', CORS_ORIGINS: 'plain', S3_BUCKET: 'plain',
+        FEATURE_X: 'unsure', AUTH_TRUST_HOST: 'plain', ASANA_WORKSPACE: 'unsure',
+        NEXT_PRIVATE_DEBUG_CACHE: 'plain', PUBLIC_SITE_TOKEN: 'plain', SUPABASE_PUBLIC_ANON_KEY: 'plain', NEXT_PUBLIC_SECRET_SAUCE: 'plain', SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
+    };
+    for (const [label, want] of Object.entries(cases)) assert.equal(expected(label), want, label);
+});
+
+test('reviewField: a public build-time value kept as password breaks the build-args', () => {
+    assert.match(reviewField({ label: 'NEXT_PUBLIC_API_URL', type: 'CONCEALED', length: 30 }) ?? '', /build-arg/);
+    assert.match(reviewField({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }) ?? '', /config kept as password/);
+    assert.equal(reviewField({ label: 'FEATURE_X', type: 'STRING', length: 30 }), null, 'unsure stays quiet');
+});
+
+test('fix: the type-only assignment for op item edit', () => {
+    assert.deepEqual(fix({ label: 'RESEND_API_KEY', type: 'STRING', length: 36 }), { assignment: 'RESEND_API_KEY[password]', to: 'concealed' });
+    assert.deepEqual(fix({ label: 'NEXT_PUBLIC_API_URL', type: 'CONCEALED', length: 30 }), { assignment: 'NEXT_PUBLIC_API_URL[text]', to: 'plain' });
+    assert.deepEqual(fix({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }), { assignment: 'APP_HOST[text]', to: 'plain' });
+    assert.equal(fix({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }), null, 'a short value needs a new value, not a type');
+    assert.equal(fix({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'nothing to fix');
+    assert.equal(fix({ label: 'api.key', type: 'STRING', length: 40 }), null, 'a dot would be read as a section');
 });
