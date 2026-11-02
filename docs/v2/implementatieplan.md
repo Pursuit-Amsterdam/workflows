@@ -444,6 +444,54 @@ Na deze plak deployen gp-container-tracking-webapp en gp-map-webapp via `v2`.
   - [ ] Nog niet bewezen: de overslag "No changes under supabase/" (alleen als `dbtest` de enige check is) en `NOTESTS` zonder `supabase/tests`.
 - [ ] Stap 4: commit `feat: add cd-supabase.yml`.
 
+### Task 19b: de Supabase-config per omgeving (`config push` en `[remotes]`)
+
+**Aanleiding (2 november 2026):** in web-essentials-dashboard stond registreren aan in productie. Volgens `config.toml` hoort dat lokaal zo, maar niets zet de config van het bestand op het gehoste project. Geen enkele route doet dat nu:
+- **Route 1, de GitHub-integratie:** past `config.toml` alleen toe als een `[remotes.<naam>]`-blok de `project_id` van die branch of dat project noemt. Daarna migreert hij en deployt hij de functions. Nagelopen (web-essentials-dashboard, basko-healthcare-website, tellr-webapp, multifill-planning-tool): geen enkele repo heeft zo'n blok.
+- **Route 2, `cd-supabase`:** draait `secrets set`, `db push` en `functions deploy`, maar geen `config push`.
+
+`config push` hoort bij de route met een token (de Management API), niet bij functions of secrets. Route 1 krijgt hem van de integratie, route 2 met een stap in `cd-supabase`. Beide hebben dezelfde `[remotes]`-blokken nodig.
+
+**Wat `config push` doet** ([CLI-broncode](https://github.com/supabase/cli/blob/develop/apps/cli/src/commands/config/push/SIDE_EFFECTS.md)):
+- Pusht alleen wat in `config.toml` staat en afwijkt: `[api]`, de database-instellingen, netwerkbeperkingen, SSL, `[auth]`, `[storage]` en webhooks. Functions en `[edge_runtime]` niet.
+- Vraagt één keer, met "nee" als standaard, en leest geen invoer uit een pipe. In CI is `--yes` dus verplicht.
+- Een `[remotes.<naam>]`-blok met `project_id` wordt over de basis gelegd als het doel die ref is. Geheimen gaan via `env(VAR)`.
+- `supabase config diff --remote <ref> --exit-code` laat het verschil zien zonder iets te schrijven (exit 2 = verschil).
+
+**Het risico:** `config.toml` bevat nu waarden voor lokaal werk. Een push zonder `[remotes]` zet die op productie. In web-essentials-dashboard bijvoorbeeld:
+- `site_url = "http://127.0.0.1:3000"` en redirect-URL's op `127.0.0.1` → inloggen via e-mail en redirects breken;
+- `enable_confirmations = false`, `minimum_password_length = 6`, MFA uit → zwakkere productie (ISO A.8.5);
+- `enable_signup = true` → precies het lek van 2 november.
+
+Elke waarde die alleen lokaal geldt, moet dus per omgeving overschreven worden. Daarom eerst `config diff`, dan pas pushen.
+
+**Interface (`cd-supabase.yml`):** nieuwe input `config-push` (boolean, eerst standaard `false`). Bij `true`:
+- een stap vóór `db push`, in dezelfde volgorde als de integratie: config, migraties, functions;
+- eerst `config diff` in de log en de samenvatting, dan `config push --yes` op de ref van de environment;
+- zonder `[remotes]`-blok voor die ref weigert de stap: een push van de basis zou lokale waarden op het gehoste project zetten.
+
+**Nog na te gaan:**
+- De vlag verschilt per CLI-versie. v3 gebruikt `--remote`, v2 `--project-ref`. De repo's pinnen v2 (basko 2.114.0, tellr 2.121.0). web-essentials-dashboard pint niets, dus `setup-cli` neemt de nieuwste (nu v3.0.0).
+- Of v2 de `[remotes]`-blokken bij `config push` ook toepast, is niet getest.
+
+- [ ] Stap 1: per project met Supabase eenmalig `supabase config diff --remote <ref>` voor productie en staging (Bas, met een eigen token). Het verschil per project vastleggen. Eerst web-essentials-dashboard.
+- [ ] Stap 2: per project `[remotes.production]` en `[remotes.staging]` in `config.toml`, met de echte waarden (`site_url`, redirect-URL's, bevestigingen, wachtwoordregels, MFA, `enable_signup`, SMTP via `env()`), tot de diff leeg is. Voor projecten op route 1 zet dit de config meteen aan bij de volgende merge.
+- [ ] Stap 3: tests eerst, in `tests/cd-supabase.test.ts` tegen de nep-`supabase`:
+  - `config-push: false` → geen `config`-aanroep, zoals nu;
+  - `true` met een `[remotes]`-blok voor de ref → `config diff`, dan `config push --yes`, vóór `db push`;
+  - `true` zonder blok voor de ref → geweigerd;
+  - een mislukte push → geen migraties.
+
+  Daarna `cd-supabase.yml`, de README en [cd.md](naslag/cd.md#cd-supabase).
+- [ ] Stap 4: bewijzen in de voorbeeldrepo of op een staging-project, daarna web-essentials-dashboard met `config-push: true`.
+- [ ] Stap 5: `config-push` standaard `true`, zodra twee projecten het bewezen hebben. De audit meldt een Supabase-project zonder `[remotes]`-blok.
+
+**Apart nalezen: het besluit over de twee routes** ([beslissingen](beslissingen.md#decided), 22 oktober 2026). Volgens de [docs van de integratie](https://supabase.com/docs/guides/deployment/branching/github-integration):
+- de integratie deployt ook edge functions uit `config.toml`, en zet `[edge_runtime.secrets]`;
+- migraties zijn per omgeving uit te zetten met `[db.migrations] enabled = false`. In het besluit staat dat dat "niet gedocumenteerd" is.
+
+Klopt dat, dan kan route 1 misschien ook projecten met edge functions aan, zonder token in GitHub. Eerst nalezen en testen; het besluit blijft staan tot dan.
+
 ### Task 20: edge functions typechecken in CI
 
 **Bestanden:** wijzig `ci.yml`: installeer Deno (vaste commit van `denoland/setup-deno`) als `supabase/functions` bestaat, zoals uv bij `pyproject.toml`.
