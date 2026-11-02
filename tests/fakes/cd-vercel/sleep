@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Fake sleep: the health check waits between attempts; the tests do not.
+:

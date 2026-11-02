@@ -128,7 +128,7 @@ on:
       TMS_API_KEY:
         required: false
       VERCEL_AUTOMATION_BYPASS_SECRET:
-        description: "Only for health-path on a staging deployment behind Vercel Deployment Protection"
+        description: "For health-path behind Vercel Deployment Protection, which guards the deployment URL (also on production). Without it, the check uses VERCEL_AUTOMATION_BYPASS_SECRET from the 1Password item."
         required: false
 
 permissions:
@@ -256,7 +256,11 @@ jobs:
           working-directory: ${{ inputs.working-directory }}
 
       # An upload that succeeded says nothing about an app that answers.
+      # The check calls the deployment's own URL, which Vercel Deployment
+      # Protection guards (also on production); the bypass secret comes from
+      # the environment secret, else from the 1Password item loaded above.
       - name: Health check
+        id: health
         if: inputs.health-path != ''
         env:
           URL: ${{ steps.vercel.outputs.url }}
@@ -265,10 +269,20 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$URL" ] || { echo "::error::deploy-vercel returned no url"; exit 1; }
-          hdr=(); [ -z "$BYPASS" ] || hdr=(-H "x-vercel-protection-bypass: $BYPASS")
+          bypass=${BYPASS:-${VERCEL_AUTOMATION_BYPASS_SECRET:-}}
+          hdr=(); [ -z "$bypass" ] || hdr=(-H "x-vercel-protection-bypass: $bypass")
           for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${hdr[@]}" "${URL%/}${HEALTH_PATH}" || true)
+            read -r code redirect < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "${hdr[@]}" "${URL%/}${HEALTH_PATH}" || true) || true
             case "$code" in 2??) echo "healthy ($code)"; exit 0 ;; esac
+            # A redirect to the Vercel login does not go away by waiting.
+            if [[ "${redirect:-}" == https://vercel.com/sso* ]]; then
+              if [ -n "$bypass" ]; then
+                echo "::error::Vercel Deployment Protection sent the check to the login although a bypass secret was sent: is VERCEL_AUTOMATION_BYPASS_SECRET the project's current secret?"
+              else
+                echo "::error::Vercel Deployment Protection sent the check to the login. Add the project's 'Protection Bypass for Automation' secret as VERCEL_AUTOMATION_BYPASS_SECRET to the 1Password item (or as a secret on this environment), or drop health-path."
+              fi
+              exit 1
+            fi
             echo "attempt $i: $code"; sleep 6
           done
           echo "::error::${URL%/}${HEALTH_PATH} did not answer 2xx"; exit 1
