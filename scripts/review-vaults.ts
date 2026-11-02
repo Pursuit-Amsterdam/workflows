@@ -17,6 +17,7 @@
 // password, or a NEXT_PUBLIC_ password to text) is listed. With --apply, in a
 // terminal, each one is a question first, and a yes runs
 // `op item edit <item> 'LABEL[password]'`: the type only, never a value. A
+// NEXT_PUBLIC_* field to text goes without a question: it is public anyway. A
 // short value needs a new value and is only reported.
 //
 // Needs the local `gh` login (environments and workflows) and the 1Password
@@ -26,7 +27,7 @@ import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
-import { expected, fix, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
+import { autoAccept, expected, fix, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
@@ -141,13 +142,17 @@ for (const u of items) {
         }
         offered++;
         const to = f.to === 'concealed' ? 'password' : 'text';
+        const auto = autoAccept(r.label, f);
         if (!rl) {
-            console.log(`    → would set ${r.label} to ${to}`);
+            console.log(`    → would set ${r.label} to ${to}${auto ? ' (without asking: NEXT_PUBLIC_ is public)' : ''}`);
             continue;
         }
-        const answer = await ask(`    → set ${r.label} to ${to}? [y/N/q] `);
-        if (answer === 'q') { quit = true; break; }
-        if (answer !== 'y' && answer !== 'yes') continue;
+        if (auto) console.log(`    → set ${r.label} to ${to} (NEXT_PUBLIC_ is public)`);
+        else {
+            const answer = await ask(`    → set ${r.label} to ${to}? [y/N/q] `);
+            if (answer === 'q') { quit = true; break; }
+            if (answer !== 'y' && answer !== 'yes') continue;
+        }
         try {
             op(['item', 'edit', item, '--vault', vault, f.assignment, '--format', 'json']);
             const after = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: { label?: string; type?: string; value?: string }[] }).fields?.find(x => x.label === r.label);

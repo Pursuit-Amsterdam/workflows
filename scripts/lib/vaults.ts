@@ -77,17 +77,34 @@ export function reviewField(f: Field): string | null {
     return null;
 }
 
+/** A type change for `op item edit`: the assignment, and the state it leads to. */
+export interface Fix {
+    assignment: string;
+    to: 'concealed' | 'plain';
+}
+
 /**
  * The one-line fix for a note, as a field assignment for `op item edit`
  * (`LABEL[password]` or `LABEL[text]`: the type only, no value), or null when
  * the fix needs a new value or the label cannot be addressed that way (a dot
  * or brackets in it would be read as a section or a type).
  */
-export function fix(f: Field): { assignment: string; to: 'concealed' | 'plain' } | null {
+export function fix(f: Field): Fix | null {
     if (!/^[A-Za-z0-9_-]+$/.test(f.label)) return null;
     const now = state(f);
     const want = expected(f.label);
     if (now === 'plain' && want === 'concealed') return { assignment: `${f.label}[password]`, to: 'concealed' };
     if (now === 'concealed' && (/^NEXT_PUBLIC_/i.test(f.label) || want === 'plain')) return { assignment: `${f.label}[text]`, to: 'plain' };
     return null;
+}
+
+/**
+ * Whether --apply may make this change without asking: only a NEXT_PUBLIC_*
+ * field to plain. Next.js puts those values in the browser bundle, so masking
+ * protects nothing, and a concealed one is left out of the build-args. Any
+ * other change can be wrong (a label rule that misreads a field) or break a
+ * build (to password drops a build-arg), so it stays a question.
+ */
+export function autoAccept(label: string, f: Fix): boolean {
+    return f.to === 'plain' && /^NEXT_PUBLIC_/i.test(label);
 }

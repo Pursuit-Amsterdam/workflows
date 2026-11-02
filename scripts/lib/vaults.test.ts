@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
+import { autoAccept, expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -92,4 +92,12 @@ test('fix: the type-only assignment for op item edit', () => {
     assert.equal(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'CONCEALED', length: 180 }), null, 'a SAS URL carries its token: stays a password');
     assert.deepEqual(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'STRING', length: 180 }), { assignment: 'BACKUP_BLOB_SAS_URL[password]', to: 'concealed' });
     assert.equal(fix({ label: 'api.key', type: 'STRING', length: 40 }), null, 'a dot would be read as a section');
+});
+
+test('autoAccept: only NEXT_PUBLIC_ to plain goes without a question', () => {
+    assert.equal(autoAccept('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', { assignment: 'NEXT_PUBLIC_RECAPTCHA_SITE_KEY[text]', to: 'plain' }), true, 'in the browser bundle anyway');
+    assert.equal(autoAccept('next_public_api_url', { assignment: 'next_public_api_url[text]', to: 'plain' }), true, 'case does not matter');
+    assert.equal(autoAccept('SMTP_PORT', { assignment: 'SMTP_PORT[text]', to: 'plain' }), false, 'config by its label, but the label can be wrong');
+    assert.equal(autoAccept('RESEND_API_KEY', { assignment: 'RESEND_API_KEY[password]', to: 'concealed' }), false, 'to password can drop a build-arg');
+    assert.equal(autoAccept('NEXT_PUBLIC_X', { assignment: 'NEXT_PUBLIC_X[password]', to: 'concealed' }), false);
 });
