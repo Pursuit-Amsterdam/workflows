@@ -14,10 +14,10 @@
 //   pnpm review-vaults -- --env staging        # only the items of that environment (also ci, or a workflow file name)
 //
 // Dry run by default: every field whose fix is a type change (plain to
-// password, or a NEXT_PUBLIC_ password to text) is shown with the exact
-// `op item edit <item> 'LABEL[password]'` it would run: the type only, never a
-// value. With --apply, in a terminal, each one is a question first. A short
-// value needs a new value and is only reported.
+// password, or a NEXT_PUBLIC_ password to text) is listed. With --apply, in a
+// terminal, each one is a question first, and a yes runs
+// `op item edit <item> 'LABEL[password]'`: the type only, never a value. A
+// short value needs a new value and is only reported.
 //
 // Needs the local `gh` login (environments and workflows) and the 1Password
 // CLI signed in as a person with access to the vaults (`brew install
@@ -140,12 +140,12 @@ for (const u of items) {
             continue;
         }
         offered++;
-        const command = `op item edit '${item}' --vault '${vault}' '${f.assignment}'`;
+        const to = f.to === 'concealed' ? 'password' : 'text';
         if (!rl) {
-            console.log(`    → would set ${r.label} to ${f.to === 'concealed' ? 'password' : 'text'}: ${command}`);
+            console.log(`    → would set ${r.label} to ${to}`);
             continue;
         }
-        const answer = await ask(`    → set ${r.label} to ${f.to === 'concealed' ? 'password' : 'text'} with \`${command}\`? [y/N/q] `);
+        const answer = await ask(`    → set ${r.label} to ${to}? [y/N/q] `);
         if (answer === 'q') { quit = true; break; }
         if (answer !== 'y' && answer !== 'yes') continue;
         try {
