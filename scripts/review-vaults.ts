@@ -150,11 +150,15 @@ for (const u of items) {
         if (answer !== 'y' && answer !== 'yes') continue;
         try {
             op(['item', 'edit', item, '--vault', vault, f.assignment, '--format', 'json']);
-            const after = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: { label?: string; type?: string }[] }).fields?.find(x => x.label === r.label);
+            const after = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: { label?: string; type?: string; value?: string }[] }).fields?.find(x => x.label === r.label);
             const now = after ? state({ type: after.type ?? '' }) : 'unknown';
-            changed += now === f.to ? 1 : 0;
-            if (now !== f.to) failed++;
+            // A type-only edit keeps the value (1Password documents it); the
+            // length, never the value, says whether it did.
+            const kept = (after?.value ?? '').length === r.length;
+            changed += now === f.to && kept ? 1 : 0;
+            if (now !== f.to || !kept) failed++;
             console.log(`      ${r.label} is now ${now}${now === f.to ? '' : ' (not what was asked: check it in the app)'}`);
+            if (!kept) console.log(`      ${r.label}: the value changed length (${r.length} → ${(after?.value ?? '').length} chars): restore it from the item's history in the app`);
         } catch (err) {
             failed++;
             console.log(`      could not change ${r.label}: ${opError(err)}`);
