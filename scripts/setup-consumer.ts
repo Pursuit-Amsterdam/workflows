@@ -171,12 +171,11 @@ function wantedEnvironments(c: Consumer): Map<string, string[] | null> {
     const def = c.defaultBranch;
     const envs = new Map<string, string[] | null>();
     if (c.hasCi) envs.set('integration', null); // CI runs on every branch
-    // Staging follows develop; a repo without develop deploys production only.
-    if (c.deploys && c.hasDevelop) {
-        // The default branch: workflow_run and the CMS's repository_dispatch run with that ref.
-        envs.set('staging', ['branch develop', `branch ${def}`]);
-        if (c.hasAcceptance) envs.set('acceptance', ['branch acceptance', `branch ${def}`]);
-    }
+    // Staging follows develop, when cd-gate sends it there; a repo without
+    // develop, or with `branch-targets: ""`, deploys production only.
+    // The default branch: workflow_run and the CMS's repository_dispatch run with that ref.
+    if (c.staging) envs.set('staging', ['branch develop', `branch ${def}`]);
+    if (c.acceptance) envs.set('acceptance', ['branch acceptance', `branch ${def}`]);
     if (c.deploys || c.publishes) envs.set('production', ['tag v*']);
     return envs;
 }

@@ -90,7 +90,7 @@ for (const repo of repos) {
     }
 
     // What the repo calls decides what the standard expects of it.
-    const { defaultBranch: def, workflows: wfs, all, hasCi, deploys, publishes, vercel, swarm, supabase, hasDevelop, hasAcceptance } = c;
+    const { defaultBranch: def, workflows: wfs, all, hasCi, deploys, publishes, vercel, swarm, supabase, hasDevelop, hasAcceptance, staging, acceptance } = c;
     const fullAudit = deploys || publishes;
 
     if (!wfs.some(w => w.file === 'check-pr.yml')) say(repo, 'workflows', 'no check-pr.yml caller');
@@ -230,8 +230,9 @@ for (const repo of repos) {
     const envName = (e: string): string | undefined => envs.find(n => n.toLowerCase() === e);
     const expected = [
         ...(hasCi ? ['integration'] : []),
-        // Staging follows develop; a repo without develop deploys production only.
-        ...(deploys ? [...(hasDevelop ? ['staging'] : []), 'production', ...(hasAcceptance ? ['acceptance'] : [])] : []),
+        // Staging follows develop, when cd-gate sends it there; a repo without
+        // develop, or with `branch-targets: ""`, deploys production only.
+        ...(deploys ? [...(staging ? ['staging'] : []), 'production', ...(acceptance ? ['acceptance'] : [])] : []),
         ...(publishes && !deploys ? ['production'] : []),
     ];
     for (const e of expected) {

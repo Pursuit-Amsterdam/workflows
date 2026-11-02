@@ -30,10 +30,44 @@ export interface Consumer {
     pagesOnRelease: boolean;
     hasDevelop: boolean;
     hasAcceptance: boolean;
+    /** Deploys develop to staging: cd-gate's branch-targets name it, or a v1 deploy on a repo with develop. */
+    staging: boolean;
+    /** Deploys acceptance: cd-gate's branch-targets name it and the branch exists. */
+    acceptance: boolean;
 }
 
 export async function branchExists(repo: string, branch: string): Promise<boolean> {
     return (await get(`/repos/{owner}/{repo}/branches/{branch}`, { owner: ORG, repo, branch })) !== null;
+}
+
+// cd-gate's default for branch-targets: "develop=staging acceptance=acceptance".
+const GATE_DEFAULT_TARGETS = ['acceptance', 'staging'];
+
+/**
+ * The environments cd-gate deploys a branch to, from `branch-targets` on every
+ * call, sorted; null when no workflow calls cd-gate. No input (or an
+ * expression, which cannot be read here) is the gate's default; "" is
+ * production only.
+ */
+export function gateBranchTargets(workflows: Workflow[]): string[] | null {
+    let gated = false;
+    const targets = new Set<string>();
+    for (const wf of workflows) {
+        for (const [, job] of jobs(wf)) {
+            if (typeof job.uses !== 'string' || !job.uses.includes('/workflows/.github/workflows/cd-gate.yml@')) continue;
+            gated = true;
+            const value = (job.with as Record<string, unknown> | undefined)?.['branch-targets'];
+            if (typeof value !== 'string' || value.includes('${{')) {
+                for (const t of GATE_DEFAULT_TARGETS) targets.add(t);
+                continue;
+            }
+            for (const pair of value.split(/\s+/).filter(Boolean)) {
+                const env = pair.split('=')[1];
+                if (env) targets.add(env);
+            }
+        }
+    }
+    return gated ? [...targets].sort() : null;
 }
 
 /** The workflows on `ref` (default: the default branch); null when the repo cannot be read. */
@@ -58,6 +92,11 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         }
     }
     const all = workflows.map(w => w.text).join('\n');
+    const deploys = /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all);
+    const hasDevelop = await branchExists(repo, 'develop');
+    const hasAcceptance = await branchExists(repo, 'acceptance');
+    // Without cd-gate (v1) staging followed develop, and acceptance its branch.
+    const targets = gateBranchTargets(workflows);
     return {
         repo,
         defaultBranch: meta.default_branch,
@@ -66,7 +105,7 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         all,
         calls: all.includes(`${ORG}/workflows/`),
         hasCi: CI_CALL.test(all),
-        deploys: /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all),
+        deploys,
         publishes: all.includes('cd-packages.yml@'),
         vercel: /cd-vercel\.yml@|web-cd\.yml@/.test(all),
         swarm: /cd-swarm\.yml@|vm-cd\.yml@/.test(all),
@@ -74,8 +113,10 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         pages: /(cd-pages|storybook-cd)\.yml@/.test(all),
         releases: all.includes('cd-gate.yml@'),
         pagesOnRelease: workflows.some(wf => wf.text.includes('cd-pages.yml@') && 'release' in triggers(wf)),
-        hasDevelop: await branchExists(repo, 'develop'),
-        hasAcceptance: await branchExists(repo, 'acceptance'),
+        hasDevelop,
+        hasAcceptance,
+        staging: deploys && hasDevelop && (targets === null || targets.includes('staging')),
+        acceptance: deploys && hasDevelop && hasAcceptance && (targets === null || targets.includes('acceptance')),
     };
 }
 
