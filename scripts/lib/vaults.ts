@@ -68,7 +68,7 @@ export function reviewField(f: Field): string | null {
     if (now === 'plain' && want === 'concealed') return 'looks like a secret: set it to password';
     if (now === 'concealed' && /^NEXT_PUBLIC_/i.test(f.label)) return 'a public build-time value kept as password: it is not passed as a build-arg, make it plain';
     if (f.length > 0 && f.length <= SHORT) {
-        return now === 'concealed' ? 'short password: masking it damages the logs, make it plain or longer' : 'short: damages the logs while masked (fixed by #23)';
+        return now === 'concealed' ? 'short password: masking it damages the logs, make it plain or longer' : 'short: might damage the logs while masked';
     }
     if (now === 'concealed' && want === 'plain') return 'looks like config kept as password: fine, only masked for nothing';
     return null;

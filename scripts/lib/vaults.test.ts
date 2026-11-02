@@ -53,7 +53,7 @@ test('reviewField: a plain-text field that looks like a secret', () => {
 });
 
 test('reviewField: short values damage the logs once masked', () => {
-    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short.*#23/);
+    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short: might damage the logs while masked/);
     assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /short password/);
     assert.equal(reviewField({ label: 'LOG_LEVEL', type: 'STRING', length: 5 }), null);
     assert.equal(reviewField({ label: 'notesPlain', type: 'STRING', length: 1 }), null, 'notes are not exported');
