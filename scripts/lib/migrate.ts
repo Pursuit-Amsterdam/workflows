@@ -209,8 +209,8 @@ ${extra}        secrets: inherit
 export const DEPENDABOT_YAML = `# Weekly dependency updates. The private @pursuit-amsterdam packages come from
 # GitHub Packages; Dependabot reads them with CUSTOM_GITHUB_TOKEN (a token with
 # read:packages). A run that Dependabot starts gets only Dependabot secrets, so
-# that token must also exist as a Dependabot secret (org level), not only as an
-# Actions secret. Public packages come from registry.npmjs.org as usual.
+# that token must also exist as a Dependabot secret (repo level), not only as an
+# environment secret. Public packages come from registry.npmjs.org as usual.
 version: 2
 registries:
     github-npm:
