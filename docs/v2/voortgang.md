@@ -6,7 +6,7 @@
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
-## Op v2, productie via v2 bewezen (13)
+## Op v2, productie via v2 bewezen (14)
 
 Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 
@@ -21,18 +21,19 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | tellr-webapp | Vercel, Storybook | v2026.10.26 (v2-migratie en de Node-pin voor CVE-2026-111497) |
 | basko-healthcare-website | Vercel; migraties via de Supabase-integratie | v2026.10.26 |
 | multifill-planning-tool | Vercel; migraties via de Supabase-integratie | v2026.10.26 |
+| web-essentials-dashboard | Vercel, alleen productie; migraties via de Supabase-integratie, edge functions en secrets met de hand | v2026.11.02 (health 200 na het bypass-secret) |
 | gp-map-webapp | Swarm | v2026.10.26; `main` en `develop` op de v2-CI (`main` sinds #205, 2 november 2026), rulesets op beide; `develop` nog niet naar `main` |
 | banner-kit | pakket, release via draft | v0.10.0 |
 | nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app bouwt de workspace via `packages/demo-app/vercel.json` |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (25)
+## Op v2, wacht op de eerste release (24)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
 | Groep | Repo's |
 | --- | --- |
-| Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website, web-essentials-dashboard (alleen productie; migraties via de Supabase-integratie, edge functions en secrets met de hand) |
+| Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
 | Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip) |
@@ -71,9 +72,10 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 ## Handwerk dat openstaat
 
-- **Package-token: bewijzen.** Sinds 2 november 2026 staat de gedeelde PAT op de environments; nog geen run sindsdien. Eerst in multifill-planning-tool: een CI-run en "Dependabot Updates" opnieuw draaien.
+- **Package-token: bewijzen.** Sinds 2 november 2026 staat de gedeelde PAT op de environments. Bewezen voor een deploy: web-essentials-dashboard (run 41467126390) installeerde de private pakketten met de PAT op `Production`. Nog open: een CI-run op `integration` en een Dependabot-run. Eerst in multifill-planning-tool: een CI-run en "Dependabot Updates" opnieuw draaien.
 - **`dependabot.yml` met `env.GITHUB_TOKEN`** in tms-test (`develop`): Dependabot heeft geen `GITHUB_TOKEN`; wordt `secrets.CUSTOM_GITHUB_TOKEN`.
 - **`VERCEL_TOKEN` als environment-secret** op `staging` en `production` in plaats van op org- of repo-niveau.
+- **web-essentials-dashboard: `OP_SERVICE_ACCOUNT_TOKEN` op repo-niveau.** Bas heeft geen toegang tot de waarde. Iemand met beheerrechten in 1Password maakt een service-account-token dat alleen de kluis `web-essentials-dashboard-production` leest, zet het op `Production` en haalt het repo-secret weg. Daarna `setup-consumer --apply`: dat haalt ook het repo-secret `CUSTOM_GITHUB_TOKEN` weg (de environments hebben het).
 - **Oude PR's naar `main` van de workflows-repo:** #22 (packages: read) en #25 (Supabase edge functions) zijn achterhaald door `v2`; #23 gaat op in punt 3; #26 (Key Vault) is buiten scope (23 oktober 2026). Sluiten.
 - Cosmetisch: hoofdletters in environmentnamen (`Staging`, `Production`); hernoemen kan niet zonder de secrets opnieuw te zetten. GitHub maakt geen verschil, de audit meldt het niet meer.
 
@@ -81,6 +83,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 2 november 2026 | web-essentials-dashboard: productie via v2 bewezen. Na #147 en het bypass-secret als veld in het 1Password-item een nieuwe deploy vanaf de tag (`workflow_dispatch`, run 41467126390): alias `dash.pursuit.amsterdam`, health check 200. `setup-consumer --apply`: rulesets op `main` en `develop`, tag-ruleset, `Production` alleen tags `v*`, geen `staging` (sinds #146). Het package-token staat op `integration`, `Production` en als Dependabot-secret. Het bypass-secret staat in de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). |
 | 2 november 2026 | web-essentials-dashboard v2026.11.02, de eerste release via `v2` (run 41465017312): gate `release -> production @ 1243a46`, build met 1Password, alias `dash.pursuit.amsterdam` (`/api/health` 200). De run werd toch rood: de health check vraagt de deployment-URL op, en die stuurde Deployment Protection door naar de Vercel-login (10 keer 302). `cd-vercel` leest het bypass-secret nu ook uit het 1Password-item, en een doorverwijzing naar de login faalt meteen met uitleg. De Dependabot-runs van 14:37 en 14:41 faalden op het ontbrekende Dependabot-secret; dat staat er nu. |
 | 2 november 2026 | web-essentials-dashboard naar `v2` (#41 `main`, #42 `develop`), alleen productie (`branch-targets: ""`). CI `lint typecheck test` zonder secrets, 42 tests; geen `build` (`/login` vraagt de Supabase-waarden), geen 1Password meer in CI (v1 laadde de productiekluis). CD: release → gate → `cd-vercel` met `health-path: /api/health`. Supabase blijft buiten CD: migraties via de integratie (020, de fix voor de rol bij registreren, stond al live), edge functions en secrets met de hand. CI op beide PR's en op `main` en `develop` groen. Gevonden: `setup-consumer` en de audit wilden een `staging`-environment voor elke repo met `develop`, ook met `branch-targets: ""`; ze lezen nu `branch-targets` van `cd-gate`. Wacht op `setup-consumer --apply` en de release. |
 | 2 november 2026 | Supabase-config onderzocht na het lek in web-essentials-dashboard (registreren stond aan in productie; Asana-taak bij Sam). Geen route zet `config.toml` nu op het gehoste project: de integratie doet dat alleen met een `[remotes]`-blok, en `cd-supabase` kent geen `config push`. `config.toml` bevat lokale waarden (`site_url` op `127.0.0.1`, bevestigingen uit, `enable_signup = true`), dus pushen kan pas met blokken per omgeving. Gepland in Task 19b. |
