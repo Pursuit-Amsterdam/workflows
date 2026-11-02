@@ -28,7 +28,10 @@ export function onePasswordRefs(wf: Workflow): VaultRef[] {
 // What a label usually holds. Config may stay plain; a secret belongs in a
 // password field (concealed): that is what gets masked, and what never goes
 // into an image as a build-arg. A connection string carries a password.
-const SECRET_LABEL = /(SECRET|TOKEN|PASS|PWD|KEY|PRIVATE|CREDENTIAL|LICENSE|SIGNING|SALT|DSN|CONNECTION_STRING|JWT|SERVICE_ACCOUNT|CERT)/i;
+// A URL can carry its own secret: an Azure SAS URL has the token in its query,
+// a Slack or Teams webhook URL is the credential itself. SAS as a whole word,
+// so CLASS or SASS stay out.
+const SECRET_LABEL = /(SECRET|TOKEN|PASS|PWD|KEY|PRIVATE|CREDENTIAL|LICENSE|SIGNING|SALT|DSN|CONNECTION_STRING|JWT|SERVICE_ACCOUNT|CERT|WEBHOOK|(^|_)SAS(_|$))/i;
 const CREDENTIALED_URL = /^(DATABASE|DB|POSTGRES|POSTGRESQL|PG|MYSQL|REDIS|MONGO|MONGODB|AMQP|RABBITMQ|KAFKA|SMTP|ELASTIC|QUEUE|STORAGE)[A-Z_]*_(URL|URI)/i;
 const CONFIG_LABEL = /^NEXT_PUBLIC_|PUBLIC_KEY|PUBLISHABLE|(^|_)(HOST|HOSTNAME|PORT|URL|URI|DOMAIN|ORIGIN|ORIGINS|EMAIL|FROM|NAME|ID|REGION|BUCKET|REPLICAS|LEVEL|ENV|ENVIRONMENT|MODE|LOCALE|TIMEZONE|TZ|VERSION|PREFIX|PATH|DIR|TIMEOUT|LIMIT|SIZE|COUNT|ENABLED|DISABLED|FLAG|FLAGS)$|^(DEBUG|NODE_ENV|LOG_LEVEL|CORS_ORIGINS|APP_HOST|API_HOST|ACME_EMAIL)$/i;
 /** GitHub masks a value everywhere it appears in output: a 1-character value removes that character from every log line. */
@@ -68,10 +71,16 @@ export function reviewField(f: Field): string | null {
     if (now === 'plain' && want === 'concealed') return 'looks like a secret: set it to password';
     if (now === 'concealed' && /^NEXT_PUBLIC_/i.test(f.label)) return 'a public build-time value kept as password: it is not passed as a build-arg, make it plain';
     if (f.length > 0 && f.length <= SHORT) {
-        return now === 'concealed' ? 'short password: masking it damages the logs, make it plain or longer' : 'short: damages the logs while masked (fixed by #23)';
+        return now === 'concealed' ? 'short password: masking it damages the logs, make it plain or longer' : 'short: might damage the logs while masked';
     }
     if (now === 'concealed' && want === 'plain') return 'looks like config kept as password: fine, only masked for nothing';
     return null;
+}
+
+/** A type change for `op item edit`: the assignment, and the state it leads to. */
+export interface Fix {
+    assignment: string;
+    to: 'concealed' | 'plain';
 }
 
 /**
@@ -80,11 +89,33 @@ export function reviewField(f: Field): string | null {
  * the fix needs a new value or the label cannot be addressed that way (a dot
  * or brackets in it would be read as a section or a type).
  */
-export function fix(f: Field): { assignment: string; to: 'concealed' | 'plain' } | null {
+export function fix(f: Field): Fix | null {
     if (!/^[A-Za-z0-9_-]+$/.test(f.label)) return null;
     const now = state(f);
     const want = expected(f.label);
     if (now === 'plain' && want === 'concealed') return { assignment: `${f.label}[password]`, to: 'concealed' };
     if (now === 'concealed' && (/^NEXT_PUBLIC_/i.test(f.label) || want === 'plain')) return { assignment: `${f.label}[text]`, to: 'plain' };
     return null;
+}
+
+/**
+ * Whether --apply may make this change without asking: only a NEXT_PUBLIC_*
+ * field to plain. Next.js puts those values in the browser bundle, so masking
+ * protects nothing, and a concealed one is left out of the build-args. Any
+ * other change can be wrong (a label rule that misreads a field) or break a
+ * build (to password drops a build-arg), so it stays a question.
+ */
+export function autoAccept(label: string, f: Fix): boolean {
+    return f.to === 'plain' && /^NEXT_PUBLIC_/i.test(label);
+}
+
+/**
+ * A value as the --apply question shows it before a password field may become
+ * text: in quotes, with a newline as \n, and cut off after `max` characters.
+ * Only for that question: it is the moment to judge whether the value is
+ * config, and after a yes it is plain in the logs anyway.
+ */
+export function preview(value: string, max = 100): string {
+    const quoted = (v: string): string => JSON.stringify(v).slice(1, -1);
+    return value.length > max ? `"${quoted(value.slice(0, max))}…" (${value.length} chars)` : `"${quoted(value)}"`;
 }

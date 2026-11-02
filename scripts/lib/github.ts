@@ -3,6 +3,7 @@
 // local `gh` login.
 import { execFileSync } from 'node:child_process';
 import { Octokit } from '@octokit/rest';
+import { retrying } from './retry.ts';
 
 export const ORG = 'Pursuit-Amsterdam';
 
@@ -31,6 +32,11 @@ export const GITHUB_API_VERSION = '2026-03-10';
 octokit.hook.before('request', options => {
     options.headers['x-github-api-version'] ??= GITHUB_API_VERSION;
 });
+
+// GitHub sometimes answers a read with a 502 ("We had issues producing the
+// response"); one such call must not end a run over every repo. Reads are
+// tried again; a write is not, so it never happens twice.
+octokit.hook.wrap('request', (request, options) => (options.method === 'GET' ? retrying(async () => request(options)) : request(options)));
 
 function status(err: unknown): number | undefined {
     return typeof err === 'object' && err !== null && 'status' in err ? Number(err.status) : undefined;

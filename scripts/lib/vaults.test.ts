@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
+import { autoAccept, expected, fix, onePasswordRefs, preview, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -53,7 +53,7 @@ test('reviewField: a plain-text field that looks like a secret', () => {
 });
 
 test('reviewField: short values damage the logs once masked', () => {
-    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short.*#23/);
+    assert.match(reviewField({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }) ?? '', /short: might damage the logs while masked/);
     assert.match(reviewField({ label: 'DB_POOL', type: 'CONCEALED', length: 2 }) ?? '', /short password/);
     assert.equal(reviewField({ label: 'LOG_LEVEL', type: 'STRING', length: 5 }), null);
     assert.equal(reviewField({ label: 'notesPlain', type: 'STRING', length: 1 }), null, 'notes are not exported');
@@ -71,6 +71,7 @@ test('expected: what the label says', () => {
         NEXT_PUBLIC_API_URL: 'plain', NEXT_PUBLIC_SENTRY_DSN: 'plain', STRIPE_PUBLISHABLE_KEY: 'plain', APP_HOST: 'plain', WORKER_REPLICAS: 'plain', LOG_LEVEL: 'plain',
         ACME_EMAIL: 'plain', AUTH_MICROSOFT_ENTRA_ID: 'plain', VERCEL_ORG_ID: 'plain', API_URL: 'plain', CORS_ORIGINS: 'plain', S3_BUCKET: 'plain',
         FEATURE_X: 'unsure', AUTH_TRUST_HOST: 'plain', ASANA_WORKSPACE: 'unsure',
+        BACKUP_BLOB_SAS_URL: 'concealed', AZURE_STORAGE_SAS: 'concealed', SLACK_WEBHOOK_URL: 'concealed', TEAMS_WEBHOOK: 'concealed', CLASS_NAME: 'plain', SASS_PATH: 'plain',
         NEXT_PRIVATE_DEBUG_CACHE: 'plain', PUBLIC_SITE_TOKEN: 'plain', SUPABASE_PUBLIC_ANON_KEY: 'plain', NEXT_PUBLIC_SECRET_SAUCE: 'plain', SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
     };
     for (const [label, want] of Object.entries(cases)) assert.equal(expected(label), want, label);
@@ -88,5 +89,22 @@ test('fix: the type-only assignment for op item edit', () => {
     assert.deepEqual(fix({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }), { assignment: 'APP_HOST[text]', to: 'plain' });
     assert.equal(fix({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }), null, 'a short value needs a new value, not a type');
     assert.equal(fix({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'nothing to fix');
+    assert.equal(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'CONCEALED', length: 180 }), null, 'a SAS URL carries its token: stays a password');
+    assert.deepEqual(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'STRING', length: 180 }), { assignment: 'BACKUP_BLOB_SAS_URL[password]', to: 'concealed' });
     assert.equal(fix({ label: 'api.key', type: 'STRING', length: 40 }), null, 'a dot would be read as a section');
+});
+
+test('autoAccept: only NEXT_PUBLIC_ to plain goes without a question', () => {
+    assert.equal(autoAccept('NEXT_PUBLIC_RECAPTCHA_SITE_KEY', { assignment: 'NEXT_PUBLIC_RECAPTCHA_SITE_KEY[text]', to: 'plain' }), true, 'in the browser bundle anyway');
+    assert.equal(autoAccept('next_public_api_url', { assignment: 'next_public_api_url[text]', to: 'plain' }), true, 'case does not matter');
+    assert.equal(autoAccept('SMTP_PORT', { assignment: 'SMTP_PORT[text]', to: 'plain' }), false, 'config by its label, but the label can be wrong');
+    assert.equal(autoAccept('RESEND_API_KEY', { assignment: 'RESEND_API_KEY[password]', to: 'concealed' }), false, 'to password can drop a build-arg');
+    assert.equal(autoAccept('NEXT_PUBLIC_X', { assignment: 'NEXT_PUBLIC_X[password]', to: 'concealed' }), false);
+});
+
+test('preview: the value in quotes, cut off when long, with its length', () => {
+    assert.equal(preview('https://12345.rest.afas.online/ProfitRestServices'), '"https://12345.rest.afas.online/ProfitRestServices"');
+    assert.equal(preview('a'.repeat(150)), `"${'a'.repeat(100)}…" (150 chars)`);
+    assert.equal(preview('line one\nline two'), '"line one\\nline two"', 'a newline shows as \\n, not as a second line');
+    assert.equal(preview(''), '""');
 });
