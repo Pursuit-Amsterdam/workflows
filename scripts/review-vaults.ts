@@ -232,6 +232,8 @@ if (!quit) {
     }
 }
 console.log(`${quit ? 'Stopped at your request.' : `That was the last item, from ${collected} repo(s).`} ${flagged} field(s) to look at in ${users.size} item(s)${unreadable ? `, ${unreadable} unreadable` : ''}. ${apply ? `${changed} changed, ${failed} failed.` : `${offered} change(s) available; dry run, run again with --apply to be asked per field.`}`);
-// Findings are the point of a review, not a failure; an item that could not
-// be read or changed is.
-process.exit(unreadable || failed ? 1 : 0);
+// Findings are the point of a review, not a failure, and so is an item this
+// account cannot read: the summary names them. Exit 1 only when a change you
+// asked for went wrong (op refused it, the type did not take, or the value
+// changed length); exit 2 is a run that could not start.
+process.exit(failed ? 1 : 0);
