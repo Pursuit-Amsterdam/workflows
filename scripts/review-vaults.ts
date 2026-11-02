@@ -23,10 +23,12 @@
 // Needs the local `gh` login (environments and workflows) and the 1Password
 // CLI signed in as a person with access to the vaults (`brew install
 // 1password-cli`, `op signin`); the service accounts see one vault each.
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createInterface } from 'node:readline/promises';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
+import { channel, limiter } from './lib/pool.ts';
 import { autoAccept, expected, fix, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
@@ -41,43 +43,9 @@ if (apply && !process.stdin.isTTY) {
 }
 const repos = args.filter((a, i) => !a.startsWith('--') && !(envIndex >= 0 && i === envIndex + 1));
 
-// --- which repo uses which item: the environments' OP_VAULT/OP_ITEM, and the workflow inputs
-// `where` is the environment (lowercase) when known, else the workflow file.
-const users = new Map<string, { ref: VaultRef; uses: { repo: string; where: string }[] }>();
-const add = (ref: VaultRef, repo: string, where: string): void => {
-    if (envFilter && where.toLowerCase() !== envFilter) return;
-    const key = `${ref.vault}/${ref.item}`;
-    const u = users.get(key) ?? { ref: { vault: ref.vault, item: ref.item }, uses: [] };
-    if (!u.uses.some(x => x.repo === repo && x.where === where)) u.uses.push({ repo, where });
-    users.set(key, u);
-};
-const all = repos.length ? repos : await orgRepos();
-process.stderr.write(`Collecting the items of ${all.length} repo(s) through GitHub (a few minutes for the whole org)...\n`);
-for (const repo of all) {
-    process.stderr.write(`  ${repo}\n`);
-    const c = await loadConsumer(repo);
-    if (!c || !c.calls) continue;
-    const p = { owner: ORG, repo };
-    const envs = (await get<{ environments: { name: string }[] }>('/repos/{owner}/{repo}/environments', p))?.environments.map(e => e.name) ?? [];
-    for (const environment_name of envs) {
-        const vars = (await get<{ variables: { name: string; value: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/variables', { ...p, environment_name, per_page: 100 }))?.variables ?? [];
-        const vault = vars.find(v => v.name === 'OP_VAULT')?.value;
-        const item = vars.find(v => v.name === 'OP_ITEM')?.value;
-        if (vault && item) add({ vault, item }, repo, environment_name.toLowerCase());
-    }
-    for (const wf of c.workflows) for (const ref of onePasswordRefs(wf)) add(ref, repo, ref.environment ?? (wf.file.startsWith('ci') ? 'ci' : wf.file));
-}
-
-const items = [...users.values()].sort((a, b) => `${a.ref.vault}/${a.ref.item}`.localeCompare(`${b.ref.vault}/${b.ref.item}`));
-console.log(`${items.length} item(s) across ${new Set(items.flatMap(u => u.uses.map(x => x.repo))).size} repo(s)${envFilter ? ` for environment '${envFilter}'` : ''}\n`);
-if (listOnly) {
-    for (const u of items) console.log(`${u.ref.vault}/${u.ref.item}\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}`);
-    process.exit(0);
-}
-
-// --- the fields, through the 1Password CLI; values stay inside this process.
-// Every op call gets a timeout: a locked app or an unlock prompt would
-// otherwise hang here without a word.
+// --- 1Password first, unless only listing: a CLI that is not signed in is
+// known at once, not after the whole collection. Every op call gets a
+// timeout: a locked app or an unlock prompt would otherwise hang without a word.
 const OP_TIMEOUT = 30_000;
 const op = (opArgs: string[]): string => execFileSync('op', [...opArgs, '--no-color'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: OP_TIMEOUT });
 const opError = (err: unknown): string => {
@@ -85,16 +53,90 @@ const opError = (err: unknown): string => {
     if (e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT') return `no answer from op within ${OP_TIMEOUT / 1000}s: is the 1Password app locked or asking to unlock?`;
     return String(e.stderr ?? err).trim().split('\n')[0] ?? 'unknown error';
 };
-try {
-    op(['whoami']);
-} catch (err) {
-    console.error(`1Password CLI not usable (${opError(err)}): \`brew install 1password-cli\`, then \`op signin\` as someone with access to the vaults.`);
-    process.exit(2);
+let visible = new Set<string>();
+if (!listOnly) {
+    try {
+        op(['whoami']);
+    } catch (err) {
+        console.error(`1Password CLI not usable (${opError(err)}): \`brew install 1password-cli\`, then \`op signin\` as someone with access to the vaults.`);
+        process.exit(2);
+    }
+    // The vaults this account can see, once: an item in any other vault is
+    // reported as "no access" without a call per item.
+    visible = new Set((JSON.parse(op(['vault', 'list', '--format', 'json'])) as { name: string }[]).map(v => v.name));
+    process.stderr.write(`Signed in with access to ${visible.size} vault(s).\n`);
 }
-// The vaults this account can see, once: an item in any other vault is
-// reported as "no access" without a call per item.
-const visible = new Set((JSON.parse(op(['vault', 'list', '--format', 'json'])) as { name: string }[]).map(v => v.name));
-process.stderr.write(`Signed in with access to ${visible.size} vault(s).\n\n`);
+
+// Each item is fetched from 1Password as soon as GitHub has named it, 4 at a
+// time, in the background. A read settles into a result, so a failure waits
+// for its turn instead of ending the run as an unhandled rejection.
+const opAsync = promisify(execFile);
+const onePassword = limiter(4);
+type Read = { ok: true; json: string } | { ok: false; err: unknown };
+const reads = new Map<string, Promise<Read>>();
+const fetchItem = (ref: VaultRef): void => {
+    const opArgs = ['item', 'get', ref.item, '--vault', ref.vault, '--format', 'json', '--no-color'];
+    reads.set(`${ref.vault}/${ref.item}`, onePassword(() => opAsync('op', opArgs, { encoding: 'utf8', timeout: OP_TIMEOUT })).then(
+        (r): Read => ({ ok: true, json: r.stdout }),
+        (err: unknown): Read => ({ ok: false, err }),
+    ));
+};
+
+// --- which repo uses which item: the environments' OP_VAULT/OP_ITEM, and the workflow inputs
+// `where` is the environment (lowercase) when known, else the workflow file.
+// A new item goes into `found` at once, and the review below takes it from there.
+const users = new Map<string, { ref: VaultRef; uses: { repo: string; where: string }[]; shown?: number }>();
+const found = channel<string>();
+const add = (ref: VaultRef, repo: string, where: string): void => {
+    if (envFilter && where.toLowerCase() !== envFilter) return;
+    const key = `${ref.vault}/${ref.item}`;
+    let u = users.get(key);
+    if (!u) {
+        u = { ref: { vault: ref.vault, item: ref.item }, uses: [] };
+        users.set(key, u);
+        if (!listOnly) {
+            if (visible.has(ref.vault)) fetchItem(u.ref);
+            found.push(key);
+        }
+    }
+    if (!u.uses.some(x => x.repo === repo && x.where === where)) u.uses.push({ repo, where });
+};
+const all = repos.length ? repos : await orgRepos();
+process.stderr.write(`Collecting the items of ${all.length} repo(s) through GitHub, 8 at a time${listOnly ? '' : ', reviewing each item as it comes in'}...\n\n`);
+// Repos side by side, at most 8: one at a time took minutes for the org, and
+// more at once runs into GitHub's limit on concurrent requests. While
+// reviewing, the progress per repo stays quiet: it would write over a question.
+const github = limiter(8);
+let collected = 0;
+const collecting = Promise.all(all.map(repo => github(async () => {
+    const c = await loadConsumer(repo);
+    if (c && c.calls) {
+        const p = { owner: ORG, repo };
+        const envs = (await get<{ environments: { name: string }[] }>('/repos/{owner}/{repo}/environments', p))?.environments.map(e => e.name) ?? [];
+        await Promise.all(envs.map(async environment_name => {
+            const vars = (await get<{ variables: { name: string; value: string }[] }>('/repos/{owner}/{repo}/environments/{environment_name}/variables', { ...p, environment_name, per_page: 100 }))?.variables ?? [];
+            const vault = vars.find(v => v.name === 'OP_VAULT')?.value;
+            const item = vars.find(v => v.name === 'OP_ITEM')?.value;
+            if (vault && item) add({ vault, item }, repo, environment_name.toLowerCase());
+        }));
+        for (const wf of c.workflows) for (const ref of onePasswordRefs(wf)) add(ref, repo, ref.environment ?? (wf.file.startsWith('ci') ? 'ci' : wf.file));
+    }
+    collected++;
+    if (listOnly) process.stderr.write(`  ${collected}/${all.length} ${repo}\n`);
+}))).then(
+    () => found.close(),
+    (err: unknown) => found.close(err instanceof Error ? err : new Error(String(err))),
+);
+
+const usesOf = (u: { uses: { repo: string; where: string }[] }, from = 0): string => u.uses.slice(from).map(x => `${x.repo} (${x.where})`).join(', ');
+if (listOnly) {
+    await collecting;
+    const items = [...users.values()].sort((a, b) => `${a.ref.vault}/${a.ref.item}`.localeCompare(`${b.ref.vault}/${b.ref.item}`));
+    console.log(`${items.length} item(s) across ${new Set(items.flatMap(u => u.uses.map(x => x.repo))).size} repo(s)${envFilter ? ` for environment '${envFilter}'` : ''}\n`);
+    for (const u of items) console.log(`${u.ref.vault}/${u.ref.item}\n    ${usesOf(u)}`);
+    process.exit(0);
+}
+
 const rl = apply ? createInterface({ input: process.stdin, output: process.stdout }) : null;
 const ask = async (q: string): Promise<string> => (rl ? (await rl.question(q)).trim().toLowerCase() : 'n');
 let flagged = 0;
@@ -103,19 +145,23 @@ let changed = 0;
 let failed = 0;
 let offered = 0;
 let quit = false;
-for (const u of items) {
+for await (const key of found) {
+    const u = users.get(key)!;
+    u.shown = u.uses.length;
     const { vault, item } = u.ref;
     if (!visible.has(vault)) {
         unreadable++;
-        console.log(`${vault}/${item}: no access to this vault for the signed-in account\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}\n`);
+        console.log(`${vault}/${item}: no access to this vault for the signed-in account\n    ${usesOf(u)}\n`);
         continue;
     }
     let fields: { label?: string; type?: string; value?: string }[];
     try {
-        fields = (JSON.parse(op(['item', 'get', item, '--vault', vault, '--format', 'json'])) as { fields?: typeof fields }).fields ?? [];
+        const read = await reads.get(`${vault}/${item}`)!;
+        if (!read.ok) throw read.err;
+        fields = (JSON.parse(read.json) as { fields?: typeof fields }).fields ?? [];
     } catch (err) {
         unreadable++;
-        console.log(`${vault}/${item}: cannot read (${opError(err)})\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}\n`);
+        console.log(`${vault}/${item}: cannot read (${opError(err)})\n    ${usesOf(u)}\n`);
         continue;
     }
     const rows = fields
@@ -124,7 +170,7 @@ for (const u of items) {
         .map(f => ({ ...f, note: reviewField(f) }));
     const n = rows.filter(r => r.note).length;
     flagged += n;
-    console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${u.uses.map(x => `${x.repo} (${x.where})`).join(', ')}`);
+    console.log(`${vault}/${item}: ${rows.length} field(s), ${n} to look at\n    ${usesOf(u)}`);
     const width = Math.max(12, ...rows.map(r => r.label.length));
     // `!` a problem, with what to do; `?` a label the rules cannot place (tell the rules in lib/vaults.ts).
     for (const r of rows) console.log(`    ${r.note ? '!' : expected(r.label) === 'unsure' ? '?' : ' '} ${r.label.padEnd(width)}  ${state(r).padEnd(9)} ${String(r.length).padStart(4)} chars${r.note ? `  ${r.note}` : ''}`);
@@ -170,9 +216,19 @@ for (const u of items) {
         }
     }
     console.log();
+    if (quit) break;
 }
 rl?.close();
-console.log(`${quit ? 'Stopped at your request.' : 'That was the last item.'} ${flagged} field(s) to look at in ${items.length} item(s)${unreadable ? `, ${unreadable} unreadable` : ''}. ${apply ? `${changed} changed, ${failed} failed.` : `${offered} change(s) available; dry run, run again with --apply to be asked per field.`}`);
+// Repos that named an item after it was reviewed: same item, more users.
+if (!quit) {
+    const later = [...users.values()].filter(u => u.shown !== undefined && u.uses.length > u.shown);
+    if (later.length) {
+        console.log('Also used by (found after the item was shown):');
+        for (const u of later) console.log(`    ${u.ref.vault}/${u.ref.item}: ${usesOf(u, u.shown)}`);
+        console.log();
+    }
+}
+console.log(`${quit ? 'Stopped at your request.' : `That was the last item, from ${collected} repo(s).`} ${flagged} field(s) to look at in ${users.size} item(s)${unreadable ? `, ${unreadable} unreadable` : ''}. ${apply ? `${changed} changed, ${failed} failed.` : `${offered} change(s) available; dry run, run again with --apply to be asked per field.`}`);
 // Findings are the point of a review, not a failure; an item that could not
 // be read or changed is.
 process.exit(unreadable || failed ? 1 : 0);
