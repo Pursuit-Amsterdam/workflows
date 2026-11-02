@@ -32,7 +32,7 @@
 - **Plak 6** (Task 24–29): het audit-, inricht- en migratiescript, de README op `v2`, v1 weg van `v2`, de default branch op `v2`, en de blueprint-familie (groep C).
 - **Pakketten, release-flow** (Task 22c, 22 oktober 2026): `release-draft.yml` staat in alle negen pakketrepo's (banner-kit en de acht andere); een senior publiceert de draft die na een versiebump klaarstaat. De vijf banner-repo's volgen in Task 22d: PR's met review, Pages bij een release, en eerst banner-kit 0.10.0 met een preview-map zonder de interne notities.
 - **Wacht op de volgende release** (geen werk, alleen controleren): de eerste productiedeploy via `v2` van integrators-website-2025 en tms-test, en de eerste publicatie via `cd-packages` van elk pakket.
-- **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm).
+- **Nog op v1:** translations-management-dashboard en de andere Vercel-sites, web-essentials-py (Python-pakket; cd-packages is alleen npm; plan in Task 22e).
 
 **Bijgesteld onderweg** (zie de taken en [beslissingen](beslissingen.md#decided)):
 
@@ -525,7 +525,7 @@ De andere pakketrepo's (20 oktober 2026):
 - [x] web-essentials-cli (#5): zoals de configpakketten, met `lint typecheck build` en `build: build`. Privépakketten met de eigen `GITHUB_TOKEN` (CI krijgt `packages: read`), zoals de oude release. `pnpm lint` faalde ook lokaal ("eslint: command not found"): `eslint` en `eslint-plugin-simple-import-sort` toegevoegd als devDependency.
 - [x] web-essentials-js (#8, pnpm 11): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/web-essentials`. CI faalde eerst met een 401 op de privépakketten: de `CUSTOM_GITHUB_TOKEN` van de repo (gezet op 7 mei) was verlopen. Lokaal installeerde pnpm 11 met dezelfde `.npmrc` en een geldige token zonder problemen. Met een nieuwe PAT groen; gemerged, CI op `main` groen, rulesets op `main`. pnpm 11 werkt dus met v2.
 - [x] text-extract (#8 naar `develop`, #9 naar `main`): `lint typecheck test build` via turbo; een release publiceert `@pursuit-amsterdam/text-extract`. De deploy van de demo-app is weg: die draaide nooit (geen Vercel-project). De default branch is nu `main` (was `develop`). `main` had "include administrators" aan, waardoor ook een admin niet zonder review kon mergen; vervangen door de rulesets (up-to-date uit op `main`, aan op `develop`).
-- Later: web-essentials-py (Python, wheel bij de release; cd-packages is alleen npm). translations-management-js staat bij Task 22 stap 3.
+- Later: web-essentials-py (Python; cd-packages is alleen npm). Plan in [Task 22e](#task-22e-web-essentials-py-op-v2-python-pakket). translations-management-js staat bij Task 22 stap 3.
 
 ### Task 22c: `release-draft.yml` en banner-kit op `v2`
 
@@ -583,6 +583,146 @@ De andere pakketrepo's (20 oktober 2026):
   - [ ] `setup-consumer --apply` (Bas), `branch main` van `github-pages` af, eerste release door een senior. `setup-consumer --apply` gedaan (Bas, 27 oktober 2026): rulesets op `main`, tag-ruleset, `github-pages` alleen `tag v*`; audit 0 bevindingen. Eerste release staat nog open.
 
 - [x] Stap 4: de audit op de vijf repo's; de tabel van de standaardinrichting hoeft niet aangepast: Pages bij een release is het patroon "achter de gate" uit [cd.md](naslag/cd.md). Gedaan (27 oktober 2026): de vier banner-kit-repo's alleen de Dependabot-secret `CUSTOM_GITHUB_TOKEN` (org-niveau, handwerk); snappcar had nog geen `setup-consumer`, inmiddels gedaan (zie stap 3).
+
+### Task 22e: web-essentials-py op `v2` (Python-pakket)
+
+**Aanleiding (2 november 2026):** web-essentials-py gebruikt de workflows-repo niet (stand in de [voortgang](voortgang.md#progress), punt 7).
+- Eigen `release-package.yml`: bij een release komen wheel en sdist als bijlage bij de release.
+- De enige afnemer, sluyter-logistics-automations, haalt het pakket via een uv git-source zonder tag → altijd de laatste `main`. Een release heeft dus geen effect.
+- `cd-packages` publiceert alleen npm.
+
+**Wat GitHub niet kan** (onderzocht op 2 november 2026):
+- **GitHub Packages heeft geen registry voor Python.** Het stond op de roadmap ([github/roadmap#94](https://github.com/github/roadmap/issues/94)), maar werd op 7 juni 2023 gesloten als "not planned". `pypi.pkg.github.com` geeft 404. Handleidingen die `twine` naar GitHub Packages laten uploaden, werken dus niet.
+- **Een bijlage bij een private release** is niet te installeren. De download-URL met een token geeft 404 (getest met basic auth en met bearer). Alleen de API levert het bestand, met een `Accept`-header die uv en pip niet meesturen.
+- **Een Actions-artifact** verloopt na hooguit 90 dagen en is ook niet te installeren.
+- **GitHub Pages** is publiek; een statische index daarop lekt het pakket.
+
+**Besluit: open.** Drie opties, om te bespreken.
+
+#### Optie A: de tag is de release (git-source)
+
+Geen publicatie: een afnemer pint een tag, en uv bouwt het pakket uit de bron.
+
+```toml
+[tool.uv.sources]
+web-essentials = { git = "https://github.com/Pursuit-Amsterdam/web-essentials-py.git", tag = "v1.1.0" }
+```
+
+- Voor: geen extra dienst; past in de bestaande release-flow (een senior publiceert de draft, Task 22c); v2 hoeft alleen de versie uit `pyproject.toml` te lezen.
+- Tegen:
+  - uv bouwt het pakket bij elke install uit de bron (wel gecachet per commit);
+  - een afnemer pint één tag, zonder bereik als `>=1.1,<2`;
+  - ophogen gaat met de hand (of Dependabot een git-tag in uv bijwerkt, is niet getest).
+- **Token:** de `GITHUB_TOKEN` van een afnemer kan geen andere private repo clonen. Nodig is een PAT (die verloopt; zie `CUSTOM_GITHUB_TOKEN`) of een token van een GitHub App. De App die voor de audit is aangevraagd (voortgang, punt 4), zou dat kunnen. In elke afnemer twee keer: in CI en in de Docker-build. sluyter doet dat nu met een secret `GITHUB_TOKEN` en `git config url.insteadOf`.
+
+#### Optie B: de wheel in een image op GHCR
+
+GHCR is het enige deel van GitHub Packages dat een Python-pakket kan dragen: als bestand in een mini-image.
+
+```dockerfile
+# web-essentials-py: ghcr.io/pursuit-amsterdam/web-essentials-py:<versie>
+FROM ghcr.io/astral-sh/uv:<vaste versie> AS build
+WORKDIR /src
+COPY . .
+RUN uv build --wheel
+FROM scratch
+COPY --from=build /src/dist/ /wheels/
+```
+
+```dockerfile
+# afnemer
+COPY --from=ghcr.io/pursuit-amsterdam/web-essentials-py:1.1.0 /wheels /wheels
+```
+
+- Voor:
+  - een kant-en-klare wheel, gebouwd en gepubliceerd na de gate;
+  - geen extra dienst;
+  - publiceren kan met de bestaande actions `setup-version` en `run-docker-build-push` (zoals de `release.yml` van sluyter); de image is een gewone Docker-build.
+- Tegen:
+  - uv ziet GHCR niet als index. De afnemer koppelt het pakket aan een bestand (`{ path = "wheels/web_essentials-1.1.0-py3-none-any.whl" }`), dus de wheel moet er al zijn bij `uv lock`, in CI en in de Docker-build;
+  - lokaal vraagt dat eerst een script dat de wheel uit de image haalt (`docker create` + `docker cp`);
+  - geen versiebereiken en geen Dependabot;
+  - het past alleen netjes bij afnemers die zelf een image bouwen, zoals sluyter.
+- **Token:** de eigen `GITHUB_TOKEN` met `packages: read` volstaat, zoals bij de npm-pakketten. Voorwaarde: de pakketbeheerder geeft elke afnemende repo leestoegang op de image ("Manage Actions access"). Lokaal: `docker login ghcr.io` met `gh auth token` (scope `read:packages`).
+
+#### Optie C: een private index buiten GitHub
+
+Een registry die werkt als PyPI. Kandidaten: Azure Artifacts (vraagt een Azure DevOps-organisatie; Azure gebruiken we al) of Gemfury. AWS CodeArtifact en Google Artifact Registry vallen af: hun tokens verlopen na uren. Zelf hosten (`pypiserver`) valt af: een host beheren hoort niet bij v2.
+
+```toml
+[[tool.uv.index]]
+name = "pursuit"
+url = "https://<index>/simple/"
+explicit = true
+
+[tool.uv.sources]
+web-essentials = { index = "pursuit" }
+```
+
+- Voor: werkt zoals PyPI. Kant-en-klare wheels, versiebereiken, Dependabot kan ophogen, en lokaal en in CI hetzelfde.
+- Tegen:
+  - een extra dienst, met accounts en kosten;
+  - v2 krijgt een publicatiestap voor Python (`uv build` + `uv publish` na de gate), in `cd-packages` of in een nieuwe workflow.
+- **Token:** het token van de dienst. Het staat in CI van web-essentials-py (schrijven), en in CI en Docker-build van elke afnemer (lezen), via `UV_INDEX_PURSUIT_USERNAME` en `_PASSWORD`. Ontwikkelaars hebben lokaal ook een token nodig. Een PAT van Azure DevOps verloopt na hooguit een jaar.
+
+#### Naast elkaar
+
+| | A: git-tag | B: GHCR | C: private index |
+|---|---|---|---|
+| Kant-en-klare wheel | nee, bouwen uit bron | ja | ja |
+| Versiebereik en Dependabot | nee | nee | ja |
+| Token voor de afnemer | PAT of App-token | eigen `GITHUB_TOKEN` (`packages: read`) | token van de dienst |
+| Extra dienst | nee | nee | ja |
+| Lokaal ontwikkelen | gewoon (eigen git-login) | script om de wheel op te halen | gewoon (token instellen) |
+| Werk in v2 | `release-draft` | `release-draft` + publiceren naar GHCR | `release-draft` + `uv publish` |
+| Past bij | weinig afnemers, snel klaar | afnemers die een image bouwen | meer afnemers, ook zonder Docker |
+
+**Let op, bij elke optie:** de naam `web-essentials` is vrij op PyPI (2 november 2026: 404). Wie de naam claimt, krijgt zijn pakket geïnstalleerd bij iedereen die `web-essentials` installeert zonder een bron in te stellen. Elke afnemer zet daarom `[tool.uv.sources]`, en een index altijd met `explicit = true`.
+
+#### Gevonden
+
+`setup-consumer` zet de tag-ruleset alleen als een repo `cd-gate` aanroept of een `production`-environment heeft (`releases` in `scripts/lib/consumer.ts`). web-essentials-py heeft nu geen van beide. Bij optie A kan dus iedereen met push een `v*`-tag maken, en daarmee een release voor de afnemers. Bij B en C loopt de release via de gate, en dan klopt het vanzelf.
+
+#### Interface (`release-draft.yml`)
+
+Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyproject.toml`. Het bestand staat in `package-dir`.
+- `pyproject.toml` → de workflow leest `[project].version` met `tomllib` (Python 3.12 op de runner).
+- Een dynamische versie (geen `version` in `[project]`) faalt op de bestaande controle "no semver version".
+- De versie moet semver zijn, zoals nu. Een prerelease als `1.2.0-rc.1` is ook geldig onder PEP 440; uv normaliseert hem naar `1.2.0rc1`.
+- Verder blijft alles gelijk: tag `v<version>`, draft, notities.
+
+#### Stappen bij elke optie
+
+- [ ] Stap 0: kiezen tussen A, B en C (Bas, met de seniors).
+- [ ] Stap 1: tests eerst, in `tests/release-draft.test.ts`:
+  - `version-file: pyproject.toml` → draft `v<version>`;
+  - geen `[project].version` → geweigerd;
+  - een onbekende `version-file` → geweigerd;
+  - zonder de input → `package.json`, zoals nu.
+
+  Daarna `release-draft.yml` en de README.
+- [ ] Stap 2: `releases` in `scripts/lib/consumer.ts` wordt ook waar bij een aanroep van `release-draft.yml@`, zodat elke repo die via de draft releaset de tag-ruleset krijgt. De audit doet hetzelfde. Test eerst.
+- [ ] Stap 3: commit `feat(release-draft): read the version from pyproject.toml`, PR naar `v2`.
+- [ ] Stap 4: web-essentials-py naar `v2`, één PR `feature/workflows-v2` → `main` (repo zonder `develop`):
+  - `package.json` met `packageManager` en het script `build` (`uv build`), een lege `pnpm-lock.yaml`; `.python-version` en `uv.lock` staan er al. `lint` (`uv run ruff check .`) komt er pas bij als ruff erbij komt; de repo heeft nu geen ruff-config en geen tests.
+  - `ci.yml` → `ci.yml@v2` met `checks: build`; `check-pr.yml`, `CODEOWNERS`, `dependabot.yml` (uv en github-actions).
+  - `release.yml` → `release-draft.yml@v2` met `version-file: pyproject.toml`; `release-package.yml` weg.
+  - Na de merge: `setup-consumer --apply` (rulesets op `main`, tag-ruleset); audit.
+
+#### Stappen per optie
+
+- **A:**
+  - [ ] Eerste release via de draft: versiebump in `pyproject.toml` → draft → een senior publiceert → de tag bestaat.
+  - [ ] sluyter pint die tag (met Sam, hoort bij Task 29 stap 4): `tag = "v<versie>"` in `[tool.uv.sources]`, daarna `uv lock`. De Docker-build blijft zoals hij is.
+- **B:**
+  - [ ] `Dockerfile` in web-essentials-py (zoals hierboven); `ci.yml` bouwt hem mee via `ci-images` of een `build`-check.
+  - [ ] `cd.yml`: gate → `setup-version` + `run-docker-build-push` naar `ghcr.io/pursuit-amsterdam/web-essentials-py:<versie>`. Eerst bewijzen in de voorbeeldrepo.
+  - [ ] **Handwerk:** de pakketbeheerder geeft sluyter leestoegang op de image ("Manage Actions access").
+  - [ ] sluyter (met Sam): `COPY --from=` in de `Dockerfile`, de `path`-source in `pyproject.toml`, een script `scripts/fetch-wheels.sh` voor lokaal; de PAT en `insteadOf` weg.
+- **C:**
+  - [ ] **Handwerk:** de dienst kiezen en inrichten; een schrijftoken voor web-essentials-py en een leestoken voor afnemers, in 1Password.
+  - [ ] Publicatiestap: `uv build` + `uv publish` na de gate. Een eigen workflow `cd-python.yml`, of `cd-packages` met een Python-pad; eerst bewijzen in de voorbeeldrepo.
+  - [ ] sluyter (met Sam): de index in `pyproject.toml` met `explicit = true`, het leestoken in CI en de Docker-build; de PAT en `insteadOf` weg.
 
 ### Task 23: `cd-pages.yml`
 
