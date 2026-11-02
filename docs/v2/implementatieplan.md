@@ -695,6 +695,8 @@ COPY --from=ghcr.io/pursuit-amsterdam/web-essentials-py:1.1.0 /wheels /wheels
 
 #### Optie C: een private index buiten GitHub
 
+Uitgewerkt voor Azure Artifacts in een apart [voorstel](voorstel-azure-artifacts.md).
+
 Een registry die werkt als PyPI. Kandidaten: Azure Artifacts (vraagt een Azure DevOps-organisatie; Azure gebruiken we al) of Gemfury. AWS CodeArtifact en Google Artifact Registry vallen af: hun tokens verlopen na uren. Zelf hosten (`pypiserver`) valt af: een host beheren hoort niet bij v2.
 
 ```toml
