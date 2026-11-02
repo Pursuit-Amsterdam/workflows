@@ -2,6 +2,7 @@
 // Pursuit-Amsterdam/workflows. The audit and setup-consumer expect different
 // things of a repo depending on that.
 import { ORG, get, readFile } from './github.ts';
+import { gateBranchTargets } from './gate.ts';
 import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
@@ -38,36 +39,6 @@ export interface Consumer {
 
 export async function branchExists(repo: string, branch: string): Promise<boolean> {
     return (await get(`/repos/{owner}/{repo}/branches/{branch}`, { owner: ORG, repo, branch })) !== null;
-}
-
-// cd-gate's default for branch-targets: "develop=staging acceptance=acceptance".
-const GATE_DEFAULT_TARGETS = ['acceptance', 'staging'];
-
-/**
- * The environments cd-gate deploys a branch to, from `branch-targets` on every
- * call, sorted; null when no workflow calls cd-gate. No input (or an
- * expression, which cannot be read here) is the gate's default; "" is
- * production only.
- */
-export function gateBranchTargets(workflows: Workflow[]): string[] | null {
-    let gated = false;
-    const targets = new Set<string>();
-    for (const wf of workflows) {
-        for (const [, job] of jobs(wf)) {
-            if (typeof job.uses !== 'string' || !job.uses.includes('/workflows/.github/workflows/cd-gate.yml@')) continue;
-            gated = true;
-            const value = (job.with as Record<string, unknown> | undefined)?.['branch-targets'];
-            if (typeof value !== 'string' || value.includes('${{')) {
-                for (const t of GATE_DEFAULT_TARGETS) targets.add(t);
-                continue;
-            }
-            for (const pair of value.split(/\s+/).filter(Boolean)) {
-                const env = pair.split('=')[1];
-                if (env) targets.add(env);
-            }
-        }
-    }
-    return gated ? [...targets].sort() : null;
 }
 
 /** The workflows on `ref` (default: the default branch); null when the repo cannot be read. */

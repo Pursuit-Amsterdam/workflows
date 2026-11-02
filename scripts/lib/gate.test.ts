@@ -1,8 +1,8 @@
-// The pure part of the consumer model: which environments cd-gate deploys a
-// branch to. Run: node --test scripts/lib/
+// Which environments cd-gate deploys a branch to, from branch-targets.
+// Run: node --test scripts/lib/
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { gateBranchTargets } from './consumer.ts';
+import { gateBranchTargets } from './gate.ts';
 import { parseWorkflow } from './workflow.ts';
 
 const W = 'Pursuit-Amsterdam/workflows/.github/workflows';
