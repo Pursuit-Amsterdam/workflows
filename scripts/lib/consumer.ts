@@ -2,6 +2,7 @@
 // Pursuit-Amsterdam/workflows. The audit and setup-consumer expect different
 // things of a repo depending on that.
 import { ORG, get, readFile } from './github.ts';
+import { gateBranchTargets } from './gate.ts';
 import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
@@ -30,6 +31,10 @@ export interface Consumer {
     pagesOnRelease: boolean;
     hasDevelop: boolean;
     hasAcceptance: boolean;
+    /** Deploys develop to staging: cd-gate's branch-targets name it, or a v1 deploy on a repo with develop. */
+    staging: boolean;
+    /** Deploys acceptance: cd-gate's branch-targets name it and the branch exists. */
+    acceptance: boolean;
 }
 
 export async function branchExists(repo: string, branch: string): Promise<boolean> {
@@ -58,6 +63,11 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         }
     }
     const all = workflows.map(w => w.text).join('\n');
+    const deploys = /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all);
+    const hasDevelop = await branchExists(repo, 'develop');
+    const hasAcceptance = await branchExists(repo, 'acceptance');
+    // Without cd-gate (v1) staging followed develop, and acceptance its branch.
+    const targets = gateBranchTargets(workflows);
     return {
         repo,
         defaultBranch: meta.default_branch,
@@ -66,7 +76,7 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         all,
         calls: all.includes(`${ORG}/workflows/`),
         hasCi: CI_CALL.test(all),
-        deploys: /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all),
+        deploys,
         publishes: all.includes('cd-packages.yml@'),
         vercel: /cd-vercel\.yml@|web-cd\.yml@/.test(all),
         swarm: /cd-swarm\.yml@|vm-cd\.yml@/.test(all),
@@ -74,8 +84,10 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         pages: /(cd-pages|storybook-cd)\.yml@/.test(all),
         releases: all.includes('cd-gate.yml@'),
         pagesOnRelease: workflows.some(wf => wf.text.includes('cd-pages.yml@') && 'release' in triggers(wf)),
-        hasDevelop: await branchExists(repo, 'develop'),
-        hasAcceptance: await branchExists(repo, 'acceptance'),
+        hasDevelop,
+        hasAcceptance,
+        staging: deploys && hasDevelop && (targets === null || targets.includes('staging')),
+        acceptance: deploys && hasDevelop && hasAcceptance && (targets === null || targets.includes('acceptance')),
     };
 }
 

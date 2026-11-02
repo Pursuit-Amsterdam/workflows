@@ -26,26 +26,25 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app bouwt de workspace via `packages/demo-app/vercel.json` |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (24)
+## Op v2, wacht op de eerste release (25)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
 | Groep | Repo's |
 | --- | --- |
-| Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
+| Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website, web-essentials-dashboard (alleen productie; migraties via de Supabase-integratie, edge functions en secrets met de hand) |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
 | Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (8)
+## Nog v1 (7)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
 | `migrate-consumer` kan het | provincie-utrecht-demo | routine; de checklist van het script (geen tests, een build die 1Password nodig heeft) |
 | Eigen handwerk | big-chef-webapp (eigen `api-ci`) | een besluit |
-| Edge functions | web-essentials-dashboard | `cd-supabase` met een organization-token (Sam) |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
 
 ## Wat v2 nog mist
@@ -82,6 +81,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 2 november 2026 | web-essentials-dashboard naar `v2` (#41 `main`, #42 `develop`), alleen productie (`branch-targets: ""`). CI `lint typecheck test` zonder secrets, 42 tests; geen `build` (`/login` vraagt de Supabase-waarden), geen 1Password meer in CI (v1 laadde de productiekluis). CD: release → gate → `cd-vercel` met `health-path: /api/health`. Supabase blijft buiten CD: migraties via de integratie (020, de fix voor de rol bij registreren, stond al live), edge functions en secrets met de hand. CI op beide PR's en op `main` en `develop` groen. Gevonden: `setup-consumer` en de audit wilden een `staging`-environment voor elke repo met `develop`, ook met `branch-targets: ""`; ze lezen nu `branch-targets` van `cd-gate`. Wacht op `setup-consumer --apply` en de release. |
 | 2 november 2026 | Supabase-config onderzocht na het lek in web-essentials-dashboard (registreren stond aan in productie; Asana-taak bij Sam). Geen route zet `config.toml` nu op het gehoste project: de integratie doet dat alleen met een `[remotes]`-blok, en `cd-supabase` kent geen `config push`. `config.toml` bevat lokale waarden (`site_url` op `127.0.0.1`, bevestigingen uit, `enable_signup = true`), dus pushen kan pas met blokken per omgeving. Gepland in Task 19b. |
 | 2 november 2026 | gp-map-webapp: `main` op de v2-CI (#205), zonder features van `develop`: alleen `.github/` en de testfix `6b6e42a` (`postgres://`-`DATABASE_URL`). Geen turbo op `main`: v2 draait dan de root-scripts, en die dekken frontend en backend al. `web-ci`, `backend-ci`, `image-ci` en `storybook-cd` weg, `check-pr` op `@v2`, de brug in `cd.yml` weg (een release wacht weer op "Continuous Integration"), `dependabot.yml` leest `secrets.CUSTOM_GITHUB_TOKEN`. Lokaal vooraf groen, ook prettier op de frontend (v1 controleerde dat niet); CI op de PR groen (frontend 362, backend 765 tests, drie images), de eerste push-run op `main` ook (41446422157). `setup-consumer --apply`: rulesets op `main` en `develop` met `run-check-pr`, `run-ci` en `run-ci-images`, de klassieke protectie weg, het repo-secret `CUSTOM_GITHUB_TOKEN` weg. Token: gp-map heeft een eigen token (`repo` + `read:packages`) op `integration`, `staging` en `production`, want de backend haalt web-essentials-py via git en het gedeelde token heeft alleen `packages:read` (403 op `develop`, hersteld om 10:42). Los hiervan: de staging-deploy van 10:45 (run 41431311104) convergeerde niet binnen 180 s (worker 2/3, api-taken unhealthy); niet de token, nog uitzoeken op de staging-VM. |
 | 2 november 2026 | Package-token gelijkgetrokken (Asana: "Uniformeren Github Actions token over repo's"). Was: een eigen PAT per repo, verschillende datums, een deel verlopen; geen enkele Dependabot-secret, dus elke Dependabot-run faalde op "Secret Not Found: CUSTOM_GITHUB_TOKEN" (multifill, tellr-website, city en meer). Nu: één klassieke PAT met `packages:read` van het team-account, in 1Password. In 27 v2-repo's gezet: op `integration` (24), `staging` (16) en `production` (20), als Dependabot-secret (22), en de oude repo-secret weg (25). Niet op org-niveau ([besloten](beslissingen.md#decided)). v1-repo's niet aangeraakt. Ook op `github-pages` in tellr-webapp, tellr-website en de vier banner-kit-repo's: daar deployt `cd-pages`. Nog open: het bewijs (zie hierboven). In de workflows-repo: `ci-images` draait in `integration`, zodat hij de environment-secret ziet; `setup-consumer` en de audit kijken naar de environments en de Dependabot-secret, en `setup-consumer` haalt de repo-secret weg zodra de environments hem hebben. |
