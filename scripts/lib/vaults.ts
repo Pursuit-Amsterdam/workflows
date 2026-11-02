@@ -108,3 +108,14 @@ export function fix(f: Field): Fix | null {
 export function autoAccept(label: string, f: Fix): boolean {
     return f.to === 'plain' && /^NEXT_PUBLIC_/i.test(label);
 }
+
+/**
+ * A value as the --apply question shows it before a password field may become
+ * text: in quotes, with a newline as \n, and cut off after `max` characters.
+ * Only for that question: it is the moment to judge whether the value is
+ * config, and after a yes it is plain in the logs anyway.
+ */
+export function preview(value: string, max = 100): string {
+    const quoted = (v: string): string => JSON.stringify(v).slice(1, -1);
+    return value.length > max ? `"${quoted(value.slice(0, max))}…" (${value.length} chars)` : `"${quoted(value)}"`;
+}

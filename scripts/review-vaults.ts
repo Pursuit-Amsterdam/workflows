@@ -1,8 +1,10 @@
 // Which 1Password items the consumer repos deploy with, and the state of
 // every field in them: concealed (a password field) or plain. That state
 // decides what setup-onepassword masks once PR #23 (main) is on v2, and what
-// may go into an image as a build-arg. Read-only; prints labels, states and
-// value lengths, never a value. Per field also what the label suggests
+// may go into an image as a build-arg. Prints labels, states and value
+// lengths, never a value, with one exception: --apply shows the value when it
+// asks whether a password field may become text, since that is when you judge
+// whether it is config (and after a yes it is plain anyway). Per field also what the label suggests
 // (concealed, plain or unsure), and a note when the two differ, when a
 // NEXT_PUBLIC_* value is a password (then it is not a build-arg), or when a
 // value is short (masking a short value damages every log line with it).
@@ -29,7 +31,7 @@ import { createInterface } from 'node:readline/promises';
 import { loadConsumer } from './lib/consumer.ts';
 import { ORG, get, orgRepos } from './lib/github.ts';
 import { channel, limiter } from './lib/pool.ts';
-import { autoAccept, expected, fix, onePasswordRefs, reviewField, state, type VaultRef } from './lib/vaults.ts';
+import { autoAccept, expected, fix, onePasswordRefs, preview, reviewField, state, type VaultRef } from './lib/vaults.ts';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const listOnly = args.includes('--list');
@@ -166,7 +168,7 @@ for await (const key of found) {
     }
     const rows = fields
         .filter(f => f.label && f.label !== 'notesPlain')
-        .map(f => ({ label: f.label!, type: f.type ?? '', length: f.value?.length ?? 0 }))
+        .map(f => ({ label: f.label!, type: f.type ?? '', length: f.value?.length ?? 0, value: f.value ?? '' }))
         .map(f => ({ ...f, note: reviewField(f) }));
     const n = rows.filter(r => r.note).length;
     flagged += n;
@@ -195,6 +197,7 @@ for await (const key of found) {
         }
         if (auto) console.log(`    → set ${r.label} to ${to} (NEXT_PUBLIC_ is public)`);
         else {
+            if (f.to === 'plain') console.log(`      value: ${preview(r.value)}`);
             const answer = await ask(`    → set ${r.label} to ${to}? [y/N/q] `);
             if (answer === 'q') { quit = true; break; }
             if (answer !== 'y' && answer !== 'yes') continue;

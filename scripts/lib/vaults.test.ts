@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseWorkflow } from './workflow.ts';
-import { autoAccept, expected, fix, onePasswordRefs, reviewField, state } from './vaults.ts';
+import { autoAccept, expected, fix, onePasswordRefs, preview, reviewField, state } from './vaults.ts';
 
 test('onePasswordRefs: v1 inputs, v2 inputs, and vars references are skipped', () => {
     const v1 = parseWorkflow('cd.yml', `on: push
@@ -100,4 +100,11 @@ test('autoAccept: only NEXT_PUBLIC_ to plain goes without a question', () => {
     assert.equal(autoAccept('SMTP_PORT', { assignment: 'SMTP_PORT[text]', to: 'plain' }), false, 'config by its label, but the label can be wrong');
     assert.equal(autoAccept('RESEND_API_KEY', { assignment: 'RESEND_API_KEY[password]', to: 'concealed' }), false, 'to password can drop a build-arg');
     assert.equal(autoAccept('NEXT_PUBLIC_X', { assignment: 'NEXT_PUBLIC_X[password]', to: 'concealed' }), false);
+});
+
+test('preview: the value in quotes, cut off when long, with its length', () => {
+    assert.equal(preview('https://12345.rest.afas.online/ProfitRestServices'), '"https://12345.rest.afas.online/ProfitRestServices"');
+    assert.equal(preview('a'.repeat(150)), `"${'a'.repeat(100)}…" (150 chars)`);
+    assert.equal(preview('line one\nline two'), '"line one\\nline two"', 'a newline shows as \\n, not as a second line');
+    assert.equal(preview(''), '""');
 });
