@@ -6,6 +6,8 @@ name: "CI images"
 # green). A closing job `pipeline` covers both, so a caller job `run-ci` gives one
 # required check: `run-ci / pipeline`.
 # No 1Password here: this runs on pull_request and must not need real secrets.
+# The jobs that install private packages run in `integration`, as ci.yml does:
+# CUSTOM_GITHUB_TOKEN is an environment secret there.
 
 on:
   workflow_call:
@@ -60,6 +62,7 @@ permissions:
 jobs:
   stack:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: "integration"
     outputs:
       images-count: ${{ steps.count.outputs.n }}
     steps:
@@ -85,7 +88,7 @@ jobs:
           # Without this, a missing secret becomes an empty build secret and the
           # image build fails later on the private dependencies.
           if [ "$USE_CUSTOM_TOKEN" = true ] && [ "$HAS_CUSTOM_TOKEN" != true ]; then
-            echo "::error::use-custom-token is true but CUSTOM_GITHUB_TOKEN is not available to this workflow: set it on the repo (or the org, for this repo) and pass it with 'secrets: inherit'."; exit 1
+            echo "::error::use-custom-token is true but CUSTOM_GITHUB_TOKEN is not available to this workflow: set it on the environment 'integration' and pass it with 'secrets: inherit'."; exit 1
           fi
           echo "n=$n" >> "$GITHUB_OUTPUT"
 
@@ -111,6 +114,7 @@ jobs:
     # An empty matrix is a hard error at workflow start, not a skip.
     if: needs.stack.outputs.images-count != '0'
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    environment: "integration"
     strategy:
       fail-fast: false
       matrix:

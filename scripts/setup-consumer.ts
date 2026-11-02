@@ -10,10 +10,13 @@
 // (changes), todo (for an admin: values this script cannot know) and note
 // (left alone, have a look). A second run makes no changes. It sets no
 // values: GitHub refuses an empty variable, so missing variables and secrets
-// are todos. CODEOWNERS and the workflow files are migrate-consumer's job.
+// are todos. It does remove an old repo-level CUSTOM_GITHUB_TOKEN, once every
+// environment that needs the token has it. CODEOWNERS and the workflow files
+// are migrate-consumer's job.
 // Needs a token with repo admin: the local `gh` login, or GH_TOKEN.
 import { loadConsumer, producedChecks, usesOnePassword, type Consumer } from './lib/consumer.ts';
-import { ORG, get, list, octokit } from './lib/github.ts';
+import { ORG, get, list, octokit, readFile } from './lib/github.ts';
+import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
 const ADMIN_ROLE = 5; // RepositoryRole admin: the senior-developers team
@@ -260,7 +263,7 @@ async function names(route: string, params: Record<string, unknown>, key: 'varia
     return ((await get<Record<string, { name: string }[]>>(route, { ...params, per_page: 100 }))?.[key] ?? []).map(x => x.name);
 }
 
-async function todos(c: Consumer, envs: Map<string, EnvRef>): Promise<void> {
+async function todos(c: Consumer, envs: Map<string, EnvRef>, existingEnvs: Environment[]): Promise<void> {
     const { repo } = c;
     const p = { owner: ORG, repo };
     const repoSecrets = await names('/repos/{owner}/{repo}/actions/secrets', p, 'secrets');
@@ -288,8 +291,35 @@ async function todos(c: Consumer, envs: Map<string, EnvRef>): Promise<void> {
         const missing = ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID'].filter(s => !repoSecrets.includes(s));
         if (missing.length) add({ repo, kind: 'todo', message: `set repo secrets ${missing.join(', ')} (or at org level, invisible here)` });
     }
-    if (c.usesCustomToken && !repoSecrets.includes('CUSTOM_GITHUB_TOKEN')) {
-        add({ repo, kind: 'todo', message: 'set repo secret CUSTOM_GITHUB_TOKEN: CI uses use-custom-token' });
+    await packageToken(c, envs, existingEnvs, repoSecrets);
+}
+
+// The shared package PAT: on each environment whose jobs read it (lib/token.ts),
+// and as a Dependabot secret. The value is in 1Password; see the standard.
+async function packageToken(c: Consumer, envs: Map<string, EnvRef>, existingEnvs: Environment[], repoSecrets: string[]): Promise<void> {
+    const { repo } = c;
+    const p = { owner: ORG, repo };
+    let missing = 0;
+    for (const e of tokenEnvironments(c.workflows)) {
+        // github-pages is GitHub's own; the Pages todo above covers a repo without it.
+        const gh = existingEnvs.find(x => x.name.toLowerCase() === e);
+        const ref = envs.get(e) ?? (gh ? { name: gh.name, created: false } : undefined);
+        if (ref === undefined) continue;
+        const have = ref.created ? [] : await names('/repos/{owner}/{repo}/environments/{environment_name}/secrets', { ...p, environment_name: ref.name }, 'secrets');
+        if (have.includes('CUSTOM_GITHUB_TOKEN')) continue;
+        missing++;
+        add({ repo, kind: 'todo', message: `${ref.name}: set secret CUSTOM_GITHUB_TOKEN (use-custom-token)` });
+    }
+    if (repoSecrets.includes('CUSTOM_GITHUB_TOKEN')) {
+        // A repo secret is the fallback for every job: remove it only once nothing leans on it.
+        if (readsTokenDirectly(c.workflows)) add({ repo, kind: 'note', message: 'a workflow reads secrets.CUSTOM_GITHUB_TOKEN itself: the repo secret stays' });
+        else if (missing > 0) add({ repo, kind: 'note', message: 'repo secret CUSTOM_GITHUB_TOKEN goes once the environments above have it' });
+        else add({ repo, kind: 'remove', message: 'repo secret CUSTOM_GITHUB_TOKEN (the environments have it)', run: () => send('DELETE', '/repos/{owner}/{repo}/actions/secrets/{secret_name}', { ...p, secret_name: 'CUSTOM_GITHUB_TOKEN' }) });
+    }
+    // A run that Dependabot starts gets only Dependabot secrets, and those have no environments.
+    if (dependabotNeedsToken(await readFile(repo, '.github/dependabot.yml'))) {
+        const dep = await names('/repos/{owner}/{repo}/dependabot/secrets', p, 'secrets');
+        if (!dep.includes('CUSTOM_GITHUB_TOKEN')) add({ repo, kind: 'todo', message: 'set Dependabot secret CUSTOM_GITHUB_TOKEN: dependabot.yml reads GitHub Packages with it' });
     }
 }
 
@@ -378,7 +408,7 @@ for (const repo of repos) {
         }
     }
 
-    await todos(c, envs);
+    await todos(c, envs, existingEnvs);
 }
 
 const changes = items.filter(i => i.run);

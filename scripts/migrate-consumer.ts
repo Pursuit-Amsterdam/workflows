@@ -88,9 +88,8 @@ try {
 
     // --- what the rewrite cannot see: secrets and environments
     const written = [...m.files.values()].filter((t): t is string => t !== null).join('\n');
-    const repoSecrets = ((await get<{ secrets: { name: string }[] }>('/repos/{owner}/{repo}/actions/secrets', p))?.secrets ?? []).map(s => s.name);
-    if (written.includes('use-custom-token: true') && !repoSecrets.includes('CUSTOM_GITHUB_TOKEN')) {
-        m.checklist.push('`use-custom-token` without a repo secret `CUSTOM_GITHUB_TOKEN`: CI fails with a 401/403 on the private packages unless it exists at org level for this repo.');
+    if (written.includes('use-custom-token: true')) {
+        m.checklist.push('`use-custom-token`: the shared package PAT (1Password) as secret `CUSTOM_GITHUB_TOKEN` on `integration` and the deploy environments, and as Dependabot secret; `pnpm setup-consumer` lists what is missing after the merge, and removes the old repo secret once the environments have it.');
     }
     const envs = ((await get<{ environments: { name: string }[] }>('/repos/{owner}/{repo}/environments', p))?.environments ?? []).map(e => e.name);
 

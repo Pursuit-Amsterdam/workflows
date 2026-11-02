@@ -15,6 +15,7 @@
 import { parse as parseYaml } from 'yaml';
 import { CHECK_CALL, CI_CALL, loadConsumer, usesOnePassword } from './lib/consumer.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
+import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
@@ -56,8 +57,6 @@ interface Ruleset {
     conditions?: { ref_name?: { include?: string[] } };
 }
 
-// Org-level Dependabot secrets: empty when this token is not an org admin.
-const orgDepSecrets = (await list<{ name: string }>(`/orgs/{org}/dependabot/secrets`, { org: ORG })).map(s => s.name);
 // The people who may review a junior's PR.
 const seniors = (await list<{ login: string }>(`/orgs/{org}/teams/{team}/members`, { org: ORG, team: 'senior-developers' })).map(
     m => m.login,
@@ -324,6 +323,7 @@ for (const repo of repos) {
         const integration = envName('integration');
         if (integration !== undefined) {
             for (const s of await names(`/repos/{owner}/{repo}/environments/{environment_name}/secrets`, { ...p, environment_name: integration }, 'secrets')) {
+                if (s === 'CUSTOM_GITHUB_TOKEN') continue; // reads packages only; CI needs it
                 if (s !== 'OP_SERVICE_ACCOUNT_TOKEN') say(repo, 'secrets', `integration has secret ${s}: a PR run must not see deploy credentials`);
                 else if (!/onepassword[-_]item/.test(all)) say(repo, 'secrets', 'integration has OP_SERVICE_ACCOUNT_TOKEN but CI loads no 1Password item: every PR run can read it');
             }
@@ -338,7 +338,6 @@ for (const repo of repos) {
                 if (!envSecrets.includes('VM_SSH_KNOWN_HOSTS')) say(repo, 'secrets', `${e}: VM_SSH_KNOWN_HOSTS missing (on the environment or the repo)`);
             }
         }
-        if (all.includes('use-custom-token: true') && !secrets.includes('CUSTOM_GITHUB_TOKEN')) say(repo, 'secrets', 'use-custom-token without CUSTOM_GITHUB_TOKEN');
 
         // --- Supabase: edge functions must ship from CI, not from a laptop
         if (!supabase && (await exists(repo, 'supabase/functions'))) say(repo, 'supabase', 'has supabase/functions but no cd-supabase caller (deployed by hand)');
@@ -384,12 +383,22 @@ for (const repo of repos) {
             }
         }
     }
-    if (dep !== null && all.includes('use-custom-token: true')) {
-        if (!dep.includes('npm.pkg.github.com')) say(repo, 'dependabot', 'no npm-registry for npm.pkg.github.com: private packages are not updated');
-        if (!orgDepSecrets.includes('CUSTOM_GITHUB_TOKEN')) {
-            const repoDep = await names(`/repos/{owner}/{repo}/dependabot/secrets`, p, 'secrets');
-            if (!repoDep.includes('CUSTOM_GITHUB_TOKEN')) say(repo, 'dependabot', 'Dependabot secret CUSTOM_GITHUB_TOKEN not found (repo level; org level not set or not visible)');
-        }
+    const tokenEnvs = tokenEnvironments(c.workflows);
+    if (dep !== null && tokenEnvs.length > 0 && !dep.includes('npm.pkg.github.com')) say(repo, 'dependabot', 'no npm-registry for npm.pkg.github.com: private packages are not updated');
+    // Dependabot secrets have no environments: the token is a repo-level Dependabot secret.
+    if (dependabotNeedsToken(dep) && !(await names(`/repos/{owner}/{repo}/dependabot/secrets`, p, 'secrets')).includes('CUSTOM_GITHUB_TOKEN')) {
+        say(repo, 'dependabot', 'Dependabot secret CUSTOM_GITHUB_TOKEN not set on the repo: every Dependabot run fails on the registry');
+    }
+
+    // --- the package token: on each environment whose jobs read it, not on the repo
+    for (const e of tokenEnvs) {
+        const n = envName(e);
+        if (n === undefined) continue; // a missing environment is reported above
+        const envSecrets = await names(`/repos/{owner}/{repo}/environments/{environment_name}/secrets`, { ...p, environment_name: n }, 'secrets');
+        if (!envSecrets.includes('CUSTOM_GITHUB_TOKEN')) say(repo, 'secrets', `${e}: CUSTOM_GITHUB_TOKEN not on the environment (use-custom-token)`);
+    }
+    if (!readsTokenDirectly(c.workflows) && (await names(`/repos/{owner}/{repo}/actions/secrets`, p, 'secrets')).includes('CUSTOM_GITHUB_TOKEN')) {
+        say(repo, 'secrets', 'CUSTOM_GITHUB_TOKEN is a repo secret: no job needs it there; `pnpm setup-consumer` removes it once the environments have it');
     }
     if (all.includes('dependabot/*')) say(repo, 'dependabot', 'CI triggers on push to dependabot/*: same secrets as the PR run, only a duplicate run');
 }

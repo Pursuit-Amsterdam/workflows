@@ -30,7 +30,6 @@ export interface Consumer {
     pagesOnRelease: boolean;
     hasDevelop: boolean;
     hasAcceptance: boolean;
-    usesCustomToken: boolean;
 }
 
 export async function branchExists(repo: string, branch: string): Promise<boolean> {
@@ -77,7 +76,6 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
         pagesOnRelease: workflows.some(wf => wf.text.includes('cd-pages.yml@') && 'release' in triggers(wf)),
         hasDevelop: await branchExists(repo, 'develop'),
         hasAcceptance: await branchExists(repo, 'acceptance'),
-        usesCustomToken: all.includes('use-custom-token: true'),
     };
 }
 

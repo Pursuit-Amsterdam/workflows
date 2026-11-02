@@ -43,14 +43,13 @@
 - check-pr laat in een repo zonder `develop` `feature/*` en `dependabot/*` naar `main`; cd-packages negeert `+N` in de tag;
 - `ci.yml` telt bij turbo alleen workspace-pakketten en geeft turbo de remote base voor `--affected`; `use-custom-token` zonder secret faalt met een melding.
 
-**Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4); `lint` in web-essentials-cli (eslint ontbrak als dependency); verlopen `CUSTOM_GITHUB_TOKEN`s in web-essentials-js en tms-test vervangen.
+**Buiten het plan opgelost:** `@pursuit-amsterdam/jest-config` 1.0.1 (Pursuit-Amsterdam/jest-config#4); `lint` in web-essentials-cli (eslint ontbrak als dependency); verlopen `CUSTOM_GITHUB_TOKEN`s in web-essentials-js en tms-test vervangen. De PAT per repo is vervangen door één gedeelde PAT op de environments (2 november 2026, [beslissingen](beslissingen.md#decided)).
 
 **Buiten het plan, nog open:**
 
 - TypeScript 6 laadt `@types/*` niet meer vanzelf; projecten met tests hebben `"types": ["jest", "@testing-library/jest-dom"]` nodig. Kandidaat voor `@pursuit-amsterdam/typescript-config`.
 - `@pursuit-amsterdam/jest-config` declareert `identity-obj-proxy` en `jest-transform-stub` niet, terwijl de `react`-preset ze gebruikt; `ts-jest` 29 wil `typescript <6`.
 - Pursuit-Amsterdam/jest-config heeft 34 Dependabot-meldingen op `main`.
-- `CUSTOM_GITHUB_TOKEN` is een PAT per repo die verloopt; leestoegang per pakket met de eigen `GITHUB_TOKEN` (zoals web-essentials-cli) zou hem overbodig maken ([detailbeslissing](naslag/detailbeslissingen.md#decisions-detail)).
 
 ## Vaste regels voor elke taak
 
