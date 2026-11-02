@@ -28,7 +28,10 @@ export function onePasswordRefs(wf: Workflow): VaultRef[] {
 // What a label usually holds. Config may stay plain; a secret belongs in a
 // password field (concealed): that is what gets masked, and what never goes
 // into an image as a build-arg. A connection string carries a password.
-const SECRET_LABEL = /(SECRET|TOKEN|PASS|PWD|KEY|PRIVATE|CREDENTIAL|LICENSE|SIGNING|SALT|DSN|CONNECTION_STRING|JWT|SERVICE_ACCOUNT|CERT)/i;
+// A URL can carry its own secret: an Azure SAS URL has the token in its query,
+// a Slack or Teams webhook URL is the credential itself. SAS as a whole word,
+// so CLASS or SASS stay out.
+const SECRET_LABEL = /(SECRET|TOKEN|PASS|PWD|KEY|PRIVATE|CREDENTIAL|LICENSE|SIGNING|SALT|DSN|CONNECTION_STRING|JWT|SERVICE_ACCOUNT|CERT|WEBHOOK|(^|_)SAS(_|$))/i;
 const CREDENTIALED_URL = /^(DATABASE|DB|POSTGRES|POSTGRESQL|PG|MYSQL|REDIS|MONGO|MONGODB|AMQP|RABBITMQ|KAFKA|SMTP|ELASTIC|QUEUE|STORAGE)[A-Z_]*_(URL|URI)/i;
 const CONFIG_LABEL = /^NEXT_PUBLIC_|PUBLIC_KEY|PUBLISHABLE|(^|_)(HOST|HOSTNAME|PORT|URL|URI|DOMAIN|ORIGIN|ORIGINS|EMAIL|FROM|NAME|ID|REGION|BUCKET|REPLICAS|LEVEL|ENV|ENVIRONMENT|MODE|LOCALE|TIMEZONE|TZ|VERSION|PREFIX|PATH|DIR|TIMEOUT|LIMIT|SIZE|COUNT|ENABLED|DISABLED|FLAG|FLAGS)$|^(DEBUG|NODE_ENV|LOG_LEVEL|CORS_ORIGINS|APP_HOST|API_HOST|ACME_EMAIL)$/i;
 /** GitHub masks a value everywhere it appears in output: a 1-character value removes that character from every log line. */

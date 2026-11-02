@@ -71,6 +71,7 @@ test('expected: what the label says', () => {
         NEXT_PUBLIC_API_URL: 'plain', NEXT_PUBLIC_SENTRY_DSN: 'plain', STRIPE_PUBLISHABLE_KEY: 'plain', APP_HOST: 'plain', WORKER_REPLICAS: 'plain', LOG_LEVEL: 'plain',
         ACME_EMAIL: 'plain', AUTH_MICROSOFT_ENTRA_ID: 'plain', VERCEL_ORG_ID: 'plain', API_URL: 'plain', CORS_ORIGINS: 'plain', S3_BUCKET: 'plain',
         FEATURE_X: 'unsure', AUTH_TRUST_HOST: 'plain', ASANA_WORKSPACE: 'unsure',
+        BACKUP_BLOB_SAS_URL: 'concealed', AZURE_STORAGE_SAS: 'concealed', SLACK_WEBHOOK_URL: 'concealed', TEAMS_WEBHOOK: 'concealed', CLASS_NAME: 'plain', SASS_PATH: 'plain',
         NEXT_PRIVATE_DEBUG_CACHE: 'plain', PUBLIC_SITE_TOKEN: 'plain', SUPABASE_PUBLIC_ANON_KEY: 'plain', NEXT_PUBLIC_SECRET_SAUCE: 'plain', SMTP_PASS: 'concealed', DB_PASS: 'concealed', ENCRYPTION_KEY1: 'concealed', KEYCLOAK_CLIENT_SECRET: 'concealed', AZURE_KEY_VAULT: 'plain', SESSION_SECRET: 'concealed',
     };
     for (const [label, want] of Object.entries(cases)) assert.equal(expected(label), want, label);
@@ -88,5 +89,7 @@ test('fix: the type-only assignment for op item edit', () => {
     assert.deepEqual(fix({ label: 'APP_HOST', type: 'CONCEALED', length: 30 }), { assignment: 'APP_HOST[text]', to: 'plain' });
     assert.equal(fix({ label: 'WORKER_REPLICAS', type: 'STRING', length: 1 }), null, 'a short value needs a new value, not a type');
     assert.equal(fix({ label: 'JWT_SECRET_KEY', type: 'CONCEALED', length: 40 }), null, 'nothing to fix');
+    assert.equal(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'CONCEALED', length: 180 }), null, 'a SAS URL carries its token: stays a password');
+    assert.deepEqual(fix({ label: 'BACKUP_BLOB_SAS_URL', type: 'STRING', length: 180 }), { assignment: 'BACKUP_BLOB_SAS_URL[password]', to: 'concealed' });
     assert.equal(fix({ label: 'api.key', type: 'STRING', length: 40 }), null, 'a dot would be read as a section');
 });
