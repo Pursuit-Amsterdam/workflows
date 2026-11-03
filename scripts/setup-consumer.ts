@@ -18,9 +18,9 @@
 // and the workflow files is migrate-consumer's job.
 // Needs a token with repo admin: the local `gh` login, or GH_TOKEN.
 import { createInterface } from 'node:readline/promises';
-import { loadConsumer, producedChecks, usesOnePassword, type Consumer } from './lib/consumer.ts';
+import { loadConsumer, producedChecks, readProfile, usesOnePassword, type Consumer } from './lib/consumer.ts';
 import { ORG, get, list, octokit, readFile } from './lib/github.ts';
-import { covers, normalize, pickCodeowners, profileFrom, reviewRuleset, rulesetAction, tagRuleset, type BranchOwners, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
+import { covers, normalize, reviewRuleset, rulesetAction, tagRuleset, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
@@ -95,19 +95,6 @@ async function upsertRuleset(repo: string, existing: Ruleset[], want: Desired): 
 }
 
 // --- the profile -------------------------------------------------------------
-
-const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'] as const;
-
-/** CODEOWNERS and GitHub's errors for it, on the default branch and develop: the profile and its findings. */
-async function readProfile(repo: string, c: Consumer): Promise<{ profile: Profile; findings: string[] }> {
-    const branches: BranchOwners[] = [];
-    for (const branch of [c.defaultBranch, ...(c.hasDevelop && c.defaultBranch !== 'develop' ? ['develop'] : [])]) {
-        const files = Object.fromEntries(await Promise.all(CODEOWNERS_PATHS.map(async f => [f, await readFile(repo, f, branch)] as const)));
-        const errors = await get<{ errors: BranchOwners['errors'] }>('/repos/{owner}/{repo}/codeowners/errors', { owner: ORG, repo, ref: branch });
-        branches.push({ branch, codeowners: pickCodeowners(files as Record<(typeof CODEOWNERS_PATHS)[number], string | null>), errors: errors?.errors ?? null });
-    }
-    return profileFrom(branches);
-}
 
 // Questions only with --apply in a terminal; otherwise making a repo light is a todo.
 const tty = Boolean(process.stdin.isTTY);
@@ -320,7 +307,7 @@ for (const repo of repos) {
 
     // Two rulesets per protected branch; the classic protection goes once both stand.
     // The review ruleset and the tag ruleset follow the profile from CODEOWNERS.
-    const { profile, findings } = await readProfile(repo, c);
+    const { profile, findings } = await readProfile(c);
     for (const f of findings) add({ repo, kind: 'todo', message: `${f}; protection stays standard` });
     if (profile.kind === 'light') add({ repo, kind: 'note', message: `light protection: CODEOWNERS names ${profile.owners.join(' ')}` });
     const rulesets = await list<Ruleset>('/repos/{owner}/{repo}/rulesets', p);

@@ -3,6 +3,7 @@
 // things of a repo depending on that.
 import { ORG, get, readFile } from './github.ts';
 import { gateBranchTargets } from './gate.ts';
+import { pickCodeowners, profileFrom, type BranchOwners, type Profile } from './protection.ts';
 import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
@@ -111,4 +112,19 @@ export async function usesOnePassword(c: Consumer, envNames: string[]): Promise<
         if ([...vars, ...secrets].some(x => ['OP_VAULT', 'OP_ITEM', 'OP_SERVICE_ACCOUNT_TOKEN'].includes(x.name))) return true;
     }
     return false;
+}
+
+// --- the profile -------------------------------------------------------------
+
+const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'] as const;
+
+/** CODEOWNERS and GitHub's errors for it, on the default branch and develop: the profile and its findings (lib/protection.ts). */
+export async function readProfile(c: Consumer): Promise<{ profile: Profile; findings: string[] }> {
+    const branches: BranchOwners[] = [];
+    for (const branch of [c.defaultBranch, ...(c.hasDevelop && c.defaultBranch !== 'develop' ? ['develop'] : [])]) {
+        const files = Object.fromEntries(await Promise.all(CODEOWNERS_PATHS.map(async f => [f, await readFile(c.repo, f, branch)] as const)));
+        const errors = await get<{ errors: BranchOwners['errors'] }>('/repos/{owner}/{repo}/codeowners/errors', { owner: ORG, repo: c.repo, ref: branch });
+        branches.push({ branch, codeowners: pickCodeowners(files as Record<(typeof CODEOWNERS_PATHS)[number], string | null>), errors: errors?.errors ?? null });
+    }
+    return profileFrom(branches);
 }

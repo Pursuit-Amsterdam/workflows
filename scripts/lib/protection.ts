@@ -156,3 +156,34 @@ export function rulesetAction(
     if (fits(pair.light)) return { action: 'none', want: pair.light };
     return opts.apply && opts.tty ? { action: 'ask', want: pair.light } : { action: 'todo', want: pair.standard };
 }
+
+// --- what the audit checks ----------------------------------------------------
+
+/** The review rules on one branch, from classic protection and rulesets together. */
+export interface ReviewView {
+    prRule: boolean;
+    reviews: number;
+    codeOwners: boolean;
+    deletion: boolean;
+}
+
+/** Standard: one review from a code owner. Light: a PR without a review, and the branch cannot be deleted. */
+export function reviewFindings(profile: Profile, branch: string, v: ReviewView): string[] {
+    if (profile.kind === 'standard') {
+        return [...(v.reviews < 1 ? [`${branch}: no review required`] : []), ...(!v.codeOwners ? [`${branch}: review from code owners not required`] : [])];
+    }
+    if (v.reviews > 0 || v.codeOwners) return [`${branch}: CODEOWNERS says light, but a review is still required: run setup-consumer --apply`];
+    return [
+        ...(!v.prRule ? [`${branch}: no pull request required (light protection still needs one)`] : []),
+        ...(!v.deletion ? [`${branch}: branch can be deleted`] : []),
+    ];
+}
+
+/** Standard: only seniors create v* tags. Light: anyone with write creates one, nobody else changes or removes it. */
+export function tagFindings(profile: Profile, tagRulesets: { include: string[]; rules: string[] }[]): string[] {
+    const onV = tagRulesets.filter(r => r.include.includes('refs/tags/v*'));
+    const has = (type: string) => onV.some(r => r.rules.includes(type));
+    if (profile.kind === 'standard') return has('creation') ? [] : ['no tag ruleset on refs/tags/v* (creation): anyone with push can publish a release'];
+    if (has('creation')) return ['CODEOWNERS says light, but only seniors create v* tags: run setup-consumer --apply'];
+    return has('update') && has('deletion') ? [] : ['no tag ruleset on refs/tags/v* (update, deletion): anyone with push can move or remove a release tag'];
+}

@@ -947,7 +947,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   - `rulesetAction`: versoepelen (ook een nieuwe lichte ruleset) alleen na een ja met `--apply` in een terminal; aanscherpen zonder vraag; geen vraag als alles al klopt; anders een `todo` zonder wijziging, dus zonder `run`, zodat het niet meetelt in "N change(s)". Bij een nee blijven de review- en de tag-ruleset standaard, en de rest gaat door.
 
   Daarna de code in `setup-consumer.ts`.
-- [ ] Stap 3: de audit, tests eerst voor `protectionFindings`:
+- [x] Stap 3: de audit, tests eerst voor `protectionFindings`:
   - licht: een PR-regel met 0 reviews, `deletion` en `non_fast_forward` op de default branch en `develop`, en een tag-ruleset met `update` en `deletion`. Ontbreekt er een, dan is dat een bevinding. `no review required`, `review from code owners not required`, het ontbreken van `creation` en de seniors-regel worden dan niet gemeld; in plaats daarvan één regel ter info met de eigenaren;
   - standaard: 1 review en review van code owners, zoals nu;
   - rulesets die niet bij het profiel passen (bijvoorbeeld een lichte ruleset bij standaard-CODEOWNERS) → bevinding;

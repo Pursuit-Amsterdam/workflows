@@ -3,7 +3,7 @@
 // Run: node --test scripts/lib/
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pickCodeowners, profileFrom, reviewRuleset, rulesetAction, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
+import { pickCodeowners, profileFrom, reviewFindings, reviewRuleset, rulesetAction, tagFindings, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
 
 const SENIORS = '* @Pursuit-Amsterdam/senior-developers\n';
 const on = (codeowners: string | null, branch = 'main', errors: BranchOwners['errors'] = []): BranchOwners => ({ branch, codeowners, errors });
@@ -153,4 +153,38 @@ test('rulesetAction: without --apply or a terminal, light is a todo and the stan
     for (const opts of [{ apply: false, tty: true }, { apply: true, tty: false }]) {
         assert.deepEqual(rulesetAction(LIGHT, pair, actual(pair.standard), opts), { action: 'todo', want: pair.standard });
     }
+});
+
+// What the audit sees on a branch: classic protection and rulesets together.
+const view = (o: Partial<{ prRule: boolean; reviews: number; codeOwners: boolean; deletion: boolean }> = {}) => ({ prRule: true, reviews: 1, codeOwners: true, deletion: true, ...o });
+
+test('reviewFindings: standard wants one review from a code owner', () => {
+    assert.deepEqual(reviewFindings(STANDARD, 'main', view()), []);
+    assert.deepEqual(reviewFindings(STANDARD, 'main', view({ reviews: 0, codeOwners: false })), ['main: no review required', 'main: review from code owners not required']);
+});
+
+test('reviewFindings: light wants a PR without a review, and no deletion', () => {
+    assert.deepEqual(reviewFindings(LIGHT, 'develop', view({ reviews: 0, codeOwners: false })), []);
+    assert.deepEqual(reviewFindings(LIGHT, 'develop', view({ prRule: false, reviews: 0, codeOwners: false, deletion: false })), [
+        'develop: no pull request required (light protection still needs one)',
+        'develop: branch can be deleted',
+    ]);
+});
+
+test('reviewFindings: light with the standard review still in place says so', () => {
+    assert.deepEqual(reviewFindings(LIGHT, 'main', view()), ['main: CODEOWNERS says light, but a review is still required: run setup-consumer --apply']);
+});
+
+const tag = (...rules: string[]) => ({ include: ['refs/tags/v*'], rules });
+
+test('tagFindings: standard wants seniors to create the v* tags', () => {
+    assert.deepEqual(tagFindings(STANDARD, [tag('creation', 'update', 'deletion')]), []);
+    assert.deepEqual(tagFindings(STANDARD, [tag('update', 'deletion')]), ['no tag ruleset on refs/tags/v* (creation): anyone with push can publish a release']);
+    assert.deepEqual(tagFindings(STANDARD, []), ['no tag ruleset on refs/tags/v* (creation): anyone with push can publish a release']);
+});
+
+test('tagFindings: light wants v* tags safe from change and removal, creation free', () => {
+    assert.deepEqual(tagFindings(LIGHT, [tag('update', 'deletion')]), []);
+    assert.deepEqual(tagFindings(LIGHT, []), ['no tag ruleset on refs/tags/v* (update, deletion): anyone with push can move or remove a release tag']);
+    assert.deepEqual(tagFindings(LIGHT, [tag('creation', 'update', 'deletion')]), ['CODEOWNERS says light, but only seniors create v* tags: run setup-consumer --apply']);
 });
