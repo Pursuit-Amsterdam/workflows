@@ -2,7 +2,7 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 28 oktober 2026.** 37 van de 45 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 13 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
+**Stand: 3 november 2026.** 39 van de 45 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 14 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
@@ -27,7 +27,7 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app bouwt de workspace via `packages/demo-app/vercel.json` |
 | workflows-example | testrepo | v0.9.0 |
 
-## Op v2, wacht op de eerste release (24)
+## Op v2, wacht op de eerste release (25)
 
 CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publicatie volgt bij de volgende release door een senior.
 
@@ -36,16 +36,15 @@ CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publ
 | Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
-| Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip) |
+| Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip), big-chef-webapp (alleen CI, nog geen deploydoel; lichte bescherming) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (7)
+## Nog v1 (6)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
 | `migrate-consumer` kan het | provincie-utrecht-demo | routine; de checklist van het script (geen tests, een build die 1Password nodig heeft) |
-| Eigen handwerk | big-chef-webapp (eigen `api-ci`) | nooit gedeployd (alle CD-runs rood, geen secrets): alleen CI naar `v2`, met lichte bescherming ([Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners)) |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
 
 ## Wat v2 nog mist
@@ -84,6 +83,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 3 november 2026 | big-chef-webapp naar `v2` (#11 `develop`, #12 `main`), alleen CI, met lichte bescherming (`* @matthijs-pursuit`). Eén `ci.yml`: `lint typecheck test build check:migrations check:openapi` via turbo voor `apps/web` en `apps/api` (uv, Python 3.13), tegen Postgres 17; groen (10 taken, API 13 tests, web 69, de 4 migraties op een lege database). De stappen van de eigen `api-ci` zijn scripts in `apps/api` geworden; `test` maakt eerst `app_test` aan. In de app: `DATABASE_URL` met `postgres://` wordt `postgresql+asyncpg://`, en `typecheck` van `apps/web` faalde sinds de overstap naar Vitest (de globals ontbraken). Weg: `api-ci`, `web-ci`, `web-cd` en `storybook-cd` (nooit geslaagd). `dependabot.yml` was ongeldig: een `npm-registry` zonder token (#13); Dependabot opende daarna meteen PR's. `setup-consumer --apply`: één vraag, licht; geen tag-ruleset (geen productie). De audit meldt nog: Matthijs is directe admin, de lege environments `staging` en `github-pages`, een `FROM` zonder digest. |
 | 3 november 2026 | Lichte bescherming (use case 30, Task 30) gebouwd en gemerged (#152): de `*`-regel in CODEOWNERS bepaalt het profiel; `setup-consumer`, de audit en `migrate-consumer` volgen het. workflows-example is licht (`* @matthijs-pursuit`, #57 en #58): review-rulesets op `main`, `develop` en `acceptance` zonder review, de tag-ruleset zonder `creation`, de audit noemt alleen de eigenaren. GitHub meldt een typfout en een user zonder schrijfrechten allebei als `Unknown owner`. Niet bewezen: een developer die zelf merget en taggt. |
 | 2 november 2026 | web-essentials-dashboard: productie via v2 bewezen. Na #147 en het bypass-secret als veld in het 1Password-item een nieuwe deploy vanaf de tag (`workflow_dispatch`, run 41467126390): alias `dash.pursuit.amsterdam`, health check 200. `setup-consumer --apply`: rulesets op `main` en `develop`, tag-ruleset, `Production` alleen tags `v*`, geen `staging` (sinds #146). Het package-token staat op `integration`, `Production` en als Dependabot-secret. Het bypass-secret staat in de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). |
 | 2 november 2026 | web-essentials-dashboard v2026.11.02, de eerste release via `v2` (run 41465017312): gate `release -> production @ 1243a46`, build met 1Password, alias `dash.pursuit.amsterdam` (`/api/health` 200). De run werd toch rood: de health check vraagt de deployment-URL op, en die stuurde Deployment Protection door naar de Vercel-login (10 keer 302). `cd-vercel` leest het bypass-secret nu ook uit het 1Password-item, en een doorverwijzing naar de login faalt meteen met uitleg. De Dependabot-runs van 14:37 en 14:41 faalden op het ontbrekende Dependabot-secret; dat staat er nu. |
