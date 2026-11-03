@@ -905,7 +905,7 @@ De integratie met v2 (leestoken, drift-check, template-grens) staat in een apart
 
 ### Task 30: lichte bescherming uit CODEOWNERS
 
-**Gebouwd (#152, 3 november 2026); open: stap 6.5–6.8.** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
+**Gebouwd (#152, 3 november 2026); open: stap 6.5–6.7 (wacht op Matthijs).** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
 
 **Al gekozen (Bas, 3 november 2026):**
 
@@ -976,6 +976,7 @@ De integratie met v2 (leestoken, drift-check, template-grens) staat in een apart
   7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
      **Niet gedaan:** zoals 5; volgt uit de tag-ruleset zonder `creation`.
   8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
+     **Gedaan (3 november 2026):** workflows-example #59 en #60 (zonder review, want de repo was licht). `setup-consumer --apply` scherpte aan zonder vraag: vier `update`-regels van `no review` naar `1 review, code owners`, en `creation` terug in de tag-ruleset. Tweede run `no changes`; de audit meldt weer alleen de twee bevindingen van vóór de test. Of Matthijs geen tag meer kan maken: niet getest.
 - [x] Stap 7: merge de PR uit stap 5 naar `v2` (#152, 3 november 2026).
 - [x] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`. Gedaan (3 november 2026): big-chef-webapp #11, #12 en #13 (`dependabot.yml`), CI groen; `setup-consumer --apply` met één vraag. Bijgekomen: `DATABASE_URL` naar asyncpg en de Vitest-globals in de app, een `app_test` die `test` zelf aanmaakt.
 
