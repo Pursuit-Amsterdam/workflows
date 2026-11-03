@@ -23,12 +23,17 @@ export function pickCodeowners(files: Record<'.github/CODEOWNERS' | 'CODEOWNERS'
     return files['.github/CODEOWNERS'] ?? files.CODEOWNERS ?? files['docs/CODEOWNERS'];
 }
 
-/** The owners on the last line that matches every file (*, ** or /**); null when there is none. */
+/** A line whose pattern matches every file: *, ** or /**. */
+export function isStarLine(line: string): boolean {
+    const [pattern] = line.replace(/#.*/, '').trim().split(/\s+/);
+    return pattern === '*' || pattern === '**' || pattern === '/**';
+}
+
+/** The owners on the last line that matches every file; null when there is none. */
 function starOwners(text: string): string[] | null {
     let owners: string[] | null = null;
-    for (const raw of text.split('\n')) {
-        const [pattern, ...rest] = raw.replace(/#.*/, '').trim().split(/\s+/);
-        if (pattern === '*' || pattern === '**' || pattern === '/**') owners = rest.filter(Boolean);
+    for (const line of text.split('\n')) {
+        if (isStarLine(line)) owners = line.replace(/#.*/, '').trim().split(/\s+/).slice(1);
     }
     return owners;
 }
@@ -47,7 +52,7 @@ function branchProfile(b: BranchOwners): { profile: Profile; finding?: string } 
     return { profile: STANDARD, finding: `${b.branch}: the * line in CODEOWNERS (${owners.join(' ')}) is neither ${SENIOR_TEAM} alone nor users only` };
 }
 
-const same = (a: Profile, b: Profile): boolean => JSON.stringify(a) === JSON.stringify(b);
+export const same = (a: Profile, b: Profile): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /** The repo's profile: light only when every protected branch says light with the same owners. */
 export function profileFrom(branches: BranchOwners[]): { profile: Profile; findings: string[] } {

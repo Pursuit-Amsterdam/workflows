@@ -952,7 +952,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   - standaard: 1 review en review van code owners, zoals nu;
   - rulesets die niet bij het profiel passen (bijvoorbeeld een lichte ruleset bij standaard-CODEOWNERS) → bevinding;
   - de bevindingen uit `profileFrom` komen erbij.
-- [ ] Stap 4: `migrate-consumer`, tests eerst in `migrate.test.ts`:
+- [x] Stap 4: `migrate-consumer`, tests eerst in `migrate.test.ts`:
   - licht → CODEOWNERS met het commentaar en `* @<eigenaren>`, zonder seniors-regel;
   - standaard → een bestaande `*`-regel vervangen, niet de seniors erboven zetten;
   - een bestaande lichte CODEOWNERS blijft zoals hij is;
