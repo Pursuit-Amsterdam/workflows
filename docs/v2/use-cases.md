@@ -59,6 +59,7 @@ Nog niet uitgewerkt. De laatste kolom toont welke principes van toepassing zoude
 | 27 | Melding bij een mislukte deploy naar productie | nieuw | [5](principes.md#p-cd) |
 | 28 | Infra as code: plan in CI, precies dat plan toepassen in CD (uitwerking hieronder) | Azure, Swarm-VM's, DNS | [1](principes.md#vocab) [3](principes.md#p-env) [4](principes.md#p-gate) [5](principes.md#p-cd) [7](principes.md#p-scripts) |
 | 29 | Gedeelde turbo-cache: een remote cache voor CI én ontwikkelaars, zodat een taak die al ergens met dezelfde invoer draaide nergens opnieuw draait. Nu bewaart ci.yml de cache alleen per branch in GitHub. | de tien turbo-repo's | [7](principes.md#p-scripts) |
+| 30 | Lichte bescherming voor het eigen project van een medewerker: geen review en releasen zonder senior, voor iedereen met schrijfrechten; de checks blijven (uitwerking hieronder) | big-chef-webapp | — |
 
 <a id="iac"></a>
 
@@ -71,6 +72,87 @@ Nog geen workflow, wel een toets: het ontwerp mag infra as code (Terraform of Op
 - **Drift:** een gepland plan dat afwijkingen meldt; de vorm die principe 5 voor infra aanneemt.
 - **Inloggen bij de cloud** gaat via OIDC, met kortlevende tokens in plaats van opgeslagen sleutels. Principe 3 blijft gelden: wat per environment verschilt, staat in de environment.
 - **Wat root vraagt op een VM** (basismappen en hun eigenaar, `sysctl`, sudoers, Docker zelf) gaat naar de inrichting: Terraform of OpenTofu maakt de VM, cloud-init of Ansible richt hem in. Dat draait met eigen credentials en eigen reviewers, los van de deploy. Tot dan zijn dit handmatige runbookstappen. `pre-deploy` houdt alleen wat zonder sudo kan.
+
+<a id="light"></a>
+
+### Uitwerking: lichte bescherming
+
+**Het model in één zin:** in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. CODEOWNERS noemt wie het project draagt: die krijgt de reviewverzoeken en is aanspreekbaar.
+
+Een medewerker die geen senior is, heeft soms een eigen project dat geen klantproject is. Dan hoeft niet elke PR langs een senior, en ook de release niet. Voorbeeld: big-chef-webapp (39 van de 39 commits van matthijs-pursuit, nooit gedeployd). Gepland in [Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners). Het is een uitzondering op twee [besluiten](beslissingen.md#decided): "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie". Voor lichte repo's gelden die niet (besloten, Bas, 3 november 2026). De uitzondering staat bij beide besluiten.
+
+**Het gaat om het soort project, niet om wie er commit.** In veel klantprojecten schrijven vooral niet-seniors (tms-test, translations-management-dashboard, intersekse-website). Die blijven standaard. Licht is voor een eigen of intern project, ook als het een productieomgeving heeft.
+
+**Wat GitHub wel en niet kan:**
+
+- CODEOWNERS bepaalt **wie** reviewt, niet **of** er een review nodig is. Dat laatste regelt de review-ruleset (`required_approving_review_count`, `require_code_owner_review`).
+- Een auteur kan de eigen PR nooit goedkeuren. Een medewerker als code owner loopt met de standaard-ruleset dus vast.
+- Een ruleset geldt voor iedereen met schrijfrechten. Een bypass kan een rol, een team of een app zijn, maar geen losse user. "Alleen de eigenaar mag" bestaat dus niet. Bij licht mogen alle `developers` (push) en `project-managers` (maintain) zonder review mergen en releasen. Bewust zo gekozen (Bas, 3 november 2026): dan zijn er geen rechten per repo nodig.
+
+**Het signaal: de `*`-regel in CODEOWNERS.** Die bepaalt het profiel van een repo. `setup-consumer` zet daarna de passende rulesets, en de audit toetst ertegen. Om van standaard naar licht te gaan, moet CODEOWNERS op de default branch (meestal `main`) en op `develop` veranderen. Beide wijzigingen lopen via een PR onder de standaard-CODEOWNERS van de base branch. Er is dus altijd een senior die goedkeurt, en `setup-consumer` vraagt een admin nog om bevestiging.
+
+GitHub leest de eerste CODEOWNERS die het vindt: `.github/`, dan de root, dan `docs/`. Daarin wint de laatste regel die past. De scripts lezen het bestand op dezelfde manier.
+
+| De `*`-regel (de laatste die past), op de default branch en `develop` | Profiel | Audit |
+| --- | --- | --- |
+| alleen `@Pursuit-Amsterdam/senior-developers` (hoofdletters tellen niet) | standaard | — |
+| alleen users (een of meer `@login`), ook als dat een senior is | licht | ter info: "licht, eigenaren X" |
+| seniors plus anderen | standaard | bevinding: een andere eigenaar op de regel mag de PR van een junior goedkeuren, en dat is al een versoepeling |
+| een ander team, een e-mailadres, of iets onbekends | standaard | bevinding |
+| een `*`-regel zonder eigenaren, geen `*`-regel, of geen CODEOWNERS | standaard | bevinding (zoals nu) |
+| de default branch en `develop` verschillen | standaard | bevinding |
+| GitHub meldt een fout voor die branch (`GET /repos/{owner}/{repo}/codeowners/errors?ref=<branch>`), of de API geeft geen antwoord | standaard | bevinding |
+
+Bij twijfel geldt standaard. Ook `**` en `/**` raken de hele repo en tellen als de `*`-regel. Een padregel zoals `/src/ @junior` versoepelt een standaardrepo ook, maar valt buiten deze taak.
+
+**Wat bij licht verandert, en wat blijft.** Dit geldt op elke beschermde branch: de default branch, `develop` en `acceptance`.
+
+| Ruleset of regel | Standaard | Licht |
+| --- | --- | --- |
+| checks (geen bypass) | verplicht | blijft verplicht, maar is een vangnet en geen controle (zie hieronder) |
+| review | 1 review, van code owners | 0 reviews en geen review van code owners; een PR blijft verplicht |
+| force push, verwijderen | verboden | blijft verboden |
+| check-pr (branchregels) | geldt | blijft gelden |
+| tag-ruleset (`v*`) | aanmaken, wijzigen en verwijderen alleen door seniors | aanmaken mag iedereen met schrijfrechten, dus ook releasen en deployen; wijzigen en verwijderen blijven bij de seniors |
+| `production`-environment | alleen tags `v*` | blijft gelijk |
+
+**Het risico dat erbij hoort, geaccepteerd (Bas, 3 november 2026):** bij standaard heeft een PR die de eigen CI aanpast de review van een senior nodig. Bij licht niet. Een PR kan `ci.yml` dus vervangen door een check die altijd groen is. Wie daarna een `v*`-tag maakt, zet code live die niemand heeft gereviewd, met de productie-secrets. Bij licht draagt de eigenaar dat zelf. Een repo die een klantproject wordt, gaat terug naar standaard.
+
+**De scripts:**
+
+- `migrate-consumer` vraagt bij het schrijven van CODEOWNERS: standaard of licht, en bij licht wie de eigenaren zijn. Zonder terminal leest het `--owner <login>`. Zonder die vlag kiest het standaard.
+  - Bij standaard vervangt het een bestaande `*`-regel. Het zet de seniors niet meer bovenaan, want dan wint een `*`-regel verderop.
+  - Bij licht laat het een bestaande lichte `*`-regel staan.
+- `setup-consumer` leest de `*`-regel op de default branch en op `develop`:
+  - van standaard naar licht, of een nieuwe lichte ruleset → pas na een ja in de terminal, met `--apply`;
+  - zegt de admin nee, dan blijven de review- en de tag-ruleset standaard, en gaan de andere wijzigingen gewoon door;
+  - van licht naar standaard → zonder vraag;
+  - al in orde → geen vraag, en een tweede run blijft stil;
+  - een dry run, geen terminal, of geen CODEOWNERS → een `todo` zonder wijziging; de rulesets blijven zoals ze zijn, of worden standaard;
+  - `setup-consumer` schrijft geen CODEOWNERS: de branches zijn beschermd, en de PR is het werk van `migrate-consumer`.
+- **Terug naar standaard,** of CODEOWNERS weg: daarna `pnpm setup-consumer -- <repo> --apply`. Tot dan blijven de rulesets licht. De wekelijkse audit meldt het verschil.
+- Bij licht kan iedereen met schrijfrechten CODEOWNERS zonder review aanpassen. De audit noemt daarom de eigenaren, zodat een wissel opvalt.
+
+**CODEOWNERS bij licht**, bijvoorbeeld in big-chef-webapp:
+
+```
+# Light protection: the project of the developer below, not a client project.
+# Anyone with write access merges without a review and may create a release
+# tag; the checks still apply. Back to standard: make the line
+# `* @Pursuit-Amsterdam/senior-developers` again, then run
+# `pnpm setup-consumer -- <repo> --apply`.
+* @matthijs-pursuit
+```
+
+- Eén user of meer (`* @matthijs-pursuit @jipharthoorn-pursuit`). Geen team per project.
+- Zet geen seniors op de regel: dan is het een mengvorm.
+- GitHub blokkeert niets op deze regel. Wel vraagt GitHub de eigenaar om een review bij een PR van iemand anders, bijvoorbeeld van Dependabot (niet bij een draft).
+
+**Kandidaten** (scan van 63 actieve repo's, 3 november 2026; elke bestaande CODEOWNERS is nu standaard):
+
+- big-chef-webapp: duidelijk licht.
+- pursuit-projects-dashboard: misschien. Een intern hulpmiddel, 82 van de 98 commits van jipharthoorn-pursuit, met productie.
+- pursuit-n8n, van-aalsburg-n8n, hb-kvs-clients-admin: elk één niet-senior, maar ze gebruiken de workflows niet en vallen buiten `setup-consumer`.
 
 ---
 

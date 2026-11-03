@@ -901,6 +901,75 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - [ ] Stap 3: gp-groot-automations pas na de merge van `port-to-blueprint`; dan komt v2 mee met de sync.
 - [ ] Stap 4: sluyter-logistics-automations, na een levensteken van Sam: `release.yml` op `@v2` (beide actions blijven bestaan met dezelfde interface), plus `check-pr.yml`, `CODEOWNERS` en een `ci.yml` met een `package.json` met `"lint": "uv run ruff check ."`.
 
+### Task 30: lichte bescherming uit CODEOWNERS
+
+**Open punt (3 november 2026).** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
+
+**Al gekozen (Bas, 3 november 2026):**
+
+- **Bron:** de `*`-regel op de default branch én op `develop`. Verschillen ze, dan geldt standaard en volgt een bevinding.
+- **Wie:** licht geldt voor iedereen met schrijfrechten. GitHub kan het niet tot de eigenaar beperken (een bypass op een user bestaat niet), en rechten per repo willen we niet.
+- **Releasen:** bij licht mag iedereen met schrijfrechten een `v*`-tag maken, en dus deployen. Een PR die de eigen CI omzeilt, is daarmee een geaccepteerd risico.
+- **Naam:** dezelfde naam bij beide profielen, met de bestaande `update`.
+- **De vraag:** "standaard of licht?" zit in `migrate-consumer`; `setup-consumer` vraagt alleen een bevestiging om te versoepelen.
+- **Uitzondering op twee besluiten:** voor lichte repo's geldt geen verplichte review en geen "alleen seniors deployen". Vastgelegd in `beslissingen.md`.
+
+**Bestanden:**
+
+- Maak: `scripts/lib/protection.ts` en `scripts/lib/protection.test.ts`, met alleen pure functies, zodat het gedrag test-first kan:
+  - `profileFrom(files, errors)`: van de CODEOWNERS en de fouten per branch naar `standard`, of naar `light` met eigenaren, plus bevindingen;
+  - `reviewRuleset(branch, profile)` en `tagRuleset(profile)`, verplaatst uit `setup-consumer.ts`;
+  - `rulesetAction(profile, actual, { apply, tty })` → `none`, `tighten`, `ask` of `todo`;
+  - `protectionFindings(profile, rules)` voor de audit.
+- Wijzig: `scripts/setup-consumer.ts`. Het leest CODEOWNERS en de fouten per branch, stelt de vraag (het patroon van `review-vaults`), en krijgt een nieuwe kop (r. 14–15 zegt nu dat CODEOWNERS niet zijn werk is).
+- Wijzig: `scripts/audit-consumers.ts`: r. 194, 217–218 (review), r. 280–285 (tag-ruleset), r. 357–361 (CODEOWNERS).
+- Wijzig: `scripts/lib/migrate.ts` (r. 436–440) en `scripts/migrate-consumer.ts`: de vraag, `--owner`, CODEOWNERS voor licht, en geen seniors-regel meer bovenaan.
+- Wijzig bij de bouw: in `docs/v2/naslag/standaardinrichting.md` en `beslissingen.md` "gepland in Task 30" weghalen, en de beschrijving van audit en `setup-consumer` bijwerken (r. 40–42). Daarnaast `README.md` (r. 18 en 152).
+
+**Stappen:**
+
+- [x] Stap 0: besloten (Bas, 3 november 2026): voor lichte repo's gelden "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie" niet, inclusief het geaccepteerde risico. De uitzondering staat bij beide besluiten in `beslissingen.md` en in de standaardinrichting, met "gepland in Task 30".
+- [ ] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
+  - alleen `@Pursuit-Amsterdam/senior-developers`, ook met andere hoofdletters → standaard;
+  - een of meer users → licht, met de eigenaren; ook een senior als user;
+  - seniors plus anderen, een ander team (ook `@Pursuit-Amsterdam/developers`), een e-mailadres → standaard en een bevinding;
+  - `*` zonder eigenaren, geen `*`-regel, geen bestand → standaard en een bevinding;
+  - `**` en `/**` tellen als `*`; de laatste regel die past, wint; commentaar (ook achteraan een regel), lege regels en padregels tellen niet mee;
+  - `.github/CODEOWNERS` gaat vóór de root en `docs/`;
+  - de default branch en `develop` verschillen → standaard en een bevinding; zonder `develop` alleen de default branch;
+  - een fout uit `codeowners/errors` voor die branch, of geen antwoord (`null` uit `get()`: een 403 of 404) → standaard en een bevinding.
+
+  Daarna `profileFrom`, tot de tests groen zijn.
+- [ ] Stap 2: `setup-consumer`, tests eerst:
+  - `reviewRuleset` per profiel. Licht: `required_approving_review_count: 0`, `require_code_owner_review: false`; verder gelijk, ook `deletion`, `non_fast_forward` en de bypass. Op elke beschermde branch, ook `acceptance`.
+  - `tagRuleset` per profiel. Licht: alleen `update` en `deletion` (bypass admin), geen `creation`, zodat iedereen met schrijfrechten een tag maakt maar niemand anders hem verplaatst of weghaalt. Dezelfde naam (`release tags: seniors only`); die klopt nog voor wijzigen en verwijderen.
+  - De checks-ruleset hangt niet van het profiel af.
+  - `rulesetAction`: versoepelen (ook een nieuwe lichte ruleset) alleen na een ja met `--apply` in een terminal; aanscherpen zonder vraag; geen vraag als alles al klopt; anders een `todo` zonder wijziging, dus zonder `run`, zodat het niet meetelt in "N change(s)". Bij een nee blijven de review- en de tag-ruleset standaard, en de rest gaat door.
+
+  Daarna de code in `setup-consumer.ts`.
+- [ ] Stap 3: de audit, tests eerst voor `protectionFindings`:
+  - licht: een PR-regel met 0 reviews, `deletion` en `non_fast_forward` op de default branch en `develop`, en een tag-ruleset met `update` en `deletion`. Ontbreekt er een, dan is dat een bevinding. `no review required`, `review from code owners not required`, het ontbreken van `creation` en de seniors-regel worden dan niet gemeld; in plaats daarvan één regel ter info met de eigenaren;
+  - standaard: 1 review en review van code owners, zoals nu;
+  - rulesets die niet bij het profiel passen (bijvoorbeeld een lichte ruleset bij standaard-CODEOWNERS) → bevinding;
+  - de bevindingen uit `profileFrom` komen erbij.
+- [ ] Stap 4: `migrate-consumer`, tests eerst in `migrate.test.ts`:
+  - licht → CODEOWNERS met het commentaar en `* @<eigenaren>`, zonder seniors-regel;
+  - standaard → een bestaande `*`-regel vervangen, niet de seniors erboven zetten;
+  - een bestaande lichte CODEOWNERS blijft zoals hij is;
+  - zonder terminal: `--owner <login>`, anders standaard.
+- [ ] Stap 5: PR naar `v2` met stap 1–4 en review door een senior. Merge pas na stap 6, want stap 6 draait vanaf deze branch.
+- [ ] Stap 6: bewijzen in workflows-example. De repo heeft `main`, `develop` en `acceptance`; CODEOWNERS is op alle drie standaard. Matthijs (matthijs-pursuit, write via `developers`) doet mee: Bas is admin en kan als enige niets bewijzen. Spreek dat vooraf af. Een tweede developer (geen eigenaar, geen senior) is ook nodig. In deze volgorde:
+  1. Typfout eerst, terwijl de repo nog standaard is: CODEOWNERS met `* @matthijs-pursuitt`, via een PR van `feature/*` naar `develop` en van `hotfix/*` naar `main`. De audit meldt standaard plus een bevinding, en `setup-consumer` versoepelt niets. Daarna hetzelfde met een bestaande user zonder schrijfrechten.
+  2. CODEOWNERS licht (`* @matthijs-pursuit`), via dezelfde twee PR's, elk met de review van een senior.
+  3. `pnpm setup-consumer -- workflows-example` (dry run): een `todo` "bevestigen" per review-ruleset (`main`, `develop`, `acceptance`) en voor de tag-ruleset, zonder wijziging.
+  4. `--apply` → de vraag → ja → licht. Tweede run: geen vraag, `no changes`.
+  5. Matthijs opent een PR naar `develop` en merget die zelf na groene checks. Met een opzettelijk rode check: geen merge.
+  6. De tweede developer merget een PR van Matthijs zonder review. Zo hoort het bij licht (besluit in stap 0).
+  7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
+  8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
+- [ ] Stap 7: merge de PR uit stap 5 naar `v2`.
+- [ ] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`.
+
 ---
 
 ## "v2 is klaar"
