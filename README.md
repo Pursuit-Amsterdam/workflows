@@ -149,8 +149,8 @@ Deze scripts werken op de repo's die deze workflows gebruiken. Ze draaien met je
 | Script | Wat het doet |
 | --- | --- |
 | `pnpm audit:consumers [-- <repo> …]` | Controleert elke repo tegen de standaardinrichting. Alleen lezen. |
-| `pnpm setup-consumer -- <repo> [--apply]` | Zet environments, rulesets en de tag-ruleset volgens de standaard. |
-| `pnpm migrate-consumer -- <repo> [--apply]` | Herschrijft de workflows van v1 naar v2 en opent draft-PR's. |
+| `pnpm setup-consumer -- <repo> [--apply]` | Zet environments, rulesets en de tag-ruleset volgens de standaard, of licht als CODEOWNERS dat zegt (pas na een ja in de terminal). |
+| `pnpm migrate-consumer -- <repo> [--apply] [--owner <login>]` | Herschrijft de workflows van v1 naar v2 en opent draft-PR's. Met `--owner` krijgt de repo [lichte bescherming](docs/v2/use-cases.md#light); in een terminal vraagt het script ernaar. |
 | `pnpm review-vaults [-- <repo> …]` | Toont welke 1Password-velden aandacht nodig hebben. Alleen lezen, nooit een waarde. |
 
 ## Aan deze repo werken
