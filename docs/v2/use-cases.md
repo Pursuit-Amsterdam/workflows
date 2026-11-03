@@ -124,7 +124,7 @@ Bij twijfel geldt standaard. Ook `**` en `/**` raken de hele repo en tellen als 
   - Bij standaard vervangt het een bestaande `*`-regel. Het zet de seniors niet meer bovenaan, want dan wint een `*`-regel verderop.
   - Bij licht laat het een bestaande lichte `*`-regel staan.
 - `setup-consumer` leest de `*`-regel op de default branch en op `develop`:
-  - van standaard naar licht, of een nieuwe lichte ruleset → pas na een ja in de terminal, met `--apply`;
+  - van standaard naar licht, of een nieuwe lichte ruleset → pas na een ja in de terminal, met `--apply`: één vraag per repo, die alle rulesets noemt, met ja als standaard (`[Y/n]`; de CODEOWNERS-PR had al de review van een senior);
   - zegt de admin nee, dan blijven de review- en de tag-ruleset standaard, en gaan de andere wijzigingen gewoon door;
   - van licht naar standaard → zonder vraag;
   - al in orde → geen vraag, en een tweede run blijft stil;

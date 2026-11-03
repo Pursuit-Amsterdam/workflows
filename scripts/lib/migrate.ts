@@ -2,9 +2,10 @@
 // a checklist and the environment variables to set out. Pure: no network, no
 // git, so it can be tested on fixtures. What it does not recognise it leaves
 // alone and puts on the checklist; it never converts half a file.
+import { isStarLine, profileFrom, same, SENIOR_TEAM, type Profile } from './protection.ts';
 import { jobs, parseWorkflow, type Workflow } from './workflow.ts';
 
-export const ORG_TEAM = '@Pursuit-Amsterdam/senior-developers';
+export const ORG_TEAM = SENIOR_TEAM;
 
 export interface RepoFacts {
     repo: string;
@@ -15,6 +16,8 @@ export interface RepoFacts {
     hasLockfile: boolean;
     nvmrc: string | null;
     codeowners: string | null;
+    /** The protection chosen in migrate-consumer: owners for light, null for standard, undefined for no choice (use case 30). */
+    owners?: string[] | null;
     dependabot: string | null;
     /** turbo.json at the root; null when there is none. */
     turboJson: string | null;
@@ -227,6 +230,40 @@ updates:
           - github-npm
 `;
 
+// --- CODEOWNERS ---------------------------------------------------------------
+
+const STANDARD_HEADER = ["# The senior developers own the whole repo. With code-owner review required,", "# a junior's PR needs a senior's review; a senior may merge their own PR."];
+const lightHeader = (repo: string): string[] => [
+    '# Light protection: the project of the developer below, not a client project.',
+    '# Anyone with write access merges without a review and may create a release',
+    '# tag; the checks still apply. Back to standard: make the line',
+    `# \`* ${ORG_TEAM}\` again, then run`,
+    `# \`pnpm setup-consumer -- ${repo} --apply\`.`,
+];
+
+/**
+ * CODEOWNERS for the chosen profile. Standard: the senior team alone on the *
+ * line; light: the owners. Every other * line goes, so a later one cannot win;
+ * path rules stay. No choice keeps a light file as it is.
+ */
+function codeownersFile(facts: RepoFacts): { file?: string; note?: string } {
+    const existing = facts.codeowners;
+    const current = existing ? profileFrom([{ branch: 'default', codeowners: existing, errors: [] }]) : null;
+    if (facts.owners === undefined && current?.profile.kind === 'light') {
+        return { note: `\`CODEOWNERS\` is light (${current.profile.owners.join(' ')}): kept. Pass --owner to change the owners, or --standard for standard protection.` };
+    }
+    const want: Profile = facts.owners?.length ? { kind: 'light', owners: facts.owners } : { kind: 'standard' };
+    if (current && current.findings.length === 0 && same(current.profile, want)) return {};
+    const own = [...STANDARD_HEADER, ...lightHeader(facts.repo)];
+    const rest = (existing ?? '').replace(/\n+$/, '').split('\n').filter(l => l !== '' && !isStarLine(l) && !own.includes(l));
+    if (want.kind === 'light') return { file: [...lightHeader(facts.repo), `* ${want.owners.join(' ')}`, ...rest].join('\n') + '\n' };
+    if (!existing) return { file: [...STANDARD_HEADER, `* ${ORG_TEAM}`].join('\n') + '\n' };
+    return {
+        file: [`* ${ORG_TEAM}`, ...rest].join('\n') + '\n',
+        note: rest.length ? '`CODEOWNERS` had other rules: `*` for the senior developers is on top. A later line overrides it for its paths; check those.' : undefined,
+    };
+}
+
 // --- the rewrite --------------------------------------------------------------
 
 export function migrate(facts: RepoFacts, sources: { file: string; text: string }[]): Migration {
@@ -433,12 +470,9 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
             checklist.push(`Added \`.nvmrc\` with \`${major}\` (from v1 \`node-version\`); v2 reads the Node version from it.`);
         } else checklist.push('No `.nvmrc`: v2 falls back to Node 22.x. Add one.');
     }
-    if (!facts.codeowners) {
-        files.set('.github/CODEOWNERS', `# The senior developers own the whole repo. With code-owner review required,\n# a junior's PR needs a senior's review; a senior may merge their own PR.\n* ${ORG_TEAM}\n`);
-    } else if (!new RegExp(`^\\*\\s.*${ORG_TEAM}`, 'm').test(facts.codeowners)) {
-        files.set('.github/CODEOWNERS', `* ${ORG_TEAM}\n${facts.codeowners}`);
-        checklist.push('`CODEOWNERS` had other rules: `*` for the senior developers is added on top. A later line overrides it for its paths; check those.');
-    }
+    const co = codeownersFile(facts);
+    if (co.file !== undefined) files.set('.github/CODEOWNERS', co.file);
+    if (co.note) checklist.push(co.note);
     if (!facts.dependabot) {
         files.set('.github/dependabot.yml', DEPENDABOT_YAML);
     } else {

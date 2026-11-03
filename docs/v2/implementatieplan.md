@@ -929,7 +929,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 **Stappen:**
 
 - [x] Stap 0: besloten (Bas, 3 november 2026): voor lichte repo's gelden "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie" niet, inclusief het geaccepteerde risico. De uitzondering staat bij beide besluiten in `beslissingen.md` en in de standaardinrichting, met "gepland in Task 30".
-- [ ] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
+- [x] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
   - alleen `@Pursuit-Amsterdam/senior-developers`, ook met andere hoofdletters → standaard;
   - een of meer users → licht, met de eigenaren; ook een senior als user;
   - seniors plus anderen, een ander team (ook `@Pursuit-Amsterdam/developers`), een e-mailadres → standaard en een bevinding;
@@ -940,19 +940,19 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   - een fout uit `codeowners/errors` voor die branch, of geen antwoord (`null` uit `get()`: een 403 of 404) → standaard en een bevinding.
 
   Daarna `profileFrom`, tot de tests groen zijn.
-- [ ] Stap 2: `setup-consumer`, tests eerst:
+- [x] Stap 2: `setup-consumer`, tests eerst:
   - `reviewRuleset` per profiel. Licht: `required_approving_review_count: 0`, `require_code_owner_review: false`; verder gelijk, ook `deletion`, `non_fast_forward` en de bypass. Op elke beschermde branch, ook `acceptance`.
   - `tagRuleset` per profiel. Licht: alleen `update` en `deletion` (bypass admin), geen `creation`, zodat iedereen met schrijfrechten een tag maakt maar niemand anders hem verplaatst of weghaalt. Dezelfde naam (`release tags: seniors only`); die klopt nog voor wijzigen en verwijderen.
   - De checks-ruleset hangt niet van het profiel af.
   - `rulesetAction`: versoepelen (ook een nieuwe lichte ruleset) alleen na een ja met `--apply` in een terminal; aanscherpen zonder vraag; geen vraag als alles al klopt; anders een `todo` zonder wijziging, dus zonder `run`, zodat het niet meetelt in "N change(s)". Bij een nee blijven de review- en de tag-ruleset standaard, en de rest gaat door.
 
   Daarna de code in `setup-consumer.ts`.
-- [ ] Stap 3: de audit, tests eerst voor `protectionFindings`:
+- [x] Stap 3: de audit, tests eerst voor `protectionFindings`:
   - licht: een PR-regel met 0 reviews, `deletion` en `non_fast_forward` op de default branch en `develop`, en een tag-ruleset met `update` en `deletion`. Ontbreekt er een, dan is dat een bevinding. `no review required`, `review from code owners not required`, het ontbreken van `creation` en de seniors-regel worden dan niet gemeld; in plaats daarvan één regel ter info met de eigenaren;
   - standaard: 1 review en review van code owners, zoals nu;
   - rulesets die niet bij het profiel passen (bijvoorbeeld een lichte ruleset bij standaard-CODEOWNERS) → bevinding;
   - de bevindingen uit `profileFrom` komen erbij.
-- [ ] Stap 4: `migrate-consumer`, tests eerst in `migrate.test.ts`:
+- [x] Stap 4: `migrate-consumer`, tests eerst in `migrate.test.ts`:
   - licht → CODEOWNERS met het commentaar en `* @<eigenaren>`, zonder seniors-regel;
   - standaard → een bestaande `*`-regel vervangen, niet de seniors erboven zetten;
   - een bestaande lichte CODEOWNERS blijft zoals hij is;
@@ -960,12 +960,19 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - [ ] Stap 5: PR naar `v2` met stap 1–4 en review door een senior. Merge pas na stap 6, want stap 6 draait vanaf deze branch.
 - [ ] Stap 6: bewijzen in workflows-example. De repo heeft `main`, `develop` en `acceptance`; CODEOWNERS is op alle drie standaard. Matthijs (matthijs-pursuit, write via `developers`) doet mee: Bas is admin en kan als enige niets bewijzen. Spreek dat vooraf af. Een tweede developer (geen eigenaar, geen senior) is ook nodig. In deze volgorde:
   1. Typfout eerst, terwijl de repo nog standaard is: CODEOWNERS met `* @matthijs-pursuitt`, via een PR van `feature/*` naar `develop` en van `hotfix/*` naar `main`. De audit meldt standaard plus een bevinding, en `setup-consumer` versoepelt niets. Daarna hetzelfde met een bestaande user zonder schrijfrechten.
+     **Gedaan anders (3 november 2026):** een losse branch zonder PR (`hotfix/tmp-codeowners-probe`, weer weg) met `* @matthijs-pursuitt` en `/docs/ @octocat` (geen rechten op de repo). `codeowners/errors` op die commit meldt beide als `Unknown owner` ("make sure … exists and has write access"). Dat valt in `profileFrom` naar standaard plus een bevinding; dat stuk is in de unittests bewezen, niet op de repo. Het script vroeg de fouten op met de branchnaam en kreeg niets terug; met de SHA wel. De scripts vragen alleen de default branch en `develop` op.
   2. CODEOWNERS licht (`* @matthijs-pursuit`), via dezelfde twee PR's, elk met de review van een senior.
+     **Gedaan:** workflows-example #57 (`develop`) en #58 (`main`), gemerged.
   3. `pnpm setup-consumer -- workflows-example` (dry run): een `todo` "bevestigen" per review-ruleset (`main`, `develop`, `acceptance`) en voor de tag-ruleset, zonder wijziging.
+     **Niet gedaan:** meteen `--apply`. Het gedrag (een `todo`, de standaard blijft) zit in de tests van `rulesetAction`.
   4. `--apply` → de vraag → ja → licht. Tweede run: geen vraag, `no changes`.
+     **Gedaan:** vier vragen (`main`, `develop`, `acceptance`, de tag-ruleset), vier keer ja. Daarna op GitHub: 0 reviews en geen review van code owners op alle drie, de tag-ruleset alleen `update` en `deletion`. Tweede run: `no changes`, geen vraag. De audit meldt nu `info  light protection: CODEOWNERS names @matthijs-pursuit` en verder alleen de twee bevindingen van vóór de test; de audit van `v2` zou er zes bij melden. Gevonden: de `update`-regel noemde geen aantal reviews (`was:` was gelijk aan de nieuwe stand); nu `pull_request (no review)` tegen `(1 review, code owners)`. Ook: vier vragen, elk met nee als standaard, terwijl ja de bedoeling was; nu één vraag per repo met ja als standaard (`[Y/n]`).
   5. Matthijs opent een PR naar `develop` en merget die zelf na groene checks. Met een opzettelijk rode check: geen merge.
+     **Niet gedaan:** Matthijs is ziek. Niet op de repo bewezen; volgt uit de rulesets (0 reviews; de checks-ruleset is ongewijzigd en zonder bypass). Bas: geloofwaardig.
   6. De tweede developer merget een PR van Matthijs zonder review. Zo hoort het bij licht (besluit in stap 0).
+     **Niet gedaan:** zoals 5.
   7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
+     **Niet gedaan:** zoals 5; volgt uit de tag-ruleset zonder `creation`.
   8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
 - [ ] Stap 7: merge de PR uit stap 5 naar `v2`.
 - [ ] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`.

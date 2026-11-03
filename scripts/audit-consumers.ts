@@ -13,8 +13,9 @@
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { parse as parseYaml } from 'yaml';
-import { CHECK_CALL, CI_CALL, loadConsumer, usesOnePassword } from './lib/consumer.ts';
+import { CHECK_CALL, CI_CALL, loadConsumer, readProfile, usesOnePassword } from './lib/consumer.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
+import { reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
 
@@ -45,6 +46,7 @@ interface Rule {
 interface ClassicProtection {
     required_status_checks?: { strict?: boolean; checks?: { context: string; app_id: number | null }[] };
     allow_force_pushes?: { enabled?: boolean };
+    allow_deletions?: { enabled?: boolean };
     required_pull_request_reviews?: { required_approving_review_count?: number; require_code_owner_reviews?: boolean };
 }
 interface Ruleset {
@@ -179,7 +181,9 @@ for (const repo of repos) {
     }
 
     // --- branch protection: classic protection and rulesets together; the default
-    // branch, and develop when it exists
+    // branch, and develop when it exists. The review and the release tags follow the
+    // profile from CODEOWNERS (lib/protection.ts): standard, or light.
+    const { profile, findings: ownerFindings } = await readProfile(c);
     const rulesets = (await get<Ruleset[]>(`/repos/{owner}/{repo}/rulesets`, p)) ?? [];
     for (const branch of [def, ...(hasDevelop && def !== 'develop' ? ['develop'] : [])]) {
         const classic = await get<ClassicProtection>(`/repos/{owner}/{repo}/branches/{branch}/protection`, { ...p, branch });
@@ -193,6 +197,8 @@ for (const repo of repos) {
         const forcePush = !((classic !== null && !classic.allow_force_pushes?.enabled) || rules.some(r => r.type === 'non_fast_forward'));
         const reviews = Math.max(classic?.required_pull_request_reviews?.required_approving_review_count ?? 0, ...rules.filter(r => r.type === 'pull_request').map(r => r.parameters?.required_approving_review_count ?? 0));
         const codeOwners = Boolean(classic?.required_pull_request_reviews?.require_code_owner_reviews) || rules.some(r => r.type === 'pull_request' && r.parameters?.require_code_owner_review);
+        const prRule = classic?.required_pull_request_reviews !== undefined || rules.some(r => r.type === 'pull_request');
+        const deletion = (classic !== null && !classic.allow_deletions?.enabled) || rules.some(r => r.type === 'deletion');
 
         if (classic === null && rules.length === 0) {
             say(repo, 'protection', `${branch} is not protected (no branch protection, no ruleset)`);
@@ -214,8 +220,7 @@ for (const repo of repos) {
             say(repo, 'protection', `${branch}: not requiring up-to-date branches`);
         }
         if (forcePush) say(repo, 'protection', `${branch}: force push allowed`);
-        if (reviews < 1) say(repo, 'protection', `${branch}: no review required`);
-        if (!codeOwners) say(repo, 'protection', `${branch}: review from code owners not required`);
+        for (const f of reviewFindings(profile, branch, { prRule, reviews, codeOwners, deletion })) say(repo, 'protection', f);
     }
     // A bypass on a ruleset skips every rule in it: the checks must sit in a ruleset of their own, without one.
     for (const r of rulesets.filter(r => r.target === 'branch')) {
@@ -274,15 +279,16 @@ for (const repo of repos) {
             for (const a of allowed.filter(a => a.startsWith('branch ') && a !== `branch ${def}`)) say(repo, 'environments', `production allows ${a}`);
         }
     }
-    // Only seniors create release tags: a tag ruleset on v*, whenever production exists.
+    // Only seniors create release tags: a tag ruleset on v*, whenever production exists;
+    // in a light repo anyone with write creates one, but only seniors change or remove it.
     // ...and whenever a release is how the repo goes live (Pages published from the release tag).
     if (envName('production') !== undefined || c.releases) {
-        let tagRuleset = false;
+        const tagRulesets: { include: string[]; rules: string[] }[] = [];
         for (const r of rulesets.filter(r => r.target === 'tag' && r.enforcement === 'active')) {
             const rs = await get<Ruleset>(`/repos/{owner}/{repo}/rulesets/{ruleset_id}`, { ...p, ruleset_id: r.id });
-            if (rs?.conditions?.ref_name?.include?.includes('refs/tags/v*') && (rs.rules ?? []).some(x => x.type === 'creation')) tagRuleset = true;
+            if (rs) tagRulesets.push({ include: rs.conditions?.ref_name?.include ?? [], rules: (rs.rules ?? []).map(x => x.type) });
         }
-        if (!tagRuleset) say(repo, 'protection', 'no tag ruleset on refs/tags/v* (creation): anyone with push can publish a release');
+        for (const f of tagFindings(profile, tagRulesets)) say(repo, 'protection', f);
     }
 
     if (fullAudit) {
@@ -355,11 +361,10 @@ for (const repo of repos) {
     }
 
     // --- CODEOWNERS: the senior developers own the whole repo, so a junior's PR
-    // needs a senior's review (with code-owner review required), never a junior's
-    const co = (await readFile(repo, '.github/CODEOWNERS')) ?? (await readFile(repo, 'CODEOWNERS')) ?? (await readFile(repo, 'docs/CODEOWNERS')) ?? '';
-    if (!new RegExp(`^\\*\\s.*@${ORG}/senior-developers`, 'm').test(co)) {
-        say(repo, 'codeowners', `no '* @${ORG}/senior-developers' line in CODEOWNERS: any reviewer would do`);
-    }
+    // needs a senior's review (with code-owner review required), never a junior's.
+    // Users only on the * line is light: named here, so a change of owners shows.
+    for (const f of ownerFindings) say(repo, 'codeowners', f);
+    if (profile.kind === 'light') console.log(`${repo.padEnd(34)} ${'info'.padEnd(12)} light protection: CODEOWNERS names ${profile.owners.join(' ')}`);
     // Direct admins outside the senior team can merge their own PRs without review.
     for (const u of await list<{ login: string }>(`/repos/{owner}/{repo}/collaborators`, { ...p, affiliation: 'direct', permission: 'admin' })) {
         if (!seniors.includes(u.login)) say(repo, 'access', `${u.login} is a direct admin but not in senior-developers`);

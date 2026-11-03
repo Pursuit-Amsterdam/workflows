@@ -4,7 +4,12 @@
 //
 //   pnpm migrate-consumer -- qpido-website            # dry run
 //   pnpm migrate-consumer -- qpido-website --apply    # push, open draft PRs, set variables
+//   pnpm migrate-consumer -- big-chef-webapp --owner matthijs-pursuit   # light protection
 //
+// CODEOWNERS sets the protection (use case 30): standard (the senior developers)
+// or light (the owners named). In a terminal it asks; otherwise --owner <login>
+// (repeat for more) chooses light and --standard standard. Without either, a
+// light CODEOWNERS stays light and anything else becomes standard.
 // With a develop branch: feature/workflows-v2 -> develop, and hotfix/workflows-v2
 // -> main with the same files, because workflow_run and release read the CD file
 // from the default branch. Without develop: one PR to main.
@@ -15,18 +20,25 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { branchExists } from './lib/consumer.ts';
 import { ORG, get, octokit } from './lib/github.ts';
 import { migrate, type Migration } from './lib/migrate.ts';
+import { profileFrom } from './lib/protection.ts';
 
 const FEATURE = 'feature/workflows-v2';
 const HOTFIX = 'hotfix/workflows-v2';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const apply = args.includes('--apply');
-const [repo] = args.filter(a => !a.startsWith('--'));
-if (!repo) {
-    console.error('usage: pnpm migrate-consumer -- <repo> [--apply]');
+// --owner matthijs-pursuit, or --owner=matthijs-pursuit; the value is not the repo.
+const ownerAt = new Set(args.flatMap((a, i) => (a === '--owner' ? [i + 1] : [])));
+const login = (a: string): string => `@${a.replace(/^@/, '')}`;
+const ownerArgs = [...args.filter(a => a.startsWith('--owner=')).map(a => a.slice(8)), ...[...ownerAt].map(i => args[i] ?? '')].filter(Boolean).map(login);
+const standard = args.includes('--standard');
+const [repo] = args.filter((a, i) => !a.startsWith('--') && !ownerAt.has(i));
+if (!repo || (standard && ownerArgs.length)) {
+    console.error('usage: pnpm migrate-consumer -- <repo> [--apply] [--owner <login>]... [--standard]');
     process.exit(2);
 }
 const p = { owner: ORG, repo };
@@ -55,6 +67,26 @@ function writeFiles(dir: string, m: Pick<Migration, 'files' | 'patches'>): void 
     }
 }
 
+/**
+ * The protection, asked in a terminal: keep a light CODEOWNERS, or name the
+ * owners for light (empty is standard). Without a terminal: no choice (undefined).
+ */
+async function askOwners(codeowners: string | null): Promise<string[] | null | undefined> {
+    if (!process.stdin.isTTY) return undefined;
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    try {
+        const current = codeowners ? profileFrom([{ branch: 'default', codeowners, errors: [] }]).profile : null;
+        if (current?.kind === 'light') {
+            const keep = (await rl.question(`CODEOWNERS is light (${current.owners.join(' ')}). Keep it? [Y/n] `)).trim().toLowerCase();
+            if (keep !== 'n') return current.owners;
+        }
+        const answer = (await rl.question('Light protection, for the own project of a developer? Owners (logins, empty = standard): ')).trim();
+        return answer ? answer.split(/[\s,]+/).filter(Boolean).map(login) : null;
+    } finally {
+        rl.close();
+    }
+}
+
 const meta = await get<{ default_branch: string }>('/repos/{owner}/{repo}', p);
 if (!meta) throw new Error(`cannot read ${ORG}/${repo}`);
 const main = meta.default_branch;
@@ -70,6 +102,8 @@ try {
     // --- the rewrite, from the branch the work happens on
     const wfDir = join(dir, '.github/workflows');
     const sources = (existsSync(wfDir) ? readdirSync(wfDir) : []).filter(f => /\.ya?ml$/.test(f)).map(file => ({ file, text: readFileSync(join(wfDir, file), 'utf8') }));
+    const codeowners = read(dir, '.github/CODEOWNERS') ?? read(dir, 'CODEOWNERS') ?? read(dir, 'docs/CODEOWNERS');
+    const owners = ownerArgs.length ? ownerArgs : standard ? null : await askOwners(codeowners);
     const m = migrate(
         {
             repo,
@@ -78,7 +112,8 @@ try {
             packageJson: read(dir, 'package.json'),
             hasLockfile: existsSync(join(dir, 'pnpm-lock.yaml')),
             nvmrc: read(dir, '.nvmrc'),
-            codeowners: read(dir, '.github/CODEOWNERS') ?? read(dir, 'CODEOWNERS') ?? read(dir, 'docs/CODEOWNERS'),
+            codeowners,
+            owners,
             dependabot: read(dir, '.github/dependabot.yml'),
             turboJson: read(dir, 'turbo.json'),
             supabaseConfig: read(dir, 'supabase/config.toml'),

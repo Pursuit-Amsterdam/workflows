@@ -238,6 +238,46 @@ test('repo files: .nvmrc from node-version, CODEOWNERS, dependabot token', () =>
     assert.match(m.files.get('.github/dependabot.yml')!, /token: \$\{\{ secrets\.CUSTOM_GITHUB_TOKEN \}\}/);
 });
 
+// CODEOWNERS and the protection profile (use case 30): owners is the choice made
+// in migrate-consumer: a list for light, null for standard, undefined for no choice.
+const SENIOR_LINE = '* @Pursuit-Amsterdam/senior-developers';
+const codeowners = (codeowners: string | null, owners?: string[] | null) =>
+    migrate(facts({ codeowners, owners }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
+
+test('CODEOWNERS: light writes the owners on the * line, without the seniors', () => {
+    const m = codeowners(null, ['@matthijs-pursuit']);
+    const file = m.files.get('.github/CODEOWNERS')!;
+    assert.match(file, /^# Light protection/);
+    assert.match(file, /^\* @matthijs-pursuit$/m);
+    assert.doesNotMatch(file, /senior-developers\n/);
+});
+
+test('CODEOWNERS: light over a standard file keeps its path rules', () => {
+    const file = codeowners(`${SENIOR_LINE}\n/docs/ @someone\n`, ['@matthijs-pursuit']).files.get('.github/CODEOWNERS')!;
+    assert.match(file, /^\* @matthijs-pursuit\n\/docs\/ @someone\n$/m);
+});
+
+test('CODEOWNERS: light with the same owners already there is no change', () => {
+    assert.equal(codeowners('* @matthijs-pursuit\n', ['@matthijs-pursuit']).files.has('.github/CODEOWNERS'), false);
+});
+
+test('CODEOWNERS: no choice keeps a light file, and says so', () => {
+    const m = codeowners('* @matthijs-pursuit\n');
+    assert.equal(m.files.has('.github/CODEOWNERS'), false);
+    assert.ok(m.checklist.some(l => l.includes('light') && l.includes('@matthijs-pursuit')));
+});
+
+test('CODEOWNERS: standard replaces a * line for others, so a later line cannot win', () => {
+    for (const choice of [null, undefined]) {
+        const file = codeowners('* @Pursuit-Amsterdam/developers\n/docs/ @someone\n', choice).files.get('.github/CODEOWNERS')!;
+        assert.equal(file, `${SENIOR_LINE}\n/docs/ @someone\n`, String(choice));
+    }
+});
+
+test('CODEOWNERS: standard chosen over a light file makes it standard', () => {
+    assert.equal(codeowners('* @matthijs-pursuit\n', null).files.get('.github/CODEOWNERS'), `${SENIOR_LINE}\n`);
+});
+
 test('nothing to change in the repo files: none written', () => {
     const m = migrate(facts(), [{ file: 'check-pr.yml', text: CHECK_PR }]);
     assert.deepEqual([...m.files.keys()], ['.github/workflows/check-pr.yml']);
