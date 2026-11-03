@@ -20,7 +20,7 @@
 import { createInterface } from 'node:readline/promises';
 import { loadConsumer, producedChecks, readProfile, usesOnePassword, type Consumer } from './lib/consumer.ts';
 import { ORG, get, list, octokit, readFile } from './lib/github.ts';
-import { covers, describe, normalize, reviewRuleset, rulesetAction, tagRuleset, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
+import { covers, describe, isYes, normalize, reviewRuleset, rulesetAction, tagRuleset, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
@@ -94,18 +94,30 @@ async function upsertRuleset(repo: string, existing: Ruleset[], want: Desired): 
 const tty = Boolean(process.stdin.isTTY);
 const rl = apply && tty ? createInterface({ input: process.stdin, output: process.stdout }) : null;
 
-/** A ruleset that depends on the profile: light only after a yes; tightening needs no question. */
-async function upsertForProfile(repo: string, existing: Ruleset[], profile: Profile, pair: { standard: Desired; light: Desired }): Promise<void> {
-    const found = existing.find(r => r.name === pair.standard.name);
-    const actual = found ? await get<Ruleset>('/repos/{owner}/{repo}/rulesets/{ruleset_id}', { owner: ORG, repo, ruleset_id: found.id }) : null;
-    const { action, want } = rulesetAction(profile, pair, actual, { apply, tty });
-    if (action === 'todo') add({ repo, kind: 'todo', message: `ruleset '${pair.light.name}': CODEOWNERS says light; run with --apply in a terminal to confirm` });
-    if (action === 'ask' && rl && profile.kind === 'light') {
-        const answer = (await rl.question(`${repo}: CODEOWNERS names ${profile.owners.join(' ')} → make '${pair.light.name}' light (${describe(pair.light)})? [y/N] `)).trim().toLowerCase();
-        await upsertRuleset(repo, existing, answer === 'y' ? pair.light : pair.standard);
-        return;
+type Pair = { standard: Desired; light: Desired };
+
+/**
+ * The rulesets that depend on the profile, as they should be. Making them light
+ * is one question per repo, yes by default; tightening needs no question.
+ */
+async function profileRulesets(repo: string, existing: Ruleset[], profile: Profile, pairs: Pair[]): Promise<Desired[]> {
+    const decisions: ReturnType<typeof rulesetAction>[] = [];
+    for (const pair of pairs) {
+        const found = existing.find(r => r.name === pair.standard.name);
+        const actual = found ? await get<Ruleset>('/repos/{owner}/{repo}/rulesets/{ruleset_id}', { owner: ORG, repo, ruleset_id: found.id }) : null;
+        decisions.push(rulesetAction(profile, pair, actual, { apply, tty }));
     }
-    await upsertRuleset(repo, existing, want);
+    const asked = pairs.filter((_, i) => decisions[i]?.action === 'ask' || decisions[i]?.action === 'todo').map(pair => pair.light.name);
+    if (decisions.some(d => d.action === 'todo')) {
+        add({ repo, kind: 'todo', message: `CODEOWNERS says light: run with --apply in a terminal to confirm (${asked.join(', ')})` });
+    }
+    let yes = false;
+    if (rl && profile.kind === 'light' && decisions.some(d => d.action === 'ask')) {
+        console.log(`${repo}: CODEOWNERS names ${profile.owners.join(' ')}; light protection means no review, and anyone with write may create a release tag:`);
+        for (const name of asked) console.log(`    ${name}`);
+        yes = isYes(await rl.question('Make these light? [Y/n] '));
+    }
+    return decisions.map((d, i) => (d.action === 'ask' ? (yes ? d.want : pairs[i]!.standard) : d.want));
 }
 
 // --- environments -----------------------------------------------------------
@@ -306,6 +318,15 @@ for (const repo of repos) {
     if (profile.kind === 'light') add({ repo, kind: 'note', message: `light protection: CODEOWNERS names ${profile.owners.join(' ')}` });
     const rulesets = await list<Ruleset>('/repos/{owner}/{repo}/rulesets', p);
     const branches = [def, ...(['develop', 'acceptance'] as const).filter(b => b !== def && (b === 'develop' ? c.hasDevelop : c.hasAcceptance))];
+    // Only seniors create release tags, so only a senior deploys to production;
+    // in a light repo anyone with write creates one. Also for a repo whose release
+    // publishes Pages: the tag is how it goes live.
+    const tagged = wanted.has('production') || c.releases;
+    const pairs: Pair[] = [
+        ...branches.map(b => ({ standard: reviewRuleset(b, { kind: 'standard' }), light: reviewRuleset(b, profile) })),
+        ...(tagged ? [{ standard: tagRuleset({ kind: 'standard' }), light: tagRuleset(profile) }] : []),
+    ];
+    const profiled = await profileRulesets(repo, rulesets, profile, pairs);
     for (const branch of branches) {
         // The checks a PR to this branch gets come from the workflows on this branch:
         // during a migration develop runs v2 while the default branch still runs v1.
@@ -316,7 +337,7 @@ for (const repo of repos) {
         // is protected too (develop -> main, main -> develop, develop -> acceptance), so
         // "Update branch" would push onto it, which the rulesets refuse.
         if (checks.length) await upsertRuleset(repo, rulesets, checksRuleset(branch, checks, branch === def && !c.hasDevelop));
-        await upsertForProfile(repo, rulesets, profile, { standard: reviewRuleset(branch, { kind: 'standard' }), light: reviewRuleset(branch, profile) });
+        await upsertRuleset(repo, rulesets, profiled[branches.indexOf(branch)]!);
         const ours = [checksRuleset(branch, [], false).name, reviewRuleset(branch, profile).name];
         for (const r of rulesets.filter(r => r.target === 'branch' && !ours.includes(r.name) && !r.name.startsWith('protect '))) {
             const rs = await get<Ruleset>('/repos/{owner}/{repo}/rulesets/{ruleset_id}', { ...p, ruleset_id: r.id });
@@ -337,10 +358,7 @@ for (const repo of repos) {
         }
     }
 
-    // Only seniors create release tags, so only a senior deploys to production;
-    // in a light repo anyone with write creates one. Also for a repo whose release
-    // publishes Pages: the tag is how it goes live.
-    if (wanted.has('production') || c.releases) await upsertForProfile(repo, rulesets, profile, { standard: tagRuleset({ kind: 'standard' }), light: tagRuleset(profile) });
+    if (tagged) await upsertRuleset(repo, rulesets, profiled[branches.length]!);
 
     // Pages published from a release: the github-pages environment (GitHub makes it)
     // must allow the release tags. Other rules on it (develop, for a Storybook on

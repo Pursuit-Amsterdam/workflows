@@ -159,6 +159,11 @@ export function tagRuleset(profile: Profile): Desired {
     };
 }
 
+/** The answer to "make this repo light?": yes unless it says no. CODEOWNERS already had a senior's review. */
+export function isYes(answer: string): boolean {
+    return ['', 'y', 'yes', 'j', 'ja'].includes(answer.trim().toLowerCase());
+}
+
 /**
  * What setup-consumer does with a ruleset that depends on the profile. Tightening
  * needs no question; making it light does, so only with --apply in a terminal.

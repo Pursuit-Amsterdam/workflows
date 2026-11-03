@@ -3,7 +3,7 @@
 // Run: node --test scripts/lib/
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { describe, pickCodeowners, profileFrom, reviewFindings, reviewRuleset, rulesetAction, tagFindings, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
+import { describe, isYes, pickCodeowners, profileFrom, reviewFindings, reviewRuleset, rulesetAction, tagFindings, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
 
 const SENIORS = '* @Pursuit-Amsterdam/senior-developers\n';
 const on = (codeowners: string | null, branch = 'main', errors: BranchOwners['errors'] = []): BranchOwners => ({ branch, codeowners, errors });
@@ -193,4 +193,9 @@ test('describe: the review ruleset says how many reviews, so a change to light s
     assert.equal(describe(reviewRuleset('main', STANDARD)), 'deletion, non_fast_forward, pull_request (1 review, code owners)');
     assert.equal(describe(reviewRuleset('main', LIGHT)), 'deletion, non_fast_forward, pull_request (no review)');
     assert.equal(describe(tagRuleset(LIGHT)), 'update, deletion');
+});
+
+test('isYes: the question to make a repo light defaults to yes; only n or no says no', () => {
+    for (const a of ['', 'y', 'Y', 'yes', ' y ', 'j', 'ja']) assert.equal(isYes(a), true, JSON.stringify(a));
+    for (const a of ['n', 'N', 'no', 'q', 'nee']) assert.equal(isYes(a), false, JSON.stringify(a));
 });

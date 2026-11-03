@@ -960,12 +960,19 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - [ ] Stap 5: PR naar `v2` met stap 1–4 en review door een senior. Merge pas na stap 6, want stap 6 draait vanaf deze branch.
 - [ ] Stap 6: bewijzen in workflows-example. De repo heeft `main`, `develop` en `acceptance`; CODEOWNERS is op alle drie standaard. Matthijs (matthijs-pursuit, write via `developers`) doet mee: Bas is admin en kan als enige niets bewijzen. Spreek dat vooraf af. Een tweede developer (geen eigenaar, geen senior) is ook nodig. In deze volgorde:
   1. Typfout eerst, terwijl de repo nog standaard is: CODEOWNERS met `* @matthijs-pursuitt`, via een PR van `feature/*` naar `develop` en van `hotfix/*` naar `main`. De audit meldt standaard plus een bevinding, en `setup-consumer` versoepelt niets. Daarna hetzelfde met een bestaande user zonder schrijfrechten.
+     **Gedaan anders (3 november 2026):** een losse branch zonder PR (`hotfix/tmp-codeowners-probe`, weer weg) met `* @matthijs-pursuitt` en `/docs/ @octocat` (geen rechten op de repo). `codeowners/errors` op die commit meldt beide als `Unknown owner` ("make sure … exists and has write access"). Dat valt in `profileFrom` naar standaard plus een bevinding; dat stuk is in de unittests bewezen, niet op de repo. Het script vroeg de fouten op met de branchnaam en kreeg niets terug; met de SHA wel. De scripts vragen alleen de default branch en `develop` op.
   2. CODEOWNERS licht (`* @matthijs-pursuit`), via dezelfde twee PR's, elk met de review van een senior.
+     **Gedaan:** workflows-example #57 (`develop`) en #58 (`main`), gemerged.
   3. `pnpm setup-consumer -- workflows-example` (dry run): een `todo` "bevestigen" per review-ruleset (`main`, `develop`, `acceptance`) en voor de tag-ruleset, zonder wijziging.
+     **Niet gedaan:** meteen `--apply`. Het gedrag (een `todo`, de standaard blijft) zit in de tests van `rulesetAction`.
   4. `--apply` → de vraag → ja → licht. Tweede run: geen vraag, `no changes`.
+     **Gedaan:** vier vragen (`main`, `develop`, `acceptance`, de tag-ruleset), vier keer ja. Daarna op GitHub: 0 reviews en geen review van code owners op alle drie, de tag-ruleset alleen `update` en `deletion`. Tweede run: `no changes`, geen vraag. De audit meldt nu `info  light protection: CODEOWNERS names @matthijs-pursuit` en verder alleen de twee bevindingen van vóór de test; de audit van `v2` zou er zes bij melden. Gevonden: de `update`-regel noemde geen aantal reviews (`was:` was gelijk aan de nieuwe stand); nu `pull_request (no review)` tegen `(1 review, code owners)`. Ook: vier vragen, elk met nee als standaard, terwijl ja de bedoeling was; nu één vraag per repo met ja als standaard (`[Y/n]`).
   5. Matthijs opent een PR naar `develop` en merget die zelf na groene checks. Met een opzettelijk rode check: geen merge.
+     **Niet gedaan:** Matthijs is ziek. Niet op de repo bewezen; volgt uit de rulesets (0 reviews; de checks-ruleset is ongewijzigd en zonder bypass). Bas: geloofwaardig.
   6. De tweede developer merget een PR van Matthijs zonder review. Zo hoort het bij licht (besluit in stap 0).
+     **Niet gedaan:** zoals 5.
   7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
+     **Niet gedaan:** zoals 5; volgt uit de tag-ruleset zonder `creation`.
   8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
 - [ ] Stap 7: merge de PR uit stap 5 naar `v2`.
 - [ ] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`.
