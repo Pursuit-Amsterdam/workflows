@@ -993,7 +993,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 **Stappen:**
 
-- [ ] Stap 1: `redis` en `playwright-browsers` in `ci.yml`, met tests, de use cases (2 en 31) en de docs. PR naar `v2`.
+- [x] Stap 1: `redis` en `playwright-browsers` in `ci.yml`, met tests, de use cases (2 en 31) en de docs. PR naar `v2`: #157.
 - [ ] Stap 2: PR `feature/workflows-v2` → `develop`: `ci.yml` (`run-ci` met `redis: true` en `playwright-browsers: chromium`, en `run-ci-images` met beide images), `cd.yml` (cd-gate en cd-swarm; productie met `deploy-enabled: false` zolang de VM er niet is; `pre-deploy` op `/opt/casusregie/traefik/dynamic` en `/opt/casusregie/certs`), `check-pr.yml` op `@v2` en CONTRIBUTING.md, CODEOWNERS standaard, `.nvmrc`, Dependabot, en de turbo-wijzigingen hierboven. Plus `hotfix/workflows-v2` → `main` met alleen `.github/`, gemerged vóór of samen met die naar `develop`. Eerst met Tim afstemmen: 8 open PR's, en de verplichte check heet daarna `run-ci / pipeline`.
 - [ ] Stap 3: `setup-consumer --apply`: `VM_SSH_*` en `OP_*` op staging, rulesets in plaats van de klassieke protectie, het repo-secret `CUSTOM_GITHUB_TOKEN` weg (geen private pakketten). Staging via `v2` nalopen.
 - [ ] Stap 4: de eerste release `develop` → `main` door een senior, als Tim dat wil; tot de productie-VM er is alleen bouwen en pushen.
