@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Fake pnpm: logs the directory it runs in and its arguments to PNPM_LOG.
+# `exec playwright --version` prints FAKE_PLAYWRIGHT the way Playwright does
+# ("Version 1.64.0"); FAKE_PLAYWRIGHT=none prints nothing. FAKE_NOISE first
+# prints lines of its own, as pnpm does when it installs before an exec.
+printf '%s: %s\n' "$(basename "$PWD")" "$*" >>"$PNPM_LOG"
+if [ "$*" = "exec playwright --version" ]; then
+  [ -z "${FAKE_NOISE:-}" ] || printf 'Lockfile is up to date\nPackages: +1\n'
+  [ "${FAKE_PLAYWRIGHT:-}" = none ] || echo "Version ${FAKE_PLAYWRIGHT:-1.64.0}"
+fi

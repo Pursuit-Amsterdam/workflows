@@ -10,13 +10,13 @@ Acht regels. Elke regel lost een probleem uit de audit op. De uitwerking per wor
 
 Aan een aanroep zie je meteen wat er gebeurt: wat er geïnstalleerd wordt, wat er gecontroleerd wordt, en waartegen. Een input in de ene groep zet nooit iets in een andere groep aan of uit.
 
-**Toolchain: wat installeren we?** Wat nodig is om de scripts van de repo te draaien: node en pnpm altijd, Python als de repo dat vraagt (principe 7). `working-directory` zegt waar het project staat, `use-custom-token` geeft toegang tot private packages.
+**Toolchain: wat installeren we?** Wat nodig is om de scripts van de repo te draaien: node en pnpm altijd, Python als de repo dat vraagt (principe 7), Playwright-browsers als de tests die nodig hebben (`playwright-browsers`). `working-directory` zegt waar het project staat, `use-custom-token` geeft toegang tot private packages.
 
 **Checks / Build: wat doen we met de code?** In CI kies je in de verplichte lijst `checks` welke scripts draaien, bijvoorbeeld `lint typecheck test`. Wat elk script doet, staat in de repo (principe 7). In CD gaat het om bouwen en deployen (`build-mode`, `images`, `stack-file`), plus de controles die alleen CD kan doen: typecheck na gegenereerde code en een health-check na de deploy.
 
 **Services / Target: waarmee en waarheen?** De diensten waar een job mee werkt: een database (postgres of supabase), Redis en secrets uit 1Password. In CD komt daar het doel bij: `environment` (verplicht) en `ref`, de commit die uitgerold wordt. Een lege vault of item valt terug op de variabelen van die environment. De inputs voor het vertalingen-CMS horen ook in deze groep.
 
-Geen hoofdschakelaars: een vlag zet nooit een andere input of een hele groep aan of uit. Waar een waarde de keuze kan dragen, vervangt die de vlag: `database`, `onepassword-item`, `health-path`, `tms-sync-branch`. De booleans die overblijven (`use-custom-token`, `supabase-seed`, `redis`, `prepare-package`, `migrations`, `deploy-enabled`, `tms`) bepalen alleen hoe hun eigen stap werkt. Inputnamen zijn kebab-case (`onepassword-vault`), nooit snake_case.
+Geen hoofdschakelaars: een vlag zet nooit een andere input of een hele groep aan of uit. Waar een waarde de keuze kan dragen, vervangt die de vlag: `database`, `onepassword-item`, `health-path`, `tms-sync-branch`, `playwright-browsers`. De booleans die overblijven (`use-custom-token`, `supabase-seed`, `redis`, `prepare-package`, `migrations`, `deploy-enabled`, `tms`) bepalen alleen hoe hun eigen stap werkt. Inputnamen zijn kebab-case (`onepassword-vault`), nooit snake_case.
 
 **Lost op:** drie soorten schakelaars door elkaar, tegenstrijdige standaardwaarden, ongebruikte inputs.
 
@@ -87,7 +87,7 @@ De workflow bepaalt wanneer en welke checks draaien. Wat een check doet, staat i
 - Elke repo heeft een `package.json`, ook een Python-project: `"lint": "uv run ruff check ."`. De scripts zijn de namen waarmee CI de checks aanroept ([besloten](beslissingen.md#decided)).
 - Meer dan één workspace betekent turbo: één job voor frontend én backend, en bij een PR alleen de pakketten die veranderd zijn ([besloten](beslissingen.md#decided)).
 - Ook in CD: codegen en de typecheck zijn scripts, en de Node-versie komt uit `.nvmrc`.
-- Runtimes en versies komen uit de repo: een `pyproject.toml` betekent uv, `.nvmrc` en `.python-version` geven de versie.
+- Runtimes en versies komen uit de repo: een `pyproject.toml` betekent uv, `.nvmrc` en `.python-version` geven de versie. De Playwright-browsers volgen de Playwright-versie in `package.json`.
 
 Voorbeeld: frontend en backend in één repo
 

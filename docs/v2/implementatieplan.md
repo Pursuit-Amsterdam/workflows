@@ -980,6 +980,29 @@ De integratie met v2 (leestoken, drift-check, template-grens) staat in een apart
 - [x] Stap 7: merge de PR uit stap 5 naar `v2` (#152, 3 november 2026).
 - [x] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`. Gedaan (3 november 2026): big-chef-webapp #11, #12 en #13 (`dependabot.yml`), CI groen; `setup-consumer --apply` met één vraag. Bijgekomen: `DATABASE_URL` naar asyncpg en de Vitest-globals in de app, een `app_test` die `test` zelf aanmaakt.
 
+### Task 31: den-haag-casusregie-automations op `v2` (handwerk)
+
+**Onderzocht (3 november 2026).** Geen blueprint-instantie: een eigen Turborepo van Tim (timvaningen, senior) met `apps/api` (FastAPI en een ARQ-worker, uv, Python 3.14), `apps/web` (Next.js als statische export achter nginx, Storybook) en `apps/lab`. Staging is een Swarm-stack op een eigen VM, via `vm-cd@main`, als job in `ci.yml`. `cd.yml` (productie, alleen `workflow_dispatch`) staat met `deploy-enabled: false` klaar, maar er is nog geen productie-VM. `main` is alleen de eerste commit (14 september 2026) en loopt 373 commits achter op `develop`, zonder eigen commits. `migrate-consumer` levert alleen CODEOWNERS en Dependabot op: CI en CD zijn handwerk. Profiel: standaard (Bas, 3 november 2026).
+
+Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
+
+- **v2:** de api-tests draaien tegen een echte Redis, en `test` in `apps/web` draait de Storybook-verhalen in Chromium. `ci.yml` kende geen `redis` en geen browser.
+- **`--affected`:** bij een PR alleen in `apps/api` sloeg turbo de root-taken over, en ook alle checks van web, terwijl web zijn client uit `apps/api/openapi.json` genereert. Bij een PR alleen in `prompts/` of `packs/` sloeg hij de api-tests over. Oplossing, getest met `turbo --dry=json`: `globalDependencies: ["packs/**", "prompts/**"]`, `"api": "workspace:*"` in `apps/web`, en de vocabulary- en OpenAPI-check als script in de pakketten.
+- **Images:** beide bouwen. De api start alleen met `SOURCE_KEY` en `TOKEN_SECRET`. `/health` geeft 503 zonder worker, dus de smoke-test gebruikt `/openapi.json`. De stack eist `BASIC_AUTH`, dus `stack-env: BASIC_AUTH=x`. Na de deploy: `health-url` `https://${APP_HOST}/api/health` (daar draait de worker mee).
+- **`main`:** `workflow_run` leest de workflows van de default branch, en `main` heeft er geen. Zonder `cd.yml` op `main` start ook de staging-deploy niet meer zodra `ci.yml` hem niet meer doet. Daarom gaat `.github/` ook via `hotfix/workflows-v2` naar `main`, zoals `migrate-consumer` voorstelt.
+
+**Stappen:**
+
+- [x] Stap 1: `redis` en `playwright-browsers` in `ci.yml`, met tests, de use cases (2 en 31) en de docs. PR naar `v2`: #157.
+  **Bewezen in workflows-example #61** (draft, niet mergen), test eerst: `test:redis` in `backend` (PING naar `REDIS_URL`) en `test:browser` in `web` (Chromium via Playwright 1.64.0), elk met `cache: false`.
+  1. `ci.yml@v2` zonder de inputs: rood, `REDIS_URL is not set` (run 41670385452). Turbo brak `test:browser` daarbij af, dus één input per stap.
+  2. `@feature/ci-browser-redis` met `redis: true`: `redis ok: PONG from localhost:6379`, de browser rood met `Executable doesn't exist` (run 41670733125).
+  3. Plus `playwright-browsers: chromium`: groen, `browser ok: chromium 156.0.8078.4`; cache-miss, dus `install --with-deps` (18 s), daarna opgeslagen (run 41671065449).
+  4. Rerun: cache-hit op `playwright-Linux-1.64.0-chromium`, alleen `install-deps` (15 s), groen (run 41671065449, poging 2). De cache scheelt weinig: de systeempakketten kosten de meeste tijd.
+- [ ] Stap 2: PR `feature/workflows-v2` → `develop`: `ci.yml` (`run-ci` met `redis: true` en `playwright-browsers: chromium`, en `run-ci-images` met beide images), `cd.yml` (cd-gate en cd-swarm; productie met `deploy-enabled: false` zolang de VM er niet is; `pre-deploy` op `/opt/casusregie/traefik/dynamic` en `/opt/casusregie/certs`), `check-pr.yml` op `@v2` en CONTRIBUTING.md, CODEOWNERS standaard, `.nvmrc`, Dependabot, en de turbo-wijzigingen hierboven. Plus `hotfix/workflows-v2` → `main` met alleen `.github/`, gemerged vóór of samen met die naar `develop`. Eerst met Tim afstemmen: 8 open PR's, en de verplichte check heet daarna `run-ci / pipeline`.
+- [ ] Stap 3: `setup-consumer --apply`: `VM_SSH_*` en `OP_*` op staging, rulesets in plaats van de klassieke protectie, het repo-secret `CUSTOM_GITHUB_TOKEN` weg (geen private pakketten). Staging via `v2` nalopen.
+- [ ] Stap 4: de eerste release `develop` → `main` door een senior, als Tim dat wil; tot de productie-VM er is alleen bouwen en pushen.
+
 ---
 
 ## "v2 is klaar"

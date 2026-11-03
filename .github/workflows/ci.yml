@@ -2,11 +2,12 @@ name: "CI"
 
 # One CI workflow for every repo. The repo's package.json scripts are the contract:
 # this workflow decides when and which checks run; the repo decides what a check does.
-#   runtimes  - node + pnpm always; uv + python when the repo has a pyproject.toml.
-#               Versions come from the repo (.nvmrc, .python-version), else 22.x / 3.12.
+#   runtimes  - node + pnpm always; uv + python when the repo has a pyproject.toml;
+#               Playwright browsers when asked for, cached per Playwright version.
+#               Versions come from the repo (.nvmrc, .python-version, package.json), else 22.x / 3.12.
 #   checks    - required list of script names. With a turbo.json they run through turbo
 #               (only affected packages on pull requests); otherwise `pnpm run`, in order.
-#   services  - database, 1Password, translations CMS.
+#   services  - database, Redis, 1Password, translations CMS.
 # A requested check the repo does not define fails the job: nothing checked is never green.
 # Supersedes web-ci.yml, backend-ci.yml and fullstack-ci.yml. Developed on the v2 branch; every internal ref pins @v2.
 
@@ -28,6 +29,11 @@ on:
         required: false
         type: boolean
         default: false
+      playwright-browsers:
+        description: "Space-separated Playwright browsers to install before the checks, e.g. `chromium`. Empty = none. The Playwright version is the one a package.json in the repo lists (playwright or @playwright/test)."
+        required: false
+        type: string
+        default: ""
 
       # ── services ────────────────────────────────────────────────────────
       database:
@@ -56,6 +62,11 @@ on:
         type: string
         default: "postgres"
       supabase-seed:
+        required: false
+        type: boolean
+        default: false
+      redis:
+        description: "Start Redis for tests that need one; exports REDIS_URL"
         required: false
         type: boolean
         default: false
@@ -157,12 +168,13 @@ jobs:
             echo "python=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Services (database, secrets)
+      - name: Services (database, redis, secrets)
         id: services
         uses: Pursuit-Amsterdam/workflows/.github/actions/setup-services@v2
         with:
           working-directory: ${{ inputs.working-directory }}
           database: ${{ inputs.database }}
+          redis: ${{ inputs.redis }}
           supabase-seed: ${{ inputs.supabase-seed }}
           # When dbtest is the only check, the stack only serves it: skip it when supabase/ is untouched.
           supabase-skip-unchanged: ${{ steps.repo.outputs.only-dbtest }}
@@ -190,6 +202,63 @@ jobs:
           python-version: ${{ steps.repo.outputs.python-version }}
           working-directory: ${{ inputs.working-directory }}/${{ steps.repo.outputs.python-dir }}
           github-token: ${{ inputs.use-custom-token && secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # The browsers belong to one Playwright version, so that version comes from
+      # the repo: the first package.json that lists playwright or @playwright/test.
+      - name: Find Playwright
+        id: playwright
+        if: inputs.playwright-browsers != ''
+        env:
+          BROWSERS: ${{ inputs.playwright-browsers }}
+        run: |
+          set -euo pipefail
+          # One line: a list over several lines must not drop every browser after the first.
+          read -ra browsers <<<"$(tr -s '[:space:]' ' ' <<<"$BROWSERS")"
+          [ "${#browsers[@]}" -gt 0 ] || { echo "::error::playwright-browsers is only whitespace"; exit 1; }
+          for b in "${browsers[@]}"; do
+            [[ $b =~ ^[a-z][a-z-]*$ ]] || { echo "::error::playwright-browsers: '$b' is not a browser name (e.g. chromium)"; exit 1; }
+          done
+          pkg=$(find . -name package.json -not -path '*/node_modules/*' -print0 | sort -z \
+            | xargs -0 -r jq -r '((.dependencies // {}) + (.devDependencies // {})) | select(has("playwright") or has("@playwright/test")) | input_filename' \
+            | head -n1)
+          [ -n "$pkg" ] || { echo "::error::playwright-browsers is set, but no package.json lists playwright or @playwright/test"; exit 1; }
+          dir=$(dirname "$pkg")
+          # Only the "Version x.y.z" line: pnpm may print its own lines first.
+          version=$(cd "$dir" && pnpm exec playwright --version | sed -n 's/^Version \([0-9][0-9A-Za-z.+-]*\)$/\1/p' | tail -n1)
+          [ -n "$version" ] || { echo "::error::no Playwright version from 'pnpm exec playwright --version' in $dir"; exit 1; }
+          echo "Playwright $version in $dir: ${browsers[*]}"
+          {
+            echo "dir=$dir"
+            echo "version=$version"
+            echo "browsers=${browsers[*]}"
+            echo "key=$(IFS=-; echo "${browsers[*]}")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Playwright browser cache
+        id: browser-cache
+        if: inputs.playwright-browsers != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ steps.playwright.outputs.key }}
+
+      # The cache holds the browsers, not the system packages they need: those
+      # come every run.
+      - name: Playwright browsers
+        id: browsers
+        if: inputs.playwright-browsers != ''
+        working-directory: ${{ inputs.working-directory }}/${{ steps.playwright.outputs.dir }}
+        env:
+          BROWSERS: ${{ steps.playwright.outputs.browsers }}
+          CACHE_HIT: ${{ steps.browser-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          read -ra browsers <<<"$BROWSERS"
+          if [ "$CACHE_HIT" = true ]; then
+            pnpm exec playwright install-deps "${browsers[@]}"
+          else
+            pnpm exec playwright install --with-deps "${browsers[@]}"
+          fi
 
       - name: Turbo cache
         if: steps.repo.outputs.turbo == 'true'
