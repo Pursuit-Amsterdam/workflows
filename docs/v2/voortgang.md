@@ -61,7 +61,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 7 | Python-pakket releasen en publiceren (web-essentials-py) | niet gebouwd: `ci.yml` kan Python (uv), maar `release-draft` leest alleen `package.json` en `cd-packages` publiceert alleen npm | bespreken: git-tag, wheel op GHCR of private index ([Task 22e](implementatieplan.md#task-22e-web-essentials-py-op-v2-python-pakket)) |
 | 8 | Supabase-config per omgeving: `config push` in `cd-supabase`, `[remotes]`-blokken in `config.toml` ([Task 19b](implementatieplan.md#task-19b-de-supabase-config-per-omgeving-config-push-en-remotes)) | niet gebouwd; geen repo heeft `[remotes]`, dus geen route zet de config nu op het gehoste project | eerst per project `config diff` (Bas, met een eigen token) |
 | 9 | Nalezen: kan route 1 (GitHub-integratie) ook edge functions en `[edge_runtime.secrets]` aan, en migraties per omgeving uitzetten? (Task 19b) | open | geen: docs nalezen en testen; het besluit van 22 oktober blijft staan tot dan |
-| 10 | Lichte bescherming: het profiel uit de `*`-regel in CODEOWNERS, en de bijbehorende review-ruleset in `setup-consumer` en de audit ([Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners), [use case 30](use-cases.md#light)) | gepland, niet gebouwd | akkoord van de seniors (wijkt af van twee besluiten: review en releasen) |
+| 10 | Lichte bescherming: het profiel uit de `*`-regel in CODEOWNERS, en de bijbehorende review-ruleset in `setup-consumer` en de audit ([Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners), [use case 30](use-cases.md#light)) | besloten, niet gebouwd | geen: de uitzondering op twee besluiten is genomen (Bas, 3 november 2026) |
 
 **web-essentials-py nu** (28 oktober 2026):
 

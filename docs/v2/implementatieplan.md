@@ -912,6 +912,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - **Releasen:** bij licht mag iedereen met schrijfrechten een `v*`-tag maken, en dus deployen. Een PR die de eigen CI omzeilt, is daarmee een geaccepteerd risico.
 - **Naam:** dezelfde naam bij beide profielen, met de bestaande `update`.
 - **De vraag:** "standaard of licht?" zit in `migrate-consumer`; `setup-consumer` vraagt alleen een bevestiging om te versoepelen.
+- **Uitzondering op twee besluiten:** voor lichte repo's geldt geen verplichte review en geen "alleen seniors deployen". Vastgelegd in `beslissingen.md`.
 
 **Bestanden:**
 
@@ -923,11 +924,11 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - Wijzig: `scripts/setup-consumer.ts`. Het leest CODEOWNERS en de fouten per branch, stelt de vraag (het patroon van `review-vaults`), en krijgt een nieuwe kop (r. 14–15 zegt nu dat CODEOWNERS niet zijn werk is).
 - Wijzig: `scripts/audit-consumers.ts`: r. 194, 217–218 (review), r. 280–285 (tag-ruleset), r. 357–361 (CODEOWNERS).
 - Wijzig: `scripts/lib/migrate.ts` (r. 436–440) en `scripts/migrate-consumer.ts`: de vraag, `--owner`, CODEOWNERS voor licht, en geen seniors-regel meer bovenaan.
-- Wijzig na stap 0: `docs/v2/beslissingen.md` (de twee besluiten die het raakt) en `docs/v2/naslag/standaardinrichting.md` (de rijen branchprotectie, release-tags en CODEOWNERS, en de beschrijving van audit en `setup-consumer`, r. 40–42), plus `README.md` (r. 18 en 152).
+- Wijzig bij de bouw: in `docs/v2/naslag/standaardinrichting.md` en `beslissingen.md` "gepland in Task 30" weghalen, en de beschrijving van audit en `setup-consumer` bijwerken (r. 40–42). Daarnaast `README.md` (r. 18 en 152).
 
 **Stappen:**
 
-- [ ] Stap 0: akkoord van de seniors op het model in één zin, met het geaccepteerde risico erbij. Het wijkt af van "iedereen anders heeft een review nodig" en van "alleen seniors deployen naar productie". Daarna de besluiten en de standaardinrichting bijwerken.
+- [x] Stap 0: besloten (Bas, 3 november 2026): voor lichte repo's gelden "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie" niet, inclusief het geaccepteerde risico. De uitzondering staat bij beide besluiten in `beslissingen.md` en in de standaardinrichting, met "gepland in Task 30".
 - [ ] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
   - alleen `@Pursuit-Amsterdam/senior-developers`, ook met andere hoofdletters → standaard;
   - een of meer users → licht, met de eigenaren; ook een senior als user;
@@ -963,7 +964,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   3. `pnpm setup-consumer -- workflows-example` (dry run): een `todo` "bevestigen" per review-ruleset (`main`, `develop`, `acceptance`) en voor de tag-ruleset, zonder wijziging.
   4. `--apply` → de vraag → ja → licht. Tweede run: geen vraag, `no changes`.
   5. Matthijs opent een PR naar `develop` en merget die zelf na groene checks. Met een opzettelijk rode check: geen merge.
-  6. De tweede developer merget een PR van Matthijs zonder review. Zo hoort het bij licht, en zo staat het in het akkoord van stap 0.
+  6. De tweede developer merget een PR van Matthijs zonder review. Zo hoort het bij licht (besluit in stap 0).
   7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
   8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
 - [ ] Stap 7: merge de PR uit stap 5 naar `v2`.

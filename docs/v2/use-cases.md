@@ -79,7 +79,7 @@ Nog geen workflow, wel een toets: het ontwerp mag infra as code (Terraform of Op
 
 **Het model in één zin:** in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. CODEOWNERS noemt wie het project draagt: die krijgt de reviewverzoeken en is aanspreekbaar.
 
-Een medewerker die geen senior is, heeft soms een eigen project dat geen klantproject is. Dan hoeft niet elke PR langs een senior, en ook de release niet. Voorbeeld: big-chef-webapp (39 van de 39 commits van matthijs-pursuit, nooit gedeployd). Gepland in [Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners). Het wijkt af van twee [besluiten](beslissingen.md#decided): "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie". Daarom komt er eerst akkoord van de seniors.
+Een medewerker die geen senior is, heeft soms een eigen project dat geen klantproject is. Dan hoeft niet elke PR langs een senior, en ook de release niet. Voorbeeld: big-chef-webapp (39 van de 39 commits van matthijs-pursuit, nooit gedeployd). Gepland in [Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners). Het is een uitzondering op twee [besluiten](beslissingen.md#decided): "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie". Voor lichte repo's gelden die niet (besloten, Bas, 3 november 2026). De uitzondering staat bij beide besluiten.
 
 **Het gaat om het soort project, niet om wie er commit.** In veel klantprojecten schrijven vooral niet-seniors (tms-test, translations-management-dashboard, intersekse-website). Die blijven standaard. Licht is voor een eigen of intern project, ook als het een productieomgeving heeft.
 
