@@ -8,13 +8,14 @@ Wat de workflows moeten kunnen, afgeleid uit de huidige repo's. De laatste kolom
 | --- | --- | --- | --- |
 | CI: code controleren |  |  |  |
 | 1 | Next.js-site: lint, format, typecheck, test, build | 34 repo's | [1](principes.md#vocab) [2](principes.md#p-green) [7](principes.md#p-scripts) |
-| 2 | Python-backend, eventueel tegen Postgres | gp-map, gp-groot | [1](principes.md#vocab) [2](principes.md#p-green) [7](principes.md#p-scripts) |
+| 2 | Python-backend, eventueel tegen Postgres of Redis | gp-map, gp-groot, den-haag-casusregie (Redis) | [1](principes.md#vocab) [2](principes.md#p-green) [7](principes.md#p-scripts) |
 | 3 | Database tests (pgTAP) tegen een lokale Supabase-stack | basko, tellr | [1](principes.md#vocab) [2](principes.md#p-green) [7](principes.md#p-scripts) |
 | 4 | Frontend en backend in één repo: node én python | gp-map, tellr | [7](principes.md#p-scripts) |
 | 5 | Codegen vóór de checks | 2 repo's | [7](principes.md#p-scripts) |
 | 6 | Swarm-project: stackbestanden en eigen images controleren | gp-map | [1](principes.md#vocab) [2](principes.md#p-green) |
 | 7 | Swarm-stack van kant-en-klare images: alleen de stackbestanden controleren | gp-container-tracking | [2](principes.md#p-green) |
 | 8 | Vertaalsleutels naar het CMS, alleen op de integratiebranch | tms-test | [6](principes.md#p-manual) |
+| 31 | Tests in een echte browser (Playwright), zoals Storybook-verhalen als Vitest-tests: de browser hoort bij de Playwright-versie van de repo en wordt per versie bewaard | den-haag-casusregie | [1](principes.md#vocab) [7](principes.md#p-scripts) |
 | CD: uitrollen |  |  |  |
 | 9 | Next.js naar Vercel: staging bij een push op `develop`, productie bij een release; bouwen op GitHub of op Vercel | 29 repo's | [3](principes.md#p-env) [4](principes.md#p-gate) [5](principes.md#p-cd) |
 | 10 | Statische site (storybook) naar GitHub Pages | 11 repo's | [4](principes.md#p-gate) |

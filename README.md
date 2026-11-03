@@ -96,7 +96,7 @@ Elke workflow is een `workflow_call`. Alle inputs, met hun standaardwaarde en ui
 
 | Workflow | Wat het doet |
 | --- | --- |
-| [ci.yml](.github/workflows/ci.yml) | De CI van elke repo: Node en pnpm, Python als er een `pyproject.toml` is, en de scripts uit `checks`. Optioneel een database, 1Password of het vertalingen-CMS. |
+| [ci.yml](.github/workflows/ci.yml) | De CI van elke repo: Node en pnpm, Python als er een `pyproject.toml` is, en de scripts uit `checks`. Optioneel een database, Redis, Playwright-browsers, 1Password of het vertalingen-CMS. |
 | [ci-images.yml](.github/workflows/ci-images.yml) | Voor Swarm-projecten op een PR: kloppen de stackbestanden, en bouwt en start elk eigen image. |
 | [check-pr.yml](.github/workflows/check-pr.yml) | De branch- en mergeregels. |
 | [cd-gate.yml](.github/workflows/cd-gate.yml) | Beslist of er gedeployd wordt, naar welke environment, en welke commit. Staat voor elke `cd-*`. |

@@ -122,7 +122,7 @@ Eén composite action voor alle diensten die een job nodig heeft. Aan zodra je e
 | --- | --- |
 | `database: postgres` | De `docker run` met wachten op de TCP-poort uit backend-ci, ongewijzigd. Exporteert `DATABASE_URL`. |
 | `database: supabase` | Het service-deel van run-supabase-test, via het nieuwe `setup-supabase`: CLI, `supabase start`, seed en sleutels. Exporteert `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` en `SUPABASE_SERVICE_ROLE_KEY`. `supabase-skip-unchanged` slaat de stack over als er niets onder supabase/ veranderd is; ci.yml zet dat alleen aan als `dbtest` de enige check is. |
-| `redis: true` | Redis op 6379, exporteert `REDIS_URL`. ci-images heeft hem nodig voor backends die zonder Redis niet opstarten. |
+| `redis: true` | Redis op 6379, exporteert `REDIS_URL`. ci-images en cd-swarm hebben hem nodig voor backends die zonder Redis niet opstarten, ci.yml voor tests tegen een echte Redis. |
 | ingevulde `onepassword-item` | Roept `setup-onepassword` aan. Maskeren en het onderscheid tussen publieke en verborgen velden blijven werken, omdat die action hergebruikt wordt in plaats van gekopieerd. De build-args komen er als één regel met spaties uit; setup-services zet ze om naar één per regel, zoals run-docker-build-push dat nu doet. `onepassword-export-for-vercel` en `onepassword-export-build-args` worden doorgegeven voor cd-vercel en cd-swarm. |
 | outputs | `database-url`, `supabase-started`, `build-args`. |
 

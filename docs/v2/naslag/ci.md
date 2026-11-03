@@ -16,11 +16,13 @@ De workflow kiest wanneer en welke checks draaien; de scripts in de repo bepalen
 | *geen input* | node + pnpm, altijd | `toolchain: node`. Versie uit `.nvmrc`, anders 22.x; vervangt `node-version`. |  |
 | *geen input* | uv + Python, als er een `pyproject.toml` is | `toolchain: python`, `run-python-checks`. Versie uit `.python-version`, anders 3.12; vervangt `python-version`. |  |
 | `working-directory` `use-custom-token` | ongewijzigd | idem |  |
+| `playwright-browsers` | string, nieuw | `""` = geen | Browsers voor tests in een echte browser, bijv. `chromium`. De versie komt van de eerste `package.json` met `playwright` of `@playwright/test`. De browsers worden per Playwright-versie bewaard; hun systeempakketten komen elke run. |
 | Checks |  |  |  |
 | `checks` | string, verplicht | — | Namen van scripts, gescheiden door spaties, bijv. `lint typecheck test`. Vervangt alle `run-*`-inputs en het testdeel van `run-supabase-test`, dat het script `"dbtest": "supabase test db"` wordt. |
 | Services |  |  |  |
 | `database` | string | `none` | `postgres-enabled: true` → `postgres` · het `supabase start`-deel van `run-supabase-test` → `supabase`. Beide exporteren `DATABASE_URL` |
 | `postgres-*` `supabase-seed` | ongewijzigd | ongewijzigd | `seed` → `supabase-seed` |
+| `redis` | boolean, nieuw | `false` | Redis op 6379 voor tests die er een nodig hebben; exporteert `REDIS_URL` (`redis://localhost:6379`). Dezelfde input als in ci-images en cd-swarm. |
 | `onepassword-vault` `onepassword-item` | string | `""` | `onepassword_vault` `onepassword_item`; `onepassword_enabled` is vervallen |
 | `tms-sync-branch` | string, alleen node | `""` = niet synchroniseren | `tms_sync` + `tms_sync_branch` van de branch. De branchnaam zet het aan: de waarde is de branch die sleutels synchroniseert. |
 | `tms-working-directory` | string | `""` = working-directory | `tms_working_directory`. De secrets `TMS_URL` en `TMS_API_KEY` zijn optioneel; het 1Password-item is de normale bron. |
@@ -31,6 +33,10 @@ De workflow kiest wanneer en welke checks draaien; de scripts in de repo bepalen
 ### Hoe de checks draaien
 
 - **Met `turbo.json`:** `pnpm turbo run <checks>`. Bij een pull request met `--affected`, dus alleen voor pakketten die veranderd zijn. De turbo-cache wordt per branch bewaard.
+- **Wat `--affected` niet ziet** (nagelopen in den-haag-casusregie, 3 november 2026):
+  - Een root-taak (`//#taak`) draait alleen als er buiten de pakketten iets verandert. Een check over de code van de pakketten hoort daarom als script in die pakketten.
+  - Een map buiten de pakketten die een pakket leest (`prompts/`, `packs/`), telt niet mee voor dat pakket. Zet hem in `globalDependencies` van `turbo.json`; dan doet elk pakket mee.
+  - Een pakket dat code van een ander pakket genereert (een API-client uit `openapi.json`), doet alleen mee als het van dat pakket afhangt. Zet het als `"api": "workspace:*"` in de `devDependencies`.
 - **Zonder turbo:** `pnpm run <check>` per naam, in de volgorde van de lijst, in `working-directory`.
 - **Codegen** is ook een script. Met turbo zet je het als `dependsOn` bij de checks die het nodig hebben; zonder turbo als eerste naam in de lijst.
 - **Docker-images** vallen hierbuiten. Die bouwt elk vanuit zijn eigen Dockerfile en context (ci-images, cd-swarm). Een Python-image heeft geen node nodig: de scripts zijn het contract voor CI, niet voor de runtime. Voor een Node-image in een monorepo kan de Dockerfile `turbo prune <app> --docker` gebruiken, zodat alleen dat pakket en zijn afhankelijkheden in de build komen.
@@ -41,6 +47,7 @@ De workflow kiest wanneer en welke checks draaien; de scripts in de repo bepalen
 - Een check die de repo niet kent: turbo of pnpm faalt dan zelf, met de naam erbij.
 - Geen `package.json` in `working-directory`.
 - `database` met een niet-toegestane waarde; `onepassword-item` zonder vault of zonder `OP_SERVICE_ACCOUNT_TOKEN`.
+- `playwright-browsers` met iets anders dan browsernamen (kleine letters en `-`), of zonder pakket dat Playwright noemt.
 
 ### Wat je merkt bij de overstap
 

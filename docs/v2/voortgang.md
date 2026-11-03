@@ -2,7 +2,7 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 3 november 2026.** 39 van de 45 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 14 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
+**Stand: 3 november 2026.** 39 van de 46 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 14 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
@@ -40,11 +40,12 @@ CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publ
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
-## Nog v1 (6)
+## Nog v1 (7)
 
 | Groep | Repo's | Wat het vraagt |
 | --- | --- | --- |
 | `migrate-consumer` kan het | provincie-utrecht-demo | routine; de checklist van het script (geen tests, een build die 1Password nodig heeft) |
+| Swarm, handwerk ([Task 31](implementatieplan.md#task-31-den-haag-casusregie-automations-op-v2-handwerk)) | den-haag-casusregie-automations | Redis en een browser in `ci.yml` (in `v2`), `--affected` in de repo, `.github/` ook naar `main`; met Tim |
 | Blueprint-familie ([Task 29](implementatieplan.md#plan)) | automations-blueprint, bnext-automations, gp-groot-automations, integrators-automations, sluyter-logistics-automations | Python en Swarm, met Sam |
 
 ## Wat v2 nog mist
@@ -60,11 +61,12 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 7 | Python-pakket releasen en publiceren (web-essentials-py) | niet gebouwd: `ci.yml` kan Python (uv), maar `release-draft` leest alleen `package.json` en `cd-packages` publiceert alleen npm | bespreken: git-tag, wheel op GHCR of private index ([Task 22e](implementatieplan.md#task-22e-web-essentials-py-op-v2-python-pakket)) |
 | 8 | Supabase-config per omgeving: `config push` in `cd-supabase`, `[remotes]`-blokken in `config.toml` ([Task 19b](implementatieplan.md#task-19b-de-supabase-config-per-omgeving-config-push-en-remotes)) | niet gebouwd; geen repo heeft `[remotes]`, dus geen route zet de config nu op het gehoste project | eerst per project `config diff` (Bas, met een eigen token) |
 | 9 | Nalezen: kan route 1 (GitHub-integratie) ook edge functions en `[edge_runtime.secrets]` aan, en migraties per omgeving uitzetten? (Task 19b) | open | geen: docs nalezen en testen; het besluit van 22 oktober blijft staan tot dan |
+| 11 | De audit leest de workflows alleen op de default branch. Een repo met workflows op `develop` en geen op `main` valt erbuiten, en telt niet mee (den-haag-casusregie-automations, gevonden 3 november 2026) | open | geen: `loadConsumer` ook op `develop` laten zoeken |
 | 10 | Lichte bescherming: het profiel uit de `*`-regel in CODEOWNERS, en de bijbehorende review-ruleset in `setup-consumer` en de audit ([Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners), [use case 30](use-cases.md#light)) | gebouwd (#152); bewezen in workflows-example: licht maken, de audit, de meldingen van GitHub | geen. Nog niet bewezen: zelf mergen en taggen door een developer (Matthijs ziek), en terug naar standaard |
 
 **web-essentials-py nu** (28 oktober 2026):
 
-- Gebruikt de workflows-repo niet, en telt daarom niet mee in de 45. Alleen `main`, geen CI, geen check-pr.
+- Gebruikt de workflows-repo niet, en telt daarom niet mee in de 46. Alleen `main`, geen CI, geen check-pr.
 - Eigen `release-package.yml`: bij een release → `python -m build` → wheel en sdist als bijlage bij de release (`gh release upload`). Laatste release v1.1.0 (22 januari 2026), groen.
 - De versie staat vast in `pyproject.toml` (hatchling); de tag moet daar met de hand bij passen.
 - Afnemer sluyter-logistics-automations haalt het pakket via een uv git-source zonder tag: altijd de laatste `main`, niet de release. Een release heeft nu dus geen effect.
@@ -83,6 +85,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 
 | Datum | Wat |
 | --- | --- |
+| 3 november 2026 | den-haag-casusregie-automations gevonden: v1 (`vm-cd@main`) op `develop`, maar niet in de audit en de telling, want de audit leest alleen de default branch, en `main` heeft geen workflows. Nagelopen op een clone (Task 31): `ci.yml` mist Redis en een Playwright-browser; `--affected` slaat bij een PR in `apps/api` de web-checks over, en bij een PR in `prompts/` of `packs/` de api-tests; beide images bouwen, de api start alleen met nepwaarden en `/health` geeft 503 zonder worker. `redis` en `playwright-browsers` in `ci.yml` (use cases 2 en 31). Profiel standaard. |
 | 3 november 2026 | big-chef-webapp naar `v2` (#11 `develop`, #12 `main`), alleen CI, met lichte bescherming (`* @matthijs-pursuit`). Eén `ci.yml`: `lint typecheck test build check:migrations check:openapi` via turbo voor `apps/web` en `apps/api` (uv, Python 3.13), tegen Postgres 17; groen (10 taken, API 13 tests, web 69, de 4 migraties op een lege database). De stappen van de eigen `api-ci` zijn scripts in `apps/api` geworden; `test` maakt eerst `app_test` aan. In de app: `DATABASE_URL` met `postgres://` wordt `postgresql+asyncpg://`, en `typecheck` van `apps/web` faalde sinds de overstap naar Vitest (de globals ontbraken). Weg: `api-ci`, `web-ci`, `web-cd` en `storybook-cd` (nooit geslaagd). `dependabot.yml` was ongeldig: een `npm-registry` zonder token (#13); Dependabot opende daarna meteen PR's. `setup-consumer --apply`: één vraag, licht; geen tag-ruleset (geen productie). De lege environments `staging` en `github-pages` zijn weg. De audit meldt nog: Matthijs is directe admin, en een `FROM` zonder digest. workflows-example is na de test terug op standaard (#59, #60). |
 | 3 november 2026 | Lichte bescherming (use case 30, Task 30) gebouwd en gemerged (#152): de `*`-regel in CODEOWNERS bepaalt het profiel; `setup-consumer`, de audit en `migrate-consumer` volgen het. workflows-example is licht (`* @matthijs-pursuit`, #57 en #58): review-rulesets op `main`, `develop` en `acceptance` zonder review, de tag-ruleset zonder `creation`, de audit noemt alleen de eigenaren. GitHub meldt een typfout en een user zonder schrijfrechten allebei als `Unknown owner`. Niet bewezen: een developer die zelf merget en taggt. |
 | 2 november 2026 | web-essentials-dashboard: productie via v2 bewezen. Na #147 en het bypass-secret als veld in het 1Password-item een nieuwe deploy vanaf de tag (`workflow_dispatch`, run 41467126390): alias `dash.pursuit.amsterdam`, health check 200. `setup-consumer --apply`: rulesets op `main` en `develop`, tag-ruleset, `Production` alleen tags `v*`, geen `staging` (sinds #146). Het package-token staat op `integration`, `Production` en als Dependabot-secret. Het bypass-secret staat in de [standaardinrichting](naslag/standaardinrichting.md#consumer-config). |
