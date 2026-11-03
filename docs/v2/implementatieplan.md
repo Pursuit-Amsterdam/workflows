@@ -903,7 +903,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 
 ### Task 30: lichte bescherming uit CODEOWNERS
 
-**Open punt (3 november 2026).** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
+**Gebouwd (#152, 3 november 2026); open: stap 6.5–6.8 en stap 8.** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
 
 **Al gekozen (Bas, 3 november 2026):**
 
@@ -924,7 +924,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 - Wijzig: `scripts/setup-consumer.ts`. Het leest CODEOWNERS en de fouten per branch, stelt de vraag (het patroon van `review-vaults`), en krijgt een nieuwe kop (r. 14–15 zegt nu dat CODEOWNERS niet zijn werk is).
 - Wijzig: `scripts/audit-consumers.ts`: r. 194, 217–218 (review), r. 280–285 (tag-ruleset), r. 357–361 (CODEOWNERS).
 - Wijzig: `scripts/lib/migrate.ts` (r. 436–440) en `scripts/migrate-consumer.ts`: de vraag, `--owner`, CODEOWNERS voor licht, en geen seniors-regel meer bovenaan.
-- Wijzig bij de bouw: in `docs/v2/naslag/standaardinrichting.md` en `beslissingen.md` "gepland in Task 30" weghalen, en de beschrijving van audit en `setup-consumer` bijwerken (r. 40–42). Daarnaast `README.md` (r. 18 en 152).
+- Gewijzigd: `docs/v2/naslag/standaardinrichting.md` en `beslissingen.md` ("gebouwd in #152", de beschrijving van audit en `setup-consumer`), en `README.md`.
 
 **Stappen:**
 
@@ -957,7 +957,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   - standaard → een bestaande `*`-regel vervangen, niet de seniors erboven zetten;
   - een bestaande lichte CODEOWNERS blijft zoals hij is;
   - zonder terminal: `--owner <login>`, anders standaard.
-- [ ] Stap 5: PR naar `v2` met stap 1–4 en review door een senior. Merge pas na stap 6, want stap 6 draait vanaf deze branch.
+- [x] Stap 5: PR naar `v2` met stap 1–4 en review door een senior. Merge pas na stap 6, want stap 6 draait vanaf deze branch. #152.
 - [ ] Stap 6: bewijzen in workflows-example. De repo heeft `main`, `develop` en `acceptance`; CODEOWNERS is op alle drie standaard. Matthijs (matthijs-pursuit, write via `developers`) doet mee: Bas is admin en kan als enige niets bewijzen. Spreek dat vooraf af. Een tweede developer (geen eigenaar, geen senior) is ook nodig. In deze volgorde:
   1. Typfout eerst, terwijl de repo nog standaard is: CODEOWNERS met `* @matthijs-pursuitt`, via een PR van `feature/*` naar `develop` en van `hotfix/*` naar `main`. De audit meldt standaard plus een bevinding, en `setup-consumer` versoepelt niets. Daarna hetzelfde met een bestaande user zonder schrijfrechten.
      **Gedaan anders (3 november 2026):** een losse branch zonder PR (`hotfix/tmp-codeowners-probe`, weer weg) met `* @matthijs-pursuitt` en `/docs/ @octocat` (geen rechten op de repo). `codeowners/errors` op die commit meldt beide als `Unknown owner` ("make sure … exists and has write access"). Dat valt in `profileFrom` naar standaard plus een bevinding; dat stuk is in de unittests bewezen, niet op de repo. Het script vroeg de fouten op met de branchnaam en kreeg niets terug; met de SHA wel. De scripts vragen alleen de default branch en `develop` op.
@@ -974,7 +974,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   7. Matthijs maakt een tag `v*` en publiceert een release. Verplaatsen of verwijderen van die tag: geweigerd.
      **Niet gedaan:** zoals 5; volgt uit de tag-ruleset zonder `creation`.
   8. Terug naar standaard via twee PR's. `setup-consumer --apply` scherpt aan zonder vraag. Matthijs kan geen `v*`-tag meer maken, en `pnpm audit:consumers -- workflows-example` meldt niets nieuws.
-- [ ] Stap 7: merge de PR uit stap 5 naar `v2`.
+- [x] Stap 7: merge de PR uit stap 5 naar `v2` (#152, 3 november 2026).
 - [ ] Stap 8: big-chef-webapp naar `v2` met lichte CODEOWNERS (alleen CI; `web-cd.yml` en `storybook-cd.yml` weg; de stappen van `api-ci` als scripts in `apps/api/package.json`), daarna `setup-consumer --apply`.
 
 ---
