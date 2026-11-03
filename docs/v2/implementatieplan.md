@@ -929,7 +929,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
 **Stappen:**
 
 - [x] Stap 0: besloten (Bas, 3 november 2026): voor lichte repo's gelden "iedereen anders heeft een review nodig" en "alleen seniors deployen naar productie" niet, inclusief het geaccepteerde risico. De uitzondering staat bij beide besluiten in `beslissingen.md` en in de standaardinrichting, met "gepland in Task 30".
-- [ ] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
+- [x] Stap 1: tests eerst, in `protection.test.ts`, voor `profileFrom`:
   - alleen `@Pursuit-Amsterdam/senior-developers`, ook met andere hoofdletters → standaard;
   - een of meer users → licht, met de eigenaren; ook een senior als user;
   - seniors plus anderen, een ander team (ook `@Pursuit-Amsterdam/developers`), een e-mailadres → standaard en een bevinding;
@@ -940,7 +940,7 @@ Nieuwe input `version-file`, met de waarde `package.json` (default) of `pyprojec
   - een fout uit `codeowners/errors` voor die branch, of geen antwoord (`null` uit `get()`: een 403 of 404) → standaard en een bevinding.
 
   Daarna `profileFrom`, tot de tests groen zijn.
-- [ ] Stap 2: `setup-consumer`, tests eerst:
+- [x] Stap 2: `setup-consumer`, tests eerst:
   - `reviewRuleset` per profiel. Licht: `required_approving_review_count: 0`, `require_code_owner_review: false`; verder gelijk, ook `deletion`, `non_fast_forward` en de bypass. Op elke beschermde branch, ook `acceptance`.
   - `tagRuleset` per profiel. Licht: alleen `update` en `deletion` (bypass admin), geen `creation`, zodat iedereen met schrijfrechten een tag maakt maar niemand anders hem verplaatst of weghaalt. Dezelfde naam (`release tags: seniors only`); die klopt nog voor wijzigen en verwijderen.
   - De checks-ruleset hangt niet van het profiel af.

@@ -11,16 +11,19 @@
 // (left alone, have a look). A second run makes no changes. It sets no
 // values: GitHub refuses an empty variable, so missing variables and secrets
 // are todos. It does remove an old repo-level CUSTOM_GITHUB_TOKEN, once every
-// environment that needs the token has it. CODEOWNERS and the workflow files
-// are migrate-consumer's job.
+// environment that needs the token has it. The * line of CODEOWNERS sets the
+// profile (lib/protection.ts): a light repo gets a review ruleset without a
+// review and a tag ruleset anyone with write may create a tag under. Making a
+// repo light asks first, so only with --apply in a terminal. Writing CODEOWNERS
+// and the workflow files is migrate-consumer's job.
 // Needs a token with repo admin: the local `gh` login, or GH_TOKEN.
+import { createInterface } from 'node:readline/promises';
 import { loadConsumer, producedChecks, usesOnePassword, type Consumer } from './lib/consumer.ts';
 import { ORG, get, list, octokit, readFile } from './lib/github.ts';
+import { covers, normalize, pickCodeowners, profileFrom, reviewRuleset, rulesetAction, tagRuleset, type BranchOwners, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
-const ADMIN_ROLE = 5; // RepositoryRole admin: the senior-developers team
-const TAG_RULESET = 'release tags: seniors only';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const apply = args.includes('--apply');
@@ -48,17 +51,6 @@ async function send(method: string, route: string, params: Record<string, unknow
 
 // --- rulesets ---------------------------------------------------------------
 
-interface Ruleset {
-    id: number;
-    name: string;
-    target: string;
-    enforcement: string;
-    bypass_actors?: { actor_id: number | null; actor_type: string; bypass_mode: string }[];
-    conditions?: { ref_name?: { include?: string[]; exclude?: string[] } };
-    rules?: { type: string; parameters?: Record<string, unknown> }[];
-}
-type Desired = Omit<Ruleset, 'id'>;
-
 function checksRuleset(branch: string, checks: string[], strict: boolean): Desired {
     return {
         name: `protect ${branch} (checks, no bypass)`,
@@ -77,62 +69,6 @@ function checksRuleset(branch: string, checks: string[], strict: boolean): Desir
             },
         ],
     };
-}
-
-function reviewRuleset(branch: string): Desired {
-    return {
-        name: `protect ${branch} (review, seniors may skip)`,
-        target: 'branch',
-        enforcement: 'active',
-        bypass_actors: [{ actor_id: ADMIN_ROLE, actor_type: 'RepositoryRole', bypass_mode: 'pull_request' }],
-        conditions: { ref_name: { include: [`refs/heads/${branch}`], exclude: [] } },
-        rules: [
-            { type: 'deletion' },
-            { type: 'non_fast_forward' },
-            {
-                type: 'pull_request',
-                parameters: {
-                    allowed_merge_methods: ['merge', 'squash'],
-                    dismiss_stale_reviews_on_push: true,
-                    require_code_owner_review: true,
-                    require_last_push_approval: false,
-                    required_approving_review_count: 1,
-                    required_review_thread_resolution: false,
-                },
-            },
-        ],
-    };
-}
-
-const tagRuleset: Desired = {
-    name: TAG_RULESET,
-    target: 'tag',
-    enforcement: 'active',
-    bypass_actors: [{ actor_id: ADMIN_ROLE, actor_type: 'RepositoryRole', bypass_mode: 'always' }],
-    conditions: { ref_name: { include: ['refs/tags/v*'], exclude: [] } },
-    rules: [{ type: 'creation' }, { type: 'update' }, { type: 'deletion' }],
-};
-
-/** Rules by type and checks by name, so the order GitHub returns them in does not count. */
-function normalize(rs: Desired): Desired {
-    const rules = [...(rs.rules ?? [])].sort((a, b) => a.type.localeCompare(b.type)).map(r => {
-        const checks = r.parameters?.required_status_checks as { context: string }[] | undefined;
-        if (!checks) return r;
-        return { ...r, parameters: { ...r.parameters, required_status_checks: [...checks].sort((a, b) => a.context.localeCompare(b.context)) } };
-    });
-    return { ...rs, rules };
-}
-
-/** Everything the desired value sets, the actual value has too. GitHub adds defaults of its own. */
-function covers(desired: unknown, actual: unknown): boolean {
-    if (Array.isArray(desired)) {
-        return Array.isArray(actual) && desired.length === actual.length && desired.every((d, i) => covers(d, actual[i]));
-    }
-    if (typeof desired === 'object' && desired !== null) {
-        if (typeof actual !== 'object' || actual === null) return false;
-        return Object.entries(desired).every(([k, v]) => covers(v, (actual as Record<string, unknown>)[k]));
-    }
-    return desired === actual;
 }
 
 function describe(rs: Desired): string {
@@ -156,6 +92,39 @@ async function upsertRuleset(repo: string, existing: Ruleset[], want: Desired): 
         message: `ruleset '${want.name}': ${describe(want)}${actual ? ` (was: ${describe(actual)})` : ''}`,
         run: () => send('PUT', '/repos/{owner}/{repo}/rulesets/{ruleset_id}', { ...p, ruleset_id: found.id, ...want }),
     });
+}
+
+// --- the profile -------------------------------------------------------------
+
+const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'] as const;
+
+/** CODEOWNERS and GitHub's errors for it, on the default branch and develop: the profile and its findings. */
+async function readProfile(repo: string, c: Consumer): Promise<{ profile: Profile; findings: string[] }> {
+    const branches: BranchOwners[] = [];
+    for (const branch of [c.defaultBranch, ...(c.hasDevelop && c.defaultBranch !== 'develop' ? ['develop'] : [])]) {
+        const files = Object.fromEntries(await Promise.all(CODEOWNERS_PATHS.map(async f => [f, await readFile(repo, f, branch)] as const)));
+        const errors = await get<{ errors: BranchOwners['errors'] }>('/repos/{owner}/{repo}/codeowners/errors', { owner: ORG, repo, ref: branch });
+        branches.push({ branch, codeowners: pickCodeowners(files as Record<(typeof CODEOWNERS_PATHS)[number], string | null>), errors: errors?.errors ?? null });
+    }
+    return profileFrom(branches);
+}
+
+// Questions only with --apply in a terminal; otherwise making a repo light is a todo.
+const tty = Boolean(process.stdin.isTTY);
+const rl = apply && tty ? createInterface({ input: process.stdin, output: process.stdout }) : null;
+
+/** A ruleset that depends on the profile: light only after a yes; tightening needs no question. */
+async function upsertForProfile(repo: string, existing: Ruleset[], profile: Profile, pair: { standard: Desired; light: Desired }): Promise<void> {
+    const found = existing.find(r => r.name === pair.standard.name);
+    const actual = found ? await get<Ruleset>('/repos/{owner}/{repo}/rulesets/{ruleset_id}', { owner: ORG, repo, ruleset_id: found.id }) : null;
+    const { action, want } = rulesetAction(profile, pair, actual, { apply, tty });
+    if (action === 'todo') add({ repo, kind: 'todo', message: `ruleset '${pair.light.name}': CODEOWNERS says light; run with --apply in a terminal to confirm` });
+    if (action === 'ask' && rl && profile.kind === 'light') {
+        const answer = (await rl.question(`${repo}: CODEOWNERS names ${profile.owners.join(' ')} → make '${pair.light.name}' light (${describe(pair.light)})? [y/N] `)).trim().toLowerCase();
+        await upsertRuleset(repo, existing, answer === 'y' ? pair.light : pair.standard);
+        return;
+    }
+    await upsertRuleset(repo, existing, want);
 }
 
 // --- environments -----------------------------------------------------------
@@ -350,6 +319,10 @@ for (const repo of repos) {
     }
 
     // Two rulesets per protected branch; the classic protection goes once both stand.
+    // The review ruleset and the tag ruleset follow the profile from CODEOWNERS.
+    const { profile, findings } = await readProfile(repo, c);
+    for (const f of findings) add({ repo, kind: 'todo', message: `${f}; protection stays standard` });
+    if (profile.kind === 'light') add({ repo, kind: 'note', message: `light protection: CODEOWNERS names ${profile.owners.join(' ')}` });
     const rulesets = await list<Ruleset>('/repos/{owner}/{repo}/rulesets', p);
     const branches = [def, ...(['develop', 'acceptance'] as const).filter(b => b !== def && (b === 'develop' ? c.hasDevelop : c.hasAcceptance))];
     for (const branch of branches) {
@@ -362,8 +335,8 @@ for (const repo of repos) {
         // is protected too (develop -> main, main -> develop, develop -> acceptance), so
         // "Update branch" would push onto it, which the rulesets refuse.
         if (checks.length) await upsertRuleset(repo, rulesets, checksRuleset(branch, checks, branch === def && !c.hasDevelop));
-        await upsertRuleset(repo, rulesets, reviewRuleset(branch));
-        const ours = [checksRuleset(branch, [], false).name, reviewRuleset(branch).name];
+        await upsertForProfile(repo, rulesets, profile, { standard: reviewRuleset(branch, { kind: 'standard' }), light: reviewRuleset(branch, profile) });
+        const ours = [checksRuleset(branch, [], false).name, reviewRuleset(branch, profile).name];
         for (const r of rulesets.filter(r => r.target === 'branch' && !ours.includes(r.name) && !r.name.startsWith('protect '))) {
             const rs = await get<Ruleset>('/repos/{owner}/{repo}/rulesets/{ruleset_id}', { ...p, ruleset_id: r.id });
             const include = rs?.conditions?.ref_name?.include ?? [];
@@ -383,9 +356,10 @@ for (const repo of repos) {
         }
     }
 
-    // Only seniors create release tags, so only a senior deploys to production.
-    // Also for a repo whose release publishes Pages: the tag is how it goes live.
-    if (wanted.has('production') || c.releases) await upsertRuleset(repo, rulesets, tagRuleset);
+    // Only seniors create release tags, so only a senior deploys to production;
+    // in a light repo anyone with write creates one. Also for a repo whose release
+    // publishes Pages: the tag is how it goes live.
+    if (wanted.has('production') || c.releases) await upsertForProfile(repo, rulesets, profile, { standard: tagRuleset({ kind: 'standard' }), light: tagRuleset(profile) });
 
     // Pages published from a release: the github-pages environment (GitHub makes it)
     // must allow the release tags. Other rules on it (develop, for a Storybook on
@@ -410,6 +384,7 @@ for (const repo of repos) {
     await todos(c, envs, existingEnvs);
 }
 
+rl?.close();
 const changes = items.filter(i => i.run);
 if (changes.length === 0) {
     console.log('no changes');
