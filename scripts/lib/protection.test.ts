@@ -3,7 +3,7 @@
 // Run: node --test scripts/lib/
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pickCodeowners, profileFrom, reviewFindings, reviewRuleset, rulesetAction, tagFindings, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
+import { describe, pickCodeowners, profileFrom, reviewFindings, reviewRuleset, rulesetAction, tagFindings, tagRuleset, type BranchOwners, type Profile } from './protection.ts';
 
 const SENIORS = '* @Pursuit-Amsterdam/senior-developers\n';
 const on = (codeowners: string | null, branch = 'main', errors: BranchOwners['errors'] = []): BranchOwners => ({ branch, codeowners, errors });
@@ -187,4 +187,10 @@ test('tagFindings: light wants v* tags safe from change and removal, creation fr
     assert.deepEqual(tagFindings(LIGHT, [tag('update', 'deletion')]), []);
     assert.deepEqual(tagFindings(LIGHT, []), ['no tag ruleset on refs/tags/v* (update, deletion): anyone with push can move or remove a release tag']);
     assert.deepEqual(tagFindings(LIGHT, [tag('creation', 'update', 'deletion')]), ['CODEOWNERS says light, but only seniors create v* tags: run setup-consumer --apply']);
+});
+
+test('describe: the review ruleset says how many reviews, so a change to light shows', () => {
+    assert.equal(describe(reviewRuleset('main', STANDARD)), 'deletion, non_fast_forward, pull_request (1 review, code owners)');
+    assert.equal(describe(reviewRuleset('main', LIGHT)), 'deletion, non_fast_forward, pull_request (no review)');
+    assert.equal(describe(tagRuleset(LIGHT)), 'update, deletion');
 });

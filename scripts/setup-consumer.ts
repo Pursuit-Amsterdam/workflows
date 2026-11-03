@@ -20,7 +20,7 @@
 import { createInterface } from 'node:readline/promises';
 import { loadConsumer, producedChecks, readProfile, usesOnePassword, type Consumer } from './lib/consumer.ts';
 import { ORG, get, list, octokit, readFile } from './lib/github.ts';
-import { covers, normalize, reviewRuleset, rulesetAction, tagRuleset, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
+import { covers, describe, normalize, reviewRuleset, rulesetAction, tagRuleset, type Desired, type Profile, type Ruleset } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
@@ -69,12 +69,6 @@ function checksRuleset(branch: string, checks: string[], strict: boolean): Desir
             },
         ],
     };
-}
-
-function describe(rs: Desired): string {
-    const checks = rs.rules?.flatMap(r => (r.parameters?.required_status_checks as { context: string }[] | undefined)?.map(c => c.context) ?? []) ?? [];
-    const strict = rs.rules?.some(r => r.parameters?.strict_required_status_checks_policy === true);
-    return checks.length ? `${checks.join(', ')}${strict ? '; up to date' : ''}` : (rs.rules ?? []).map(r => r.type).join(', ');
 }
 
 async function upsertRuleset(repo: string, existing: Ruleset[], want: Desired): Promise<void> {

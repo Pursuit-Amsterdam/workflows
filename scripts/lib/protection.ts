@@ -105,6 +105,20 @@ export function covers(desired: unknown, actual: unknown): boolean {
     return desired === actual;
 }
 
+/** One line for a ruleset: its checks, or its rules, with the reviews a pull_request rule asks. */
+export function describe(rs: Desired): string {
+    const checks = rs.rules?.flatMap(r => (r.parameters?.required_status_checks as { context: string }[] | undefined)?.map(c => c.context) ?? []) ?? [];
+    const strict = rs.rules?.some(r => r.parameters?.strict_required_status_checks_policy === true);
+    if (checks.length) return `${checks.join(', ')}${strict ? '; up to date' : ''}`;
+    return (rs.rules ?? [])
+        .map(r => {
+            if (r.type !== 'pull_request') return r.type;
+            const n = Number(r.parameters?.required_approving_review_count ?? 0);
+            return `pull_request (${n === 0 ? 'no review' : `${n} review${n > 1 ? 's' : ''}`}${r.parameters?.require_code_owner_review ? ', code owners' : ''})`;
+        })
+        .join(', ');
+}
+
 /** Review, force push and deletion; admins (the seniors) may skip the review on a PR. Light: a PR, but no review. */
 export function reviewRuleset(branch: string, profile: Profile): Desired {
     const light = profile.kind === 'light';
