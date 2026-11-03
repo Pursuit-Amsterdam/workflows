@@ -994,6 +994,11 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 **Stappen:**
 
 - [x] Stap 1: `redis` en `playwright-browsers` in `ci.yml`, met tests, de use cases (2 en 31) en de docs. PR naar `v2`: #157.
+  **Bewezen in workflows-example #61** (draft, niet mergen), test eerst: `test:redis` in `backend` (PING naar `REDIS_URL`) en `test:browser` in `web` (Chromium via Playwright 1.64.0), elk met `cache: false`.
+  1. `ci.yml@v2` zonder de inputs: rood, `REDIS_URL is not set` (run 41670385452). Turbo brak `test:browser` daarbij af, dus één input per stap.
+  2. `@feature/ci-browser-redis` met `redis: true`: `redis ok: PONG from localhost:6379`, de browser rood met `Executable doesn't exist` (run 41670733125).
+  3. Plus `playwright-browsers: chromium`: groen, `browser ok: chromium 156.0.8078.4`; cache-miss, dus `install --with-deps` (18 s), daarna opgeslagen (run 41671065449).
+  4. Rerun: cache-hit op `playwright-Linux-1.64.0-chromium`, alleen `install-deps` (15 s), groen (run 41671065449, poging 2). De cache scheelt weinig: de systeempakketten kosten de meeste tijd.
 - [ ] Stap 2: PR `feature/workflows-v2` → `develop`: `ci.yml` (`run-ci` met `redis: true` en `playwright-browsers: chromium`, en `run-ci-images` met beide images), `cd.yml` (cd-gate en cd-swarm; productie met `deploy-enabled: false` zolang de VM er niet is; `pre-deploy` op `/opt/casusregie/traefik/dynamic` en `/opt/casusregie/certs`), `check-pr.yml` op `@v2` en CONTRIBUTING.md, CODEOWNERS standaard, `.nvmrc`, Dependabot, en de turbo-wijzigingen hierboven. Plus `hotfix/workflows-v2` → `main` met alleen `.github/`, gemerged vóór of samen met die naar `develop`. Eerst met Tim afstemmen: 8 open PR's, en de verplichte check heet daarna `run-ci / pipeline`.
 - [ ] Stap 3: `setup-consumer --apply`: `VM_SSH_*` en `OP_*` op staging, rulesets in plaats van de klassieke protectie, het repo-secret `CUSTOM_GITHUB_TOKEN` weg (geen private pakketten). Staging via `v2` nalopen.
 - [ ] Stap 4: de eerste release `develop` → `main` door een senior, als Tim dat wil; tot de productie-VM er is alleen bouwen en pushen.
