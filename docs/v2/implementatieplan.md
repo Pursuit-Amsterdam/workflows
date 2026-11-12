@@ -179,7 +179,7 @@ Voorwaarde voor #23, uit de draft-opmerking: eerst elke kluis nalopen, want een 
 
 - [x] Stap 4 (23 oktober 2026): `scripts/review-vaults.ts` plus `scripts/lib/vaults.ts` met tests (`node --test`: de inputs uit v1- en v2-YAML, `${{ vars.* }}` overgeslagen, de labelregels, de korte waarden). `--list` op vier repo's: zeven items, waaronder het staging-item van tellr dat ook in `ci.yml` staat.
 - [x] Stap 5 (**handwerk**, 12 november 2026): `pnpm review-vaults` over alle repo's, door de CTO; platte-tekstvelden die geheim zijn op wachtwoord gezet, korte wachtwoordvelden naar platte tekst of langer. De veldtypes in alle kluizen kloppen.
-- [ ] Stap 6: #23 en de meerregelige fix samen in `setup-onepassword` op `v2`: velden als `@base64` uit `jq`, per veld decoderen, alleen `CONCEALED` maskeren en per regel; een cases-script tegen een nep-`op` (CONCEALED gemaskeerd, platte tekst niet, een PEM heel door `GITHUB_ENV`). Pas na stap 5. Op `main` blijft #23 aan Bas.
+- [x] Stap 6 (12 november 2026, #158): #23 en de meerregelige fix samen in `setup-onepassword` op `v2`: velden als `@base64` uit `jq`, per veld decoderen, alleen `CONCEALED` maskeren en per regel; een cases-script tegen een nep-`op` (CONCEALED gemaskeerd, platte tekst niet, een PEM heel door `GITHUB_ENV`). Pas na stap 5. Op `main` blijft #23 aan Bas. Erbij: een willekeurige heredoc-delimiter voor `GITHUB_ENV`, en een meerregelig plat veld blijft met een waarschuwing buiten de build-args (die lijst is één regel). `tests/setup-onepassword.test.ts`: vijf cases, vier rood op de oude action.
 
 ### Task 7: `ci.yml`
 
