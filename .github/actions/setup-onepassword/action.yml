@@ -56,13 +56,17 @@ runs:
         item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
 
         echo "Parsing and exporting secrets..."
-        # Capture label, value, and field type
-        mapfile -t kvs < <(jq -r '
+        # One line per field: TYPE|LABEL|base64(value). The value is base64 so
+        # a multiline field (a PEM) stays one entry; jq -r would split it.
+        mapfile -t fields < <(jq -r '
           .fields[]
           | select(.value != null)
           | select((.label // "") != "notesPlain")
-          | "\(.label)=\(.value)|\(.type)"
+          | "\(.type // "")|\(.label)|\(.value | tostring | @base64)"
         ' <<<"$item_json")
+
+        # A random heredoc delimiter, so no line of a value can end the block.
+        eof="OP_EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           : > "${VERCEL_ENV_FILE}"
@@ -72,33 +76,41 @@ runs:
           build_args_array=()
         fi
 
-        echo "Exporting ${#kvs[@]} secrets to environment variables..."
-        for entry in "${kvs[@]}"; do
-          # entry = "KEY=value|TYPE"
-          kv="${entry%%|*}"
-          ftype="${entry#*|}"
+        echo "Exporting ${#fields[@]} fields to environment variables..."
+        for entry in "${fields[@]}"; do
+          ftype="${entry%%|*}"
+          rest="${entry#*|}"
+          name="${rest%|*}"
+          # The x keeps trailing newlines, which $( ) strips.
+          value="$(base64 --decode <<<"${rest##*|}"; printf x)"
+          value="${value%x}"
 
-          name="${kv%%=*}"
-          value="${kv#*=}"
+          # Mask concealed (password) fields only. Plain-text fields are
+          # non-secret config (WORKER_REPLICAS, NEXT_PUBLIC_*), and GitHub
+          # redacts a masked value everywhere in the output, so masking a
+          # short one (WORKER_REPLICAS=3) shreds every log and job summary.
+          # ::add-mask:: takes one line, so each line of a value apart.
+          if [[ "$ftype" == "CONCEALED" ]]; then
+            while IFS= read -r line; do
+              [[ -z "$line" ]] || echo "::add-mask::${line}"
+            done <<<"$value"
+          fi
 
-          # Mask values in logs
-          echo "::add-mask::$value"
-
-          # Export to GitHub env (supports multiline)
-          {
-            echo "${name}<<__OP_EOF__"
-            echo "${value}"
-            echo "__OP_EOF__"
-          } >> "$GITHUB_ENV"
+          printf '%s<<%s\n%s\n%s\n' "$name" "$eof" "$value" "$eof" >> "$GITHUB_ENV"
 
           # Vercel export
           if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
             printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
           fi
 
-          # Build args: non-concealed fields only — never bake secrets into an image.
+          # Build args: non-concealed fields only — never bake secrets into an
+          # image. The list is one line, so a multiline field cannot be one.
           if [[ "${EXPORT_BUILD_ARGS}" == "true" && "$ftype" != "CONCEALED" ]]; then
-            build_args_array+=("${name}=${value}")
+            if [[ "$value" == *$'\n'* ]]; then
+              echo "::warning::${name} has more than one line; left out of the build args"
+            else
+              build_args_array+=("${name}=${value}")
+            fi
           fi
         done
 

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Fake op: `op item get <item> --vault <vault> --format json` prints the item
+# JSON in FAKE_OP_ITEM (a file) and logs the call to OP_LOG.
+echo "op $*" >>"$OP_LOG"
+[ "$1 $2" = "item get" ] || { echo "fake op: unexpected call: $*" >&2; exit 1; }
+cat "$FAKE_OP_ITEM"
