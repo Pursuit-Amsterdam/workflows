@@ -1,6 +1,7 @@
 // The setup-onepassword action against a fake `op` on PATH: it masks only the
-// CONCEALED fields (each line apart), and every field reaches GITHUB_ENV, the
-// Vercel env file and the build args whole, a multiline one (a PEM) included.
+// secret fields (every type but the plain ones), escaped, a multiline one line
+// by line; every field with a valid name reaches GITHUB_ENV, the Vercel env
+// file and the build args whole, a multiline one (a PEM) included.
 import assert from 'node:assert/strict';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,39 +11,59 @@ import { bash, fakes, lines, script, steps, tempDir } from './steps.ts';
 const action = steps('.github/actions/setup-onepassword/action.yml');
 const bin = fakes('setup-onepassword');
 
-const pem = ['-----BEGIN CERTIFICATE-----', 'MIIBszCCAVmgAwIBAgIUQ', 'Zm9vYmFy==', '-----END CERTIFICATE-----'].join('\n');
+// The last base64 line is 4 characters: too short to mask.
+const pem = ['-----BEGIN CERTIFICATE-----', 'MIIBszCCAVmgAwIBAgIUQ', 'Zm9=', '-----END CERTIFICATE-----'].join('\n');
+// Pretty-printed JSON: {, ], } and the whitespace-only line are not masked.
+const serviceAccount = ['{', '  "type": "service_account",', '   ', '  "scopes": [', '    "x"', '  ]', '}'].join('\n');
+const sshKey = ['-----BEGIN OPENSSH PRIVATE KEY-----', 'b3BlbnNzaC1rZXktdjE=', '-----END OPENSSH PRIVATE KEY-----'].join('\n');
 
-// An item as `op item get --format json` prints it. A field without a value
-// and the notes field are skipped.
+// An item as `op item get --format json` prints it. Skipped: the notes field,
+// a field without a value, and a label that is no variable name.
 const item = {
     fields: [
         { id: 'notesPlain', label: 'notesPlain', type: 'STRING', purpose: 'NOTES', value: 'not a variable' },
         { id: 'a', label: 'API_KEY', type: 'CONCEALED', value: 's3cr3t-value' },
-        { id: 'b', label: 'DATABASE_URL', type: 'CONCEALED', value: 'postgres://u:p@h/db?a=b|c' },
+        // The runner unescapes %25 and %0A in a mask: escaped, the mask is the value.
+        { id: 'b', label: 'DATABASE_URL', type: 'CONCEALED', value: 'postgres://u:p%25ss@h/db?x=%0A|c' },
         { id: 'c', label: 'TLS_CERT', type: 'CONCEALED', value: pem },
-        { id: 'd', label: 'WORKER_REPLICAS', type: 'STRING', value: '3' },
-        { id: 'e', label: 'NEXT_PUBLIC_SITE', type: 'URL', value: 'https://example.com/?x=1' },
+        { id: 'd', label: 'GOOGLE_SERVICE_ACCOUNT', type: 'CONCEALED', value: serviceAccount },
+        // Secret types besides CONCEALED.
+        { id: 'e', label: 'DEPLOY_KEY', type: 'SSHKEY', value: sshKey },
+        { id: 'f', label: 'MFA', type: 'OTP', value: 'otpauth://totp/x?secret=ABCDEF' },
+        { id: 'g', label: 'WORKER_REPLICAS', type: 'STRING', value: '3' },
+        { id: 'h', label: 'NEXT_PUBLIC_SITE', type: 'URL', value: 'https://example.com/?x=1' },
+        // A trailing newline from a paste is dropped, so this stays a build arg.
+        { id: 'i', label: 'NEXT_PUBLIC_API_URL', type: 'URL', value: 'https://api.example.com\n' },
         // A line that equals the old fixed delimiter must not end the block.
-        { id: 'f', label: 'BANNER', type: 'STRING', value: 'line one\n__OP_EOF__\nINJECTED=1' },
-        { id: 'g', label: 'UNSET', type: 'STRING' },
+        { id: 'j', label: 'BANNER', type: 'STRING', value: 'line one\n__OP_EOF__\nINJECTED=1' },
+        { id: 'k', label: 'EMPTY', type: 'STRING', value: '' },
+        // = in a name breaks the GITHUB_ENV format; a newline split it into two entries.
+        { id: 'l', label: 'A=B', type: 'CONCEALED', value: pem },
+        { id: 'm', label: 'LINE\nBREAK', type: 'STRING', value: 'x' },
+        { id: 'n', label: 'UNSET', type: 'STRING' },
     ],
 };
 
 const exported: Record<string, string> = {
     API_KEY: 's3cr3t-value',
-    DATABASE_URL: 'postgres://u:p@h/db?a=b|c',
+    DATABASE_URL: 'postgres://u:p%25ss@h/db?x=%0A|c',
     TLS_CERT: pem,
+    GOOGLE_SERVICE_ACCOUNT: serviceAccount,
+    DEPLOY_KEY: sshKey,
+    MFA: 'otpauth://totp/x?secret=ABCDEF',
     WORKER_REPLICAS: '3',
     NEXT_PUBLIC_SITE: 'https://example.com/?x=1',
+    NEXT_PUBLIC_API_URL: 'https://api.example.com',
     BANNER: 'line one\n__OP_EOF__\nINJECTED=1',
+    EMPTY: '',
 };
 
-function run(env: Record<string, string> = {}) {
+function run(env: Record<string, string> = {}, json: string = JSON.stringify(item)) {
     const dir = tempDir();
     const itemFile = join(dir, 'item.json');
     const githubEnv = join(dir, 'env');
     const out = join(dir, 'out');
-    writeFileSync(itemFile, JSON.stringify(item));
+    writeFileSync(itemFile, json);
     writeFileSync(githubEnv, '');
     writeFileSync(out, '');
     const r = bash(script(action, 'export-secrets'), {
@@ -86,25 +107,55 @@ function fileCommand(file: string): Record<string, string> {
     return vars;
 }
 
-/** The values the run masked. */
+/** The values the run masked, unescaped as the runner does (%0D, %0A, then %25). */
 function masks(output: string): string[] {
     return output
         .split('\n')
         .filter((l) => l.startsWith('::add-mask::'))
-        .map((l) => l.slice('::add-mask::'.length))
+        .map((l) => l.slice('::add-mask::'.length).replaceAll('%0D', '\r').replaceAll('%0A', '\n').replaceAll('%25', '%'))
         .sort();
 }
 
-test('masks the CONCEALED fields, each line apart, and no plain field', () => {
+test('masks the secret types, escaped, a multiline one line by line without the short lines', () => {
     const r = run();
     assert.equal(r.code, 0, r.output);
-    assert.deepEqual(masks(r.output), ['s3cr3t-value', 'postgres://u:p@h/db?a=b|c', ...pem.split('\n')].sort());
+    assert.deepEqual(
+        masks(r.output),
+        [
+            's3cr3t-value',
+            'postgres://u:p%25ss@h/db?x=%0A|c',
+            '-----BEGIN CERTIFICATE-----',
+            'MIIBszCCAVmgAwIBAgIUQ',
+            '-----END CERTIFICATE-----',
+            '"type": "service_account",',
+            '"scopes": [',
+            ...sshKey.split('\n'),
+            'otpauth://totp/x?secret=ABCDEF',
+        ].sort(),
+    );
 });
 
-test('every field reaches GITHUB_ENV whole, a PEM and a line like the old delimiter included', () => {
+test('every field with a valid name reaches GITHUB_ENV whole', () => {
     const r = run();
     assert.equal(r.code, 0, r.output);
     assert.deepEqual(r.env, exported);
+});
+
+test('a label that is no variable name is skipped, with a warning', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.output);
+    assert.match(r.output, /::warning::1Password field A\\?=B skipped/);
+    assert.match(r.output, /::warning::1Password field \$'LINE\\nBREAK' skipped/);
+});
+
+// jq used to run in a process substitution: its failure went unnoticed, and
+// the step exported nothing and stayed green.
+test('an item without fields, or no JSON, fails the step', () => {
+    for (const json of ['{"id":"x"}', 'not json']) {
+        const r = run({}, json);
+        assert.notEqual(r.code, 0, json);
+        assert.deepEqual(r.env, {}, json);
+    }
 });
 
 test('the Vercel env file has every field as --env NAME=value', () => {
@@ -125,13 +176,17 @@ test('the Vercel env file has every field as --env NAME=value', () => {
     );
 });
 
-// A build arg ends up in the image, so never a CONCEALED field. The list is
-// one line, so a multiline plain field stays out, with a warning.
+// A build arg ends up in the image, so never a secret type. The list is one
+// line, so a multiline plain field stays out, with a warning.
 test('build args: the plain single-line fields', () => {
     const r = run({ EXPORT_BUILD_ARGS: 'true' });
     assert.equal(r.code, 0, r.output);
-    assert.equal(r.out.build_args, 'WORKER_REPLICAS=3 NEXT_PUBLIC_SITE=https://example.com/?x=1');
+    assert.equal(
+        r.out.build_args,
+        'WORKER_REPLICAS=3 NEXT_PUBLIC_SITE=https://example.com/?x=1 NEXT_PUBLIC_API_URL=https://api.example.com EMPTY=',
+    );
     assert.match(r.output, /::warning::BANNER /);
+    assert.doesNotMatch(r.output, /::warning::NEXT_PUBLIC_API_URL /);
 });
 
 test('no build args and no Vercel file unless asked', () => {

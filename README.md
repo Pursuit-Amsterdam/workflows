@@ -119,7 +119,7 @@ De workflows bestaan uit deze actions. Je kunt ze ook los aanroepen, met `@v2`.
 | [setup-python](.github/actions/setup-python/action.yml) | uv en Python installeren en de dependencies uit de lockfile synchroniseren. |
 | [setup-services](.github/actions/setup-services/action.yml) | Postgres of Supabase, Redis en secrets uit 1Password, voordat een check of build start. |
 | [setup-supabase](.github/actions/setup-supabase/action.yml) | De lokale Supabase-stack starten en de URL's en sleutels exporteren. |
-| [setup-onepassword](.github/actions/setup-onepassword/action.yml) | Een 1Password-item ophalen, de wachtwoordvelden (`CONCEALED`) maskeren en elk veld naar de environment schrijven, ook meerregelige. |
+| [setup-onepassword](.github/actions/setup-onepassword/action.yml) | Een 1Password-item ophalen, de geheime velden maskeren (elk type behalve platte tekst, URL en dergelijke) en elk veld naar de environment schrijven, ook meerregelige. |
 | [setup-version](.github/actions/setup-version/action.yml) | Een versiestring berekenen en als variabele exporteren. |
 | [run-codegen](.github/actions/run-codegen/action.yml) | Het codegen-script draaien en het resultaat typechecken. |
 | [run-translations](.github/actions/run-translations/action.yml) | Een commando van de vertalingen-CLI draaien. |

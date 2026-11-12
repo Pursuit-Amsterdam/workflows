@@ -59,9 +59,10 @@ test('reviewField: short values damage the logs once masked', () => {
     assert.equal(reviewField({ label: 'notesPlain', type: 'STRING', length: 1 }), null, 'notes are not exported');
 });
 
+// The same list as setup-onepassword: a secret type or an unknown one is masked.
 test('state: concealed or plain', () => {
-    assert.equal(state({ type: 'CONCEALED' }), 'concealed');
-    for (const type of ['STRING', 'URL', 'EMAIL', '']) assert.equal(state({ type }), 'plain', type || 'empty');
+    for (const type of ['CONCEALED', 'SSHKEY', 'OTP', 'CREDIT_CARD_NUMBER', '']) assert.equal(state({ type }), 'concealed', type || 'empty');
+    for (const type of ['STRING', 'URL', 'EMAIL', 'PHONE', 'DATE', 'MONTH_YEAR', 'MENU']) assert.equal(state({ type }), 'plain', type);
 });
 
 test('expected: what the label says', () => {

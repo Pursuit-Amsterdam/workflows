@@ -59,7 +59,7 @@ inputs:
     required: false
     default: "false"
   onepassword-export-build-args:
-    description: "Also emit non-concealed fields as Docker build args (cd-swarm)"
+    description: "Also emit the plain (non-secret) fields as Docker build args (cd-swarm)"
     required: false
     default: "false"
 

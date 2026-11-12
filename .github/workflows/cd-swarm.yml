@@ -29,7 +29,7 @@ on:
         description: >
           JSON array of images this project builds, the vm-cd schema: name (the
           full image name, e.g. ghcr.io/org/app-backend), dockerfile, context,
-          build-args ("public" passes the non-concealed 1Password fields), and
+          build-args ("public" passes the plain 1Password fields), and
           optionally port, health-path, env, smoke, exec for the smoke test before
           push. [] = a stack of ready-made images; the build job is skipped.
         required: false

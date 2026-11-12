@@ -1,6 +1,6 @@
 // The pure part of review-vaults (scripts/review-vaults.ts): which 1Password
 // items a repo's workflows name, and which fields of an item deserve a look
-// before setup-onepassword masks only CONCEALED fields (PR #23 on main).
+// before setup-onepassword masks only the secret fields (#158).
 import { jobs, type Workflow } from './workflow.ts';
 
 export interface VaultRef {
@@ -58,9 +58,12 @@ export interface Field {
     length: number;
 }
 
-/** `concealed` (a password field) or `plain`: what 1Password shows, and what decides masking and build-args. */
+/** Field types that hold config. Every other type (CONCEALED, SSHKEY, OTP, …) is a secret. Same list as setup-onepassword. */
+const PLAIN_TYPES = new Set(['STRING', 'URL', 'EMAIL', 'PHONE', 'DATE', 'MONTH_YEAR', 'MENU']);
+
+/** `concealed` (a secret type: masked, never a build-arg) or `plain`: what decides masking and build-args. */
 export function state(f: Pick<Field, 'type'>): 'concealed' | 'plain' {
-    return f.type === 'CONCEALED' ? 'concealed' : 'plain';
+    return PLAIN_TYPES.has(f.type) ? 'plain' : 'concealed';
 }
 
 /** What to do with a field, or null when it is fine as it is. */
