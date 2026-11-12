@@ -83,7 +83,7 @@ function run(env: Record<string, string> = {}, json: string = JSON.stringify(ite
             ...env,
         },
     });
-    return { ...r, env: fileCommand(githubEnv), out: fileCommand(out), dir };
+    return { ...r, env: fileCommand(githubEnv), out: fileCommand(out), log: lines(join(dir, 'log')).filter(Boolean), dir };
 }
 
 /** A GITHUB_ENV or GITHUB_OUTPUT file read the way the runner does: NAME=value or a NAME<<DELIM block. */
@@ -115,6 +115,13 @@ function masks(output: string): string[] {
         .map((l) => l.slice('::add-mask::'.length).replaceAll('%0D', '\r').replaceAll('%0A', '\n').replaceAll('%25', '%'))
         .sort();
 }
+
+// The fake prints the item whatever it is asked, so check what it was asked.
+test('op reads the item from the vault, as JSON', () => {
+    const r = run();
+    assert.equal(r.code, 0, r.output);
+    assert.deepEqual(r.log, ['op item get item --vault vault --format json']);
+});
 
 test('masks the secret types, escaped, a multiline one line by line without the short lines', () => {
     const r = run();

@@ -59,7 +59,7 @@ commits 25e5bf2, 16b041e, 94a8b60 · merge-base 654b5c1 · gebruikt door: tms-te
 Vier branches in deze repo zijn niet gemerged en overlappen met v2.
 
 - `feature/supabase-functions-deploy-and-secrets` (22 sep): een action `deploy-supabase-functions` die functions deployt en secrets zet, aangesloten op web-cd. Dat is het werk van cd-supabase.
-- `hotfix/mask-concealed-fields-only`: setup-onepassword maskeert alleen nog `CONCEALED`-velden. Raakt setup-services, dat setup-onepassword hergebruikt.
+- `hotfix/mask-concealed-fields-only`: setup-onepassword maskeert alleen nog `CONCEALED`-velden. Raakt setup-services, dat setup-onepassword hergebruikt. Meegenomen naar `v2` in #158 (Task 6 stap 6), met de fix voor meerregelige velden; daar maskeert de action elk type behalve de platte, dus ook `SSHKEY` en `OTP`. #23 op `main` blijft aan Bas.
 - `feature/keyvault-from-1password`: een action `sync-keyvault`, de vm-cd-inputs `keyvault-name` en `keyvault-secrets`, en het secret `AZURE_CREDENTIALS`. Staat nog niet in cd-swarm.
 - `fix/cd-packages-read-permission`: `packages: read` voor web-cd, zodat `GITHUB_TOKEN` private pakketten mag ophalen. Hoort bij de [detailbeslissing](detailbeslissingen.md#decisions-detail) over leestoegang in plaats van een PAT.
 
