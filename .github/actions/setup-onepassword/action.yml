@@ -19,13 +19,13 @@ inputs:
     required: false
     default: 'vercel_env_args.bin'
   export-build-args:
-    description: 'Emit a space-separated key=value list of the non-concealed fields, for use as Docker build args'
+    description: 'Emit a space-separated key=value list of the plain (non-secret) fields, for use as Docker build args'
     required: false
     default: 'false'
 
 outputs:
   build_args:
-    description: 'Space-separated key=value list of non-concealed fields (e.g. NEXT_PUBLIC_*) for Docker build args'
+    description: 'Space-separated key=value list of plain (non-secret) fields (e.g. NEXT_PUBLIC_*) for Docker build args'
     value: ${{ steps.export-secrets.outputs.build_args }}
 
 runs:
@@ -56,13 +56,34 @@ runs:
         item_json="$(op item get "${OP_ITEM_NAME}" --vault "${OP_VAULT_NAME}" --format json)"
 
         echo "Parsing and exporting secrets..."
-        # Capture label, value, and field type
-        mapfile -t kvs < <(jq -r '
+        # Three NUL-terminated strings per field: type, label, value. A value
+        # cannot hold a NUL, so a multiline field (a PEM) stays one value.
+        # Trailing newlines (a paste into 1Password) are dropped. jq writes a
+        # file, not a process substitution, so a failure (an item without
+        # fields, no JSON) fails the step instead of exporting nothing.
+        records="$(mktemp)"
+        trap 'rm -f "$records"' EXIT
+        jq --raw-output0 '
           .fields[]
           | select(.value != null)
           | select((.label // "") != "notesPlain")
-          | "\(.label)=\(.value)|\(.type)"
-        ' <<<"$item_json")
+          | (.type // ""), (.label // ""), (.value | tostring | sub("[\r\n]+$"; ""))
+        ' <<<"$item_json" >"$records"
+        mapfile -d '' -t record <"$records"
+
+        # ::add-mask:: data is unescaped by the runner (%25, %0D, %0A), so
+        # escape it, or a value with %25 in it registers a different mask.
+        mask() {
+          local v="${1//'%'/%25}"
+          v="${v//$'\r'/%0D}"
+          v="${v//$'\n'/%0A}"
+          printf '::add-mask::%s\n' "$v"
+        }
+
+        # A random heredoc delimiter: a line in a value equal to a fixed one
+        # would end the block early. Robustness, not a security boundary: who
+        # can edit the item can add any variable anyway.
+        eof="OP_EOF_$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 
         if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
           : > "${VERCEL_ENV_FILE}"
@@ -72,33 +93,60 @@ runs:
           build_args_array=()
         fi
 
-        echo "Exporting ${#kvs[@]} secrets to environment variables..."
-        for entry in "${kvs[@]}"; do
-          # entry = "KEY=value|TYPE"
-          kv="${entry%%|*}"
-          ftype="${entry#*|}"
+        echo "Exporting $(( ${#record[@]} / 3 )) fields to environment variables..."
+        for (( i = 0; i < ${#record[@]}; i += 3 )); do
+          ftype="${record[i]}"
+          name="${record[i+1]}"
+          value="${record[i+2]}"
 
-          name="${kv%%=*}"
-          value="${kv#*=}"
+          # The label is the variable name. A name with = or << in it breaks
+          # the GITHUB_ENV format, so only a plain identifier passes.
+          if [[ ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+            printf '::warning::1Password field %q skipped: not a valid environment variable name\n' "$name"
+            continue
+          fi
 
-          # Mask values in logs
-          echo "::add-mask::$value"
+          # Plain types are config; every other type (CONCEALED, SSHKEY, OTP,
+          # CREDIT_CARD_NUMBER, an unknown one) is a secret. Same list as
+          # state() in scripts/lib/vaults.ts.
+          case "$ftype" in
+            STRING|URL|EMAIL|PHONE|DATE|MONTH_YEAR|MENU) secret=false ;;
+            *) secret=true ;;
+          esac
 
-          # Export to GitHub env (supports multiline)
-          {
-            echo "${name}<<__OP_EOF__"
-            echo "${value}"
-            echo "__OP_EOF__"
-          } >> "$GITHUB_ENV"
+          # Mask secrets only. GitHub redacts a masked value everywhere in the
+          # output, so masking config (WORKER_REPLICAS=3) shreds every log and
+          # job summary. The runner masks each line of a multiline mask too,
+          # so a multiline secret goes in line by line, without the lines of
+          # 4 characters or fewer ({, ], ==): masking those shreds the logs
+          # just the same, and they give nothing away.
+          if [[ "$secret" == true ]]; then
+            if [[ "$value" != *$'\n'* ]]; then
+              [[ "$value" != *[![:space:]]* ]] || mask "$value"
+            else
+              while IFS= read -r line; do
+                line="${line#"${line%%[![:space:]]*}"}"
+                line="${line%"${line##*[![:space:]]}"}"
+                if (( ${#line} > 4 )); then mask "$line"; fi
+              done <<<"$value"
+            fi
+          fi
+
+          printf '%s<<%s\n%s\n%s\n' "$name" "$eof" "$value" "$eof" >> "$GITHUB_ENV"
 
           # Vercel export
           if [[ "${EXPORT_FOR_VERCEL}" == "true" ]]; then
             printf '%s\0' --env "${name}=${value}" >> "${VERCEL_ENV_FILE}"
           fi
 
-          # Build args: non-concealed fields only — never bake secrets into an image.
-          if [[ "${EXPORT_BUILD_ARGS}" == "true" && "$ftype" != "CONCEALED" ]]; then
-            build_args_array+=("${name}=${value}")
+          # Build args: plain fields only — never bake secrets into an image.
+          # The list is one line, so a multiline field cannot be one.
+          if [[ "${EXPORT_BUILD_ARGS}" == "true" && "$secret" == false ]]; then
+            if [[ "$value" == *$'\n'* ]]; then
+              echo "::warning::${name} has more than one line; left out of the build args"
+            else
+              build_args_array+=("${name}=${value}")
+            fi
           fi
         done
 
@@ -111,5 +159,5 @@ runs:
 
         if [[ "${EXPORT_BUILD_ARGS}" == "true" ]]; then
           echo "build_args=${build_args_array[*]}" >> "$GITHUB_OUTPUT"
-          echo "Exported ${#build_args_array[@]} build args (non-concealed only)"
+          echo "Exported ${#build_args_array[@]} build args (plain fields only)"
         fi

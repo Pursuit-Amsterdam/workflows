@@ -19,7 +19,7 @@ Dependency direction: **workflows → composite actions → third-party actions*
 ## Conventions that aren't obvious
 
 - **Runner**: jobs use `blacksmith-4vcpu-ubuntu-2404` (a Blacksmith self-hosted runner), not `ubuntu-latest`. Match the surrounding file.
-- **Secrets flow through 1Password**, not raw GH secrets. `setup-onepassword` pulls a vault item, masks every value (`::add-mask::`), writes them to `$GITHUB_ENV` (multiline-safe via heredoc), and can additionally emit a NUL-delimited Vercel `--env` args file. Preserve masking when editing.
+- **Secrets flow through 1Password**, not raw GH secrets. `setup-onepassword` pulls a vault item, masks the secret fields (`::add-mask::`, escaped, a multiline value line by line), writes every field to `$GITHUB_ENV` (multiline-safe via heredoc), and can additionally emit a NUL-delimited Vercel `--env` args file. Secret = every 1Password type except the plain ones (`STRING URL EMAIL PHONE DATE MONTH_YEAR MENU`); plain fields stay unmasked on purpose, because a masked short value (`WORKER_REPLICAS=3`) is redacted from every log line. Keep secret types masked when editing, and change that type list in both places: the action and `state()` in `scripts/lib/vaults.ts`.
 - **`check-pr.sh` is a local mirror of the inline script in `check-pr.yml`.** Edit both together — `check-pr.sh` hardcodes `HEAD`/`BASE`/`HAS_DEVELOP` on its first three lines so you can run it locally. `tests/check-pr.test.ts` runs one table of head → base cases through both, so they cannot drift; add a case for every rule you touch.
 
 ## Branch & merge model (enforced by check-pr, and used in this repo)
