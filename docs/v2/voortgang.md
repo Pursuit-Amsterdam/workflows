@@ -63,7 +63,7 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 | 9 | Nalezen: kan route 1 (GitHub-integratie) ook edge functions en `[edge_runtime.secrets]` aan, en migraties per omgeving uitzetten? (Task 19b) | open | geen: docs nalezen en testen; het besluit van 22 oktober blijft staan tot dan |
 | 11 | De audit leest de workflows alleen op de default branch. Een repo met workflows op `develop` en geen op `main` valt erbuiten, en telt niet mee (den-haag-casusregie-automations, gevonden 3 november 2026) | open | geen: `loadConsumer` ook op `develop` laten zoeken |
 | 10 | ~~Lichte bescherming uit CODEOWNERS~~ ([Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners)) | vervallen door Task 32 (25 november 2026); big-chef-webapp blijft voorlopig licht | — |
-| 12 | Geen CODEOWNERS ([Task 32](implementatieplan.md#task-32-geen-codeowners)): uitrol naar 38 repo's | bewezen in workflows-example (#68); code in de PR naar `v2` | na de merge: per repo `setup-consumer --apply`, dan het uitrolscript; big-chef-webapp niet |
+| 12 | Geen CODEOWNERS ([Task 32](implementatieplan.md#task-32-geen-codeowners)): uitrol naar 37 repo's | bewezen in workflows-example (#68), gemerged (#160); droge run over alle repo's schoon | per repo `setup-consumer --apply`, dan het uitrolscript; niet big-chef-webapp (blijft licht) en unconsultants-website (wordt gearchiveerd) |
 
 **web-essentials-py nu** (28 oktober 2026):
 
