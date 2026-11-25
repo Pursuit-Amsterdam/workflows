@@ -1027,11 +1027,11 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 - [x] Stap 1: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` groen (162 tests).
 - [x] Stap 2 (rood, workflows-example, 25 november 2026): `check.sh` op #57, een PR naar `develop` van 3 november met dezelfde CODEOWNERS en rulesets als nu (zo geen nieuwe melding). Drie keer FAIL: `Senior Developers` aangevraagd, `.github/CODEOWNERS` op `develop`, review van code owners verplicht. `check.sh` kijkt ook in de timeline, zodat een verzoek dat later is weggehaald toch telt. Nulmeting audit: vijf bevindingen voor deze taak (review van code owners op `main` en `develop`, CODEOWNERS op `main`, `develop` en `acceptance`).
-- [ ] Stap 3: `pnpm setup-consumer -- workflows-example`, eerst droog: alleen de drie review-rulesets (`main`, `develop`, `acceptance`) zonder code owners, en een `todo` per branch met CODEOWNERS. Daarna `--apply`.
+- [x] Stap 3: `pnpm setup-consumer -- workflows-example`, eerst droog: alleen de drie review-rulesets (`main`, `develop`, `acceptance`) zonder code owners, en een `todo` per branch met CODEOWNERS. Daarna `--apply`.
   - [x] Droog (25 november 2026): precies dat, 3 `update` en 3 `todo`. De eerste versie las `acceptance` niet; nu wel.
-  - [ ] `--apply`
-- [ ] Stap 4: CODEOWNERS weg met het uitrolscript: `feature/remove-codeowners` → `develop`, `hotfix/remove-codeowners` → `main`; `acceptance` krijgt het met de volgende `develop` → `acceptance` (in workflows-example meteen, voor de audit). Na groene checks mergen met `--admin`.
-- [ ] Stap 5 (groen): een nieuwe test-PR naar `develop`. `check.sh` slaagt: niemand aangevraagd, een review blijft verplicht, geen CODEOWNERS, geen review van code owners. De audit meldt voor workflows-example geen `codeowners`- of review-bevinding.
+  - [x] `--apply` (25 november 2026): 3 wijzigingen.
+- [x] Stap 4: CODEOWNERS weg met het uitrolscript: `feature/remove-codeowners` → `develop`, `hotfix/remove-codeowners` → `main`; `acceptance` krijgt het met de volgende `develop` → `acceptance` (in workflows-example meteen, voor de audit). Na groene checks mergen met `--admin`. Gedaan (25 november 2026): #65 (`develop`), #66 (`main`), #67 (`develop` → `acceptance`). Les: `gh pr checks --watch --required` kwam terug voordat `run-ci-images / pipeline` zelfs in de wachtrij stond, en de merge van #67 werd geweigerd. Het uitrolscript probeert de merge nu zelf opnieuw, elke 20 s, tot 15 minuten.
+- [x] Stap 5 (groen, 25 november 2026): een nieuwe test-PR naar `develop` (#68). `check.sh` slaagt, 5× PASS: niemand aangevraagd, een review blijft verplicht, geen CODEOWNERS, geen review van code owners, 1 review verplicht. De audit van workflows-example ging van 7 naar 2 bevindingen; de 2 die blijven (`acceptance` zonder push-trigger, geen `dependabot.yml`) staan hier los van.
 - [ ] Stap 6: test-PR's dicht, branches weg.
 - [ ] Stap 7: docs; PR naar `v2`.
 - [ ] Stap 8: deze repo: na de merge de ruleset op `v*` zonder code owners.
