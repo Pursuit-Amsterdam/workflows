@@ -91,11 +91,7 @@ Dit is werk voor Sam, in de blueprint.
 
 - `ci.yml` met `run-ci` en `run-ci-images` (`image-ci.yml`, `backend-ci.yml` en `web-ci.yml` verdwijnen), `cd.yml` met cd-gate en cd-swarm bij `release: published`, `check-pr.yml`. Zoals het [Swarm-migratievoorbeeld](naslag/migratievoorbeelden.md#migration).
 - Gevolg: een fix in v2 bereikt elke instantie zonder sync, omdat `@v2` meebeweegt. Een sync is alleen nodig als de aanroep zelf verandert.
-- **`CODEOWNERS` uit de sync.** Eigenaar en profiel (standaard of licht, [Task 30](implementatieplan.md#task-30-lichte-bescherming-uit-codeowners)) verschillen per repo. In het MANIFEST, onder de `sync .github/**`-regel (de laatste match wint):
-  ```
-  review  .github/CODEOWNERS
-  ```
-  Zo levert de template het bestand bij een nieuwe instantie, maar overschrijft hij het daarna nooit, net als `theme.css`.
+- **Geen `CODEOWNERS`** ([Task 32](implementatieplan.md#task-32-geen-codeowners), 25 november 2026): de template levert er geen, en de sync zet er geen neer.
 
 ### 4. Spec- en drift-check in de verplichte pipeline
 
@@ -121,11 +117,11 @@ De volgorde volgt uit de afhankelijkheden: eerst het token, dan v2, dan de bluep
 
 1. **Handwerk:** het leestoken. De App via een org-owner (samen met het verzoek voor de audit-app), of eerst een fine-grained PAT. Waarde of sleutel in 1Password.
 2. **v2:** het leestoken in `ci.yml`, `ci-images.yml` en `cd-swarm.yml`, plus `setup-consumer` en de audit. Met tests, en bewezen in een voorbeeldrepo met een private git-source.
-3. **Blueprint (Sam):** `sync.py` met token, dunne `.github/**`, `review .github/CODEOWNERS`, `check:specs` en `check:template` als scripts, Key Vault-inputs uit `cd.yml`. Daarna een nieuwe tag.
+3. **Blueprint (Sam):** `sync.py` met token, dunne `.github/**`, `check:specs` en `check:template` als scripts, Key Vault-inputs uit `cd.yml`. Daarna een nieuwe tag.
 4. **bnext:** sync naar de nieuwe tag (vanaf `v0.4.0`, dus ook alles uit `v0.5.0`), `setup-consumer --apply`, eerste release door een senior.
 5. **integrators:** eerst `VERSION` rechtzetten (deel 2), dan dezelfde stappen als bnext.
 6. **gp-groot:** pas na de merge van `port-to-blueprint`; v2 komt dan mee met de eerste sync.
-7. **sluyter:** het leestoken in plaats van de eigen PAT, `release.yml` op `@v2`, plus `check-pr.yml`, `CODEOWNERS` en `ci.yml`. Of via Azure Artifacts, als dat [voorstel](voorstel-azure-artifacts.md) wordt gekozen; de blueprint-clone heeft het leestoken dan nog steeds nodig.
+7. **sluyter:** het leestoken in plaats van de eigen PAT, `release.yml` op `@v2`, plus `check-pr.yml` en `ci.yml`. Of via Azure Artifacts, als dat [voorstel](voorstel-azure-artifacts.md) wordt gekozen; de blueprint-clone heeft het leestoken dan nog steeds nodig.
 
 Reken op rode CI bij de eerste run van elke instantie: in v2 draaien `ruff` en `pytest` echt.
 
@@ -133,7 +129,7 @@ Reken op rode CI bij de eerste run van elke instantie: in v2 draaien `ruff` en `
 
 1. Het leestoken: een GitHub App (aanbevolen) of een fine-grained PAT? Wie maakt hem aan?
 2. De naam van het secret, of van de twee App-secrets.
-3. `CODEOWNERS` als `review` in het MANIFEST?
+3. ~~`CODEOWNERS` als `review` in het MANIFEST?~~ Vervallen: geen CODEOWNERS (Task 32).
 4. Spec- en drift-check als scripts onder `run-ci / pipeline`, of drift als tweede verplichte check?
 5. integrators: op welke blueprint-tag staan de template-bestanden echt?
 6. web-essentials-py: git-source met het leestoken (optie A van [Task 22e](implementatieplan.md#task-22e-web-essentials-py-op-v2-python-pakket)) of Azure Artifacts (optie C)?

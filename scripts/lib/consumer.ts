@@ -3,7 +3,7 @@
 // things of a repo depending on that.
 import { ORG, get, readFile } from './github.ts';
 import { gateBranchTargets } from './gate.ts';
-import { pickCodeowners, profileFrom, type BranchOwners, type Profile } from './protection.ts';
+import { CODEOWNERS_PATHS, pickCodeowners, type Codeowners, type CodeownersPath } from './protection.ts';
 import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
@@ -114,17 +114,15 @@ export async function usesOnePassword(c: Consumer, envNames: string[]): Promise<
     return false;
 }
 
-// --- the profile -------------------------------------------------------------
+// --- CODEOWNERS ----------------------------------------------------------------
 
-const CODEOWNERS_PATHS = ['.github/CODEOWNERS', 'CODEOWNERS', 'docs/CODEOWNERS'] as const;
-
-/** CODEOWNERS and GitHub's errors for it, on the default branch and develop: the profile and its findings (lib/protection.ts). */
-export async function readProfile(c: Consumer): Promise<{ profile: Profile; findings: string[] }> {
-    const branches: BranchOwners[] = [];
-    for (const branch of [c.defaultBranch, ...(c.hasDevelop && c.defaultBranch !== 'develop' ? ['develop'] : [])]) {
+/** CODEOWNERS on each protected branch (default, develop, acceptance), as GitHub picks it; null where there is none. */
+export async function readCodeowners(c: Consumer): Promise<{ branch: string; file: Codeowners | null }[]> {
+    const out: { branch: string; file: Codeowners | null }[] = [];
+    const others = [...(c.hasDevelop ? ['develop'] : []), ...(c.hasAcceptance ? ['acceptance'] : [])].filter(b => b !== c.defaultBranch);
+    for (const branch of [c.defaultBranch, ...others]) {
         const files = Object.fromEntries(await Promise.all(CODEOWNERS_PATHS.map(async f => [f, await readFile(c.repo, f, branch)] as const)));
-        const errors = await get<{ errors: BranchOwners['errors'] }>('/repos/{owner}/{repo}/codeowners/errors', { owner: ORG, repo: c.repo, ref: branch });
-        branches.push({ branch, codeowners: pickCodeowners(files as Record<(typeof CODEOWNERS_PATHS)[number], string | null>), errors: errors?.errors ?? null });
+        out.push({ branch, file: pickCodeowners(files as Record<CodeownersPath, string | null>) });
     }
-    return profileFrom(branches);
+    return out;
 }

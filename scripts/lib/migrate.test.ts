@@ -12,7 +12,7 @@ const facts = (over: Partial<RepoFacts> = {}): RepoFacts => ({
     packageJson: JSON.stringify({ packageManager: 'pnpm@11.28.6', scripts: { lint: 'eslint', typecheck: 'tsc', test: 'jest', build: 'next build' } }),
     hasLockfile: true,
     nvmrc: '24\n',
-    codeowners: '* @Pursuit-Amsterdam/senior-developers\n',
+    codeowners: null,
     dependabot: DEPENDABOT_YAML,
     turboJson: null,
     supabaseConfig: null,
@@ -230,52 +230,53 @@ test('backend-ci next to web-ci (gp-groot): CI left alone', () => {
     assert.ok(m.files.has('.github/workflows/check-pr.yml'), 'check-pr is still converted');
 });
 
-test('repo files: .nvmrc from node-version, CODEOWNERS, dependabot token', () => {
+test('repo files: .nvmrc from node-version, dependabot token, no CODEOWNERS', () => {
     const oldDependabot = 'version: 2\nregistries:\n    github:\n        type: npm-registry\n        url: https://npm.pkg.github.com/Pursuit-Amsterdam\n        token: ${{ env.GITHUB_TOKEN }}\n';
-    const m = migrate(facts({ nvmrc: null, codeowners: '/docs/ @someone\n', dependabot: oldDependabot }), [{ file: 'web-ci.yml', text: WEB_CI() }]);
+    const m = migrate(facts({ nvmrc: null, dependabot: oldDependabot }), [{ file: 'web-ci.yml', text: WEB_CI() }]);
     assert.equal(m.files.get('.nvmrc'), '22\n');
-    assert.match(m.files.get('.github/CODEOWNERS')!, /^\* @Pursuit-Amsterdam\/senior-developers\n\/docs\/ @someone/);
+    assert.equal(m.files.has('.github/CODEOWNERS'), false);
     assert.match(m.files.get('.github/dependabot.yml')!, /token: \$\{\{ secrets\.CUSTOM_GITHUB_TOKEN \}\}/);
 });
 
-// CODEOWNERS and the protection profile (use case 30): owners is the choice made
-// in migrate-consumer: a list for light, null for standard, undefined for no choice.
+// CODEOWNERS: v2 uses none (Task 32). GitHub asks its owners for a review on every
+// PR; with the senior team as owner, the whole team on every PR.
 const SENIOR_LINE = '* @Pursuit-Amsterdam/senior-developers';
-const codeowners = (codeowners: string | null, owners?: string[] | null) =>
-    migrate(facts({ codeowners, owners }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
+const V2_HEADER = "# The senior developers own the whole repo. With code-owner review required,\n# a junior's PR needs a senior's review; a senior may merge their own PR.\n";
+const LIGHT_FILE = [
+    '# Light protection: the project of the developer below, not a client project.',
+    '# Anyone with write access merges without a review and may create a release',
+    '# tag; the checks still apply. Back to standard: make the line',
+    '# `* @Pursuit-Amsterdam/senior-developers` again, then run',
+    '# `pnpm setup-consumer -- big-chef-webapp --apply`.',
+    '* @matthijs-pursuit',
+    '',
+].join('\n');
+const withCodeowners = (text: string, path: '.github/CODEOWNERS' | 'CODEOWNERS' | 'docs/CODEOWNERS' = '.github/CODEOWNERS') =>
+    migrate(facts({ codeowners: { path, text } }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
 
-test('CODEOWNERS: light writes the owners on the * line, without the seniors', () => {
-    const m = codeowners(null, ['@matthijs-pursuit']);
-    const file = m.files.get('.github/CODEOWNERS')!;
-    assert.match(file, /^# Light protection/);
-    assert.match(file, /^\* @matthijs-pursuit$/m);
-    assert.doesNotMatch(file, /senior-developers\n/);
-});
-
-test('CODEOWNERS: light over a standard file keeps its path rules', () => {
-    const file = codeowners(`${SENIOR_LINE}\n/docs/ @someone\n`, ['@matthijs-pursuit']).files.get('.github/CODEOWNERS')!;
-    assert.match(file, /^\* @matthijs-pursuit\n\/docs\/ @someone\n$/m);
-});
-
-test('CODEOWNERS: light with the same owners already there is no change', () => {
-    assert.equal(codeowners('* @matthijs-pursuit\n', ['@matthijs-pursuit']).files.has('.github/CODEOWNERS'), false);
-});
-
-test('CODEOWNERS: no choice keeps a light file, and says so', () => {
-    const m = codeowners('* @matthijs-pursuit\n');
-    assert.equal(m.files.has('.github/CODEOWNERS'), false);
-    assert.ok(m.checklist.some(l => l.includes('light') && l.includes('@matthijs-pursuit')));
-});
-
-test('CODEOWNERS: standard replaces a * line for others, so a later line cannot win', () => {
-    for (const choice of [null, undefined]) {
-        const file = codeowners('* @Pursuit-Amsterdam/developers\n/docs/ @someone\n', choice).files.get('.github/CODEOWNERS')!;
-        assert.equal(file, `${SENIOR_LINE}\n/docs/ @someone\n`, String(choice));
+test('CODEOWNERS: the file v2 wrote goes, header and all', () => {
+    for (const text of [`${V2_HEADER}${SENIOR_LINE}\n`, `${SENIOR_LINE}\n`, LIGHT_FILE]) {
+        const m = withCodeowners(text);
+        assert.equal(m.files.get('.github/CODEOWNERS'), null, text);
+        assert.ok(m.report.some(l => l.includes('CODEOWNERS') && l.includes('removed')), text);
     }
 });
 
-test('CODEOWNERS: standard chosen over a light file makes it standard', () => {
-    assert.equal(codeowners('* @matthijs-pursuit\n', null).files.get('.github/CODEOWNERS'), `${SENIOR_LINE}\n`);
+test('CODEOWNERS: removed where GitHub found it, at the root or in docs/', () => {
+    assert.equal(withCodeowners(`${SENIOR_LINE}\n`, 'CODEOWNERS').files.get('CODEOWNERS'), null);
+    assert.equal(withCodeowners(`${SENIOR_LINE}\n`, 'docs/CODEOWNERS').files.get('docs/CODEOWNERS'), null);
+});
+
+test('CODEOWNERS: path rules for others stay, without the * line and the senior team, on the checklist', () => {
+    const m = withCodeowners(`${V2_HEADER}${SENIOR_LINE}\n# docs\n/docs/ @someone\n/scripts/ @Pursuit-Amsterdam/senior-developers\n`);
+    assert.equal(m.files.get('.github/CODEOWNERS'), '# docs\n/docs/ @someone\n');
+    assert.ok(m.checklist.some(l => l.includes('CODEOWNERS') && l.includes('@someone')));
+});
+
+test('CODEOWNERS: only path rules for others is no change, but still on the checklist', () => {
+    const m = withCodeowners('/docs/ @someone\n');
+    assert.equal(m.files.has('.github/CODEOWNERS'), false);
+    assert.ok(m.checklist.some(l => l.includes('CODEOWNERS') && l.includes('@someone')));
 });
 
 test('nothing to change in the repo files: none written', () => {
