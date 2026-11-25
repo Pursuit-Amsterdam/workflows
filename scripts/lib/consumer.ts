@@ -4,7 +4,7 @@
 import { ORG, get, readFile } from './github.ts';
 import { gateBranchTargets } from './gate.ts';
 import { CODEOWNERS_PATHS, pickCodeowners, type Codeowners, type CodeownersPath } from './protection.ts';
-import { jobs, parseWorkflow, triggers, type Workflow } from './workflow.ts';
+import { jobs, parseWorkflow, triggers, workflowBranch, type Workflow } from './workflow.ts';
 
 export const CI_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-ci|backend-ci|fullstack-ci)\.yml@/;
 /** Calls that produce a required check: `<caller job> / pipeline`. */
@@ -13,6 +13,8 @@ export const CHECK_CALL = /\/workflows\/\.github\/workflows\/(ci|ci-images|web-c
 export interface Consumer {
     repo: string;
     defaultBranch: string;
+    /** The branch `workflows` come from: the ref asked for, else the default branch, or develop when only develop's call this repo. */
+    workflowsFrom: string;
     workflows: Workflow[];
     /** Workflow files that could not be read or parsed, with the reason. */
     unreadable: { file: string; reason: string }[];
@@ -42,13 +44,10 @@ export async function branchExists(repo: string, branch: string): Promise<boolea
     return (await get(`/repos/{owner}/{repo}/branches/{branch}`, { owner: ORG, repo, branch })) !== null;
 }
 
-/** The workflows on `ref` (default: the default branch); null when the repo cannot be read. */
-export async function loadConsumer(repo: string, ref?: string): Promise<Consumer | null> {
-    const p = { owner: ORG, repo };
-    const meta = await get<{ default_branch: string }>(`/repos/{owner}/{repo}`, p);
-    if (!meta) return null;
+type Read = Pick<Consumer, 'workflows' | 'unreadable' | 'all'>;
 
-    const entries = (await get<{ name: string; type: string }[]>(`/repos/{owner}/{repo}/contents/{path}`, { ...p, path: '.github/workflows', ...(ref ? { ref } : {}) })) ?? [];
+async function readWorkflows(repo: string, ref: string): Promise<Read> {
+    const entries = (await get<{ name: string; type: string }[]>(`/repos/{owner}/{repo}/contents/{path}`, { owner: ORG, repo, path: '.github/workflows', ref })) ?? [];
     const workflows: Workflow[] = [];
     const unreadable: Consumer['unreadable'] = [];
     for (const e of entries.filter(x => x.type === 'file' && /\.ya?ml$/.test(x.name))) {
@@ -63,19 +62,40 @@ export async function loadConsumer(repo: string, ref?: string): Promise<Consumer
             unreadable.push({ file: e.name, reason: 'not valid YAML' });
         }
     }
-    const all = workflows.map(w => w.text).join('\n');
-    const deploys = /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all);
+    return { workflows, unreadable, all: workflows.map(w => w.text).join('\n') };
+}
+
+const callsUs = (r: Read): boolean => r.all.includes(`${ORG}/workflows/`);
+
+/**
+ * The workflows on `ref`; without `ref`, those on the default branch, or on
+ * develop when only develop's call this repo. null when the repo cannot be read.
+ */
+export async function loadConsumer(repo: string, ref?: string): Promise<Consumer | null> {
+    const meta = await get<{ default_branch: string }>(`/repos/{owner}/{repo}`, { owner: ORG, repo });
+    if (!meta) return null;
+
     const hasDevelop = await branchExists(repo, 'develop');
     const hasAcceptance = await branchExists(repo, 'acceptance');
+    const first = ref ?? meta.default_branch;
+    const onFirst = await readWorkflows(repo, first);
+    const candidates = [{ branch: first, read: onFirst }];
+    if (!ref && hasDevelop && first !== 'develop' && !callsUs(onFirst)) candidates.push({ branch: 'develop', read: await readWorkflows(repo, 'develop') });
+    const workflowsFrom = workflowBranch(candidates.map(x => ({ branch: x.branch, calls: callsUs(x.read) })));
+    const chosen = candidates.find(x => x.branch === workflowsFrom)?.read ?? onFirst;
+    const { workflows, unreadable, all } = chosen;
+
+    const deploys = /\/workflows\/\.github\/workflows\/(cd-vercel|cd-swarm|cd-supabase|web-cd|backend-cd|vm-cd|azure-cd)\.yml@/.test(all);
     // Without cd-gate (v1) staging followed develop, and acceptance its branch.
     const targets = gateBranchTargets(workflows);
     return {
         repo,
         defaultBranch: meta.default_branch,
+        workflowsFrom,
         workflows,
         unreadable,
         all,
-        calls: all.includes(`${ORG}/workflows/`),
+        calls: callsUs(chosen),
         hasCi: CI_CALL.test(all),
         deploys,
         publishes: all.includes('cd-packages.yml@'),

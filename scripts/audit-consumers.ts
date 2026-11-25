@@ -10,6 +10,8 @@
 // deploys (cd-vercel, cd-swarm, cd-supabase, or their v1 forms) or publishes
 // (cd-packages) gets the full audit; one that only calls loose actions or
 // cd-pages gets the check-pr, protection, CODEOWNERS and Dependabot checks.
+// The workflows come from the default branch, or from develop when only
+// develop's call this repo; the audit then says so.
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { parse as parseYaml } from 'yaml';
@@ -17,7 +19,7 @@ import { CHECK_CALL, CI_CALL, loadConsumer, readCodeowners, usesOnePassword } fr
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { codeownersFinding, reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
-import { dispatchInputs, jobs, stringList, trigger, triggers } from './lib/workflow.ts';
+import { dispatchInputs, jobs, stringList, trigger, triggers, workflowBranchFinding } from './lib/workflow.ts';
 
 const ACTIONS_APP_ID = 15368; // GitHub Actions; required checks are pinned to it
 const REQUIRED_CI_CALL = new RegExp(`${ORG}/workflows/\\.github/workflows/(ci|ci-images|web-ci|backend-ci)\\.yml@`);
@@ -82,6 +84,8 @@ for (const repo of repos) {
     for (const u of c.unreadable) say(repo, u.reason === 'cannot read' ? 'access' : 'workflows', u.reason === 'cannot read' ? `cannot read ${u.file}` : `${u.file}: not valid YAML`);
     if (!c.calls) continue;
     audited++;
+    const elsewhere = workflowBranchFinding(c.defaultBranch, c.workflowsFrom);
+    if (elsewhere) say(repo, 'workflows', elsewhere);
 
     // A repo still on v1 gets one line: migrating it fixes the rest, so listing
     // every gap would only bury the findings of the repos already on v2.

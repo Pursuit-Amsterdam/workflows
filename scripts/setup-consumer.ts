@@ -286,7 +286,7 @@ for (const repo of repos) {
     for (const branch of branches) {
         // The checks a PR to this branch gets come from the workflows on this branch:
         // during a migration develop runs v2 while the default branch still runs v1.
-        const onBranch = branch === def ? c : await loadConsumer(repo, branch);
+        const onBranch = branch === c.workflowsFrom ? c : await loadConsumer(repo, branch);
         const checks = onBranch ? producedChecks(onBranch) : [];
         if (checks.length === 0) add({ repo, kind: 'todo', message: `${branch}: no check-pr or CI caller in its workflows: no checks ruleset, classic protection stays` });
         // Up to date only on the default branch of a repo without develop. Elsewhere a PR's head
