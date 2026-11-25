@@ -1005,6 +1005,38 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ---
 
+### Task 32: geen CODEOWNERS
+
+**Bezig.** Klacht: het hele seniorteam staat als reviewer op elke PR, en elke senior krijgt bij elke PR een melding. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS. Zolang "review van code owners verplicht" aan staat, kan dat teamverzoek niet weg, ook niet met automatisch toewijzen in het team. Besluit (Bas, 11 en 25 november 2026): terug naar v1. Een PR heeft één review nodig, van iedereen met schrijfrechten; seniors (admin) mogen die overslaan, alleen bij een PR. Geen CODEOWNERS, en geen profielen meer: de lichte repo's van Task 30 vervallen. Het eigen project van een medewerker krijgt de eigenaar als admin (big-chef-webapp: Matthijs is dat al). Per repo, met `setup-consumer`, niet via een org-ruleset: die zet en leest alleen een org-owner.
+
+**Afgewezen, getest in workflows-example op 4 november 2026:**
+
+- **De regel "required reviewers" in de ruleset** (team `senior-developers`, patroon `*`, 1 goedkeuring), zonder CODEOWNERS. GitHub vraagt dan zelf het team aan (#62); dezelfde base zonder die ruleset vraagt niemand (#63). Hij meldt dus net als CODEOWNERS.
+- **Een eigen verplichte status `senior-review`**, gezet door een workflow bij `pull_request` en `pull_request_review`. Werkt (pending bij openen, success na een review van een senior, weer pending na een push), maar een PR die die workflow aanpast, maakt hem groen zonder review (#64).
+
+**Bestanden:**
+
+- `scripts/lib/protection.ts` en de test: geen profiel meer. `reviewRuleset(branch)` (1 review, geen code owners), `tagRuleset()`, `codeownersFinding()` voor elke CODEOWNERS die iemand aanvraagt.
+- `scripts/setup-consumer.ts`: geen vraag meer; een CODEOWNERS wordt een `todo` (weghalen gaat via een PR).
+- `scripts/audit-consumers.ts`: bevinding bij review van code owners en bij elke CODEOWNERS die iemand aanvraagt.
+- `scripts/lib/migrate.ts`, `scripts/migrate-consumer.ts`: schrijven geen CODEOWNERS meer, halen de `*`-regel en het seniorteam weg (het bestand als er niets overblijft); `--owner` en `--standard` vervallen.
+- Docs: `beslissingen.md`, use case 30, standaardinrichting, uitrol in detail, principes, playbook, voorstel automations, README, `CLAUDE.md`, voortgang.
+- Deze repo: `.github/CODEOWNERS` weg, en de ruleset `version branches: review (seniors may skip)` zonder review van code owners.
+
+**Stappen:**
+
+- [x] Stap 1: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` groen (162 tests).
+- [x] Stap 2 (rood, workflows-example, 25 november 2026): `check.sh` op #57, een PR naar `develop` van 3 november met dezelfde CODEOWNERS en rulesets als nu (zo geen nieuwe melding). Drie keer FAIL: `Senior Developers` aangevraagd, `.github/CODEOWNERS` op `develop`, review van code owners verplicht. `check.sh` kijkt ook in de timeline, zodat een verzoek dat later is weggehaald toch telt. Nulmeting audit: vijf bevindingen voor deze taak (review van code owners op `main` en `develop`, CODEOWNERS op `main`, `develop` en `acceptance`).
+- [ ] Stap 3: `pnpm setup-consumer -- workflows-example`, eerst droog: alleen de drie review-rulesets (`main`, `develop`, `acceptance`) zonder code owners, en een `todo` per branch met CODEOWNERS. Daarna `--apply`.
+  - [x] Droog (25 november 2026): precies dat, 3 `update` en 3 `todo`. De eerste versie las `acceptance` niet; nu wel.
+  - [ ] `--apply`
+- [ ] Stap 4: CODEOWNERS weg met het uitrolscript: `feature/remove-codeowners` → `develop`, `hotfix/remove-codeowners` → `main`; `acceptance` krijgt het met de volgende `develop` → `acceptance` (in workflows-example meteen, voor de audit). Na groene checks mergen met `--admin`.
+- [ ] Stap 5 (groen): een nieuwe test-PR naar `develop`. `check.sh` slaagt: niemand aangevraagd, een review blijft verplicht, geen CODEOWNERS, geen review van code owners. De audit meldt voor workflows-example geen `codeowners`- of review-bevinding.
+- [ ] Stap 6: test-PR's dicht, branches weg.
+- [ ] Stap 7: docs; PR naar `v2`.
+- [ ] Stap 8: deze repo: na de merge de ruleset op `v*` zonder code owners.
+- [ ] Stap 9 (handwerk): uitrol naar de andere 38 repo's met CODEOWNERS: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
+
 ## "v2 is klaar"
 
 De afspraak geldt als dit allemaal waar is:
