@@ -1007,7 +1007,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 32: geen CODEOWNERS
 
-**Bezig.** Klacht: het hele seniorteam staat als reviewer op elke PR, en elke senior krijgt bij elke PR een melding. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS. Zolang "review van code owners verplicht" aan staat, kan dat teamverzoek niet weg, ook niet met automatisch toewijzen in het team. Besluit (Bas, 11 en 25 november 2026): terug naar v1. Een PR heeft één review nodig, van iedereen met schrijfrechten; seniors (admin) mogen die overslaan, alleen bij een PR. Geen CODEOWNERS, en geen profielen meer: de lichte repo's van Task 30 vervallen. Het eigen project van een medewerker krijgt de eigenaar als admin (big-chef-webapp: Matthijs is dat al). Per repo, met `setup-consumer`, niet via een org-ruleset: die zet en leest alleen een org-owner.
+**Bezig.** Klacht: het hele seniorteam staat als reviewer op elke PR, en elke senior krijgt bij elke PR een melding. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS. Zolang "review van code owners verplicht" aan staat, kan dat teamverzoek niet weg, ook niet met automatisch toewijzen in het team. Besluit (Bas, 11 en 25 november 2026): terug naar v1. Een PR heeft één review nodig, van iedereen met schrijfrechten; seniors (admin) mogen die overslaan, alleen bij een PR. Geen CODEOWNERS, en geen profielen meer: de lichte repo's van Task 30 vervallen. Het eigen project van een medewerker krijgt de eigenaar als admin. **big-chef-webapp blijft buiten deze taak** (Bas, 25 november 2026): lichte rulesets en `* @matthijs-pursuit` blijven staan, en `setup-consumer` en het uitrolscript draaien daar niet. De audit meldt er daarom "no review required" en de CODEOWNERS. Per repo, met `setup-consumer`, niet via een org-ruleset: die zet en leest alleen een org-owner.
 
 **Afgewezen, getest in workflows-example op 4 november 2026:**
 
@@ -1035,7 +1035,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 - [ ] Stap 6: test-PR's dicht, branches weg.
 - [ ] Stap 7: docs; PR naar `v2`.
 - [ ] Stap 8: deze repo: na de merge de ruleset op `v*` zonder code owners.
-- [ ] Stap 9 (handwerk): uitrol naar de andere 38 repo's met CODEOWNERS: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
+- [ ] Stap 9 (handwerk): uitrol naar de andere 38 repo's met CODEOWNERS, zonder big-chef-webapp: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
 
 ## "v2 is klaar"
 
