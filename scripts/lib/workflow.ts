@@ -51,3 +51,18 @@ export function dispatchInputs(wf: Workflow): string[] {
     const wd = trigger(wf, 'workflow_dispatch');
     return wd && isMapping(wd.inputs) ? Object.keys(wd.inputs) : [];
 }
+
+/**
+ * The branch whose workflows describe a repo: the first that calls
+ * Pursuit-Amsterdam/workflows, default branch first; else the default branch.
+ * A repo can keep `.github/` on develop only (den-haag-casusregie-automations).
+ */
+export function workflowBranch(branches: { branch: string; calls: boolean }[]): string {
+    return (branches.find(b => b.calls) ?? branches[0]).branch;
+}
+
+/** What the audit says when the workflows come from another branch than the default. */
+export function workflowBranchFinding(def: string, from: string): string | null {
+    if (from === def) return null;
+    return `only ${from} has workflows that call Pursuit-Amsterdam/workflows, ${def} has none: workflow_run, workflow_dispatch and schedule only start workflows on ${def}, so CD never starts; merge .github/ into ${def}`;
+}
