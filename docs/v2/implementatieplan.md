@@ -1035,7 +1035,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 - [x] Stap 4: CODEOWNERS weg met het uitrolscript: `feature/remove-codeowners` → `develop`, `hotfix/remove-codeowners` → `main`; `acceptance` krijgt het met de volgende `develop` → `acceptance` (in workflows-example meteen, voor de audit). Na groene checks mergen met `--admin`. Gedaan (25 november 2026): #65 (`develop`), #66 (`main`), #67 (`develop` → `acceptance`). Les: `gh pr checks --watch --required` kwam terug voordat `run-ci-images / pipeline` zelfs in de wachtrij stond, en de merge van #67 werd geweigerd. Het uitrolscript probeert de merge nu zelf opnieuw, elke 20 s, tot 15 minuten.
 - [x] Stap 5 (groen, 25 november 2026): een nieuwe test-PR naar `develop` (#68). `check.sh` slaagt, 5× PASS: niemand aangevraagd, een review blijft verplicht, geen CODEOWNERS, geen review van code owners, 1 review verplicht. De audit van workflows-example ging van 7 naar 2 bevindingen; de 2 die blijven (`acceptance` zonder push-trigger, geen `dependabot.yml`) staan hier los van.
 - [ ] Stap 6: test-PR's dicht, branches weg.
-- [ ] Stap 7: docs; PR naar `v2`.
+- [x] Stap 7: docs; PR naar `v2` (#160).
 - [ ] Stap 8: deze repo: na de merge de ruleset op `v*` zonder code owners.
 - [ ] Stap 9 (handwerk): uitrol naar de andere 38 repo's met CODEOWNERS, zonder big-chef-webapp: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
 
