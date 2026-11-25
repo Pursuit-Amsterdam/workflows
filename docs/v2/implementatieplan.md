@@ -905,6 +905,8 @@ De integratie met v2 (leestoken, drift-check, template-grens) staat in een apart
 
 ### Task 30: lichte bescherming uit CODEOWNERS
 
+**Vervangen door [Task 32](#task-32-geen-codeowners) (25 november 2026):** geen CODEOWNERS en geen profielen meer; big-chef-webapp blijft voorlopig licht.
+
 **Gebouwd (#152, 3 november 2026); open: stap 6.5–6.7 (wacht op Matthijs).** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
 
 **Al gekozen (Bas, 3 november 2026):**

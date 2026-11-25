@@ -117,7 +117,7 @@ De workflows-repo houdt zich aan dezelfde regels als de repo's die hem gebruiken
 
 - Eigen CI bij elke PR: actionlint, shellcheck, `check-pr.sh`, en een voorbeeldrepo die de workflows aanroept zoals een echte repo dat doet.
 - Externe actions staan op een vaste commit in plaats van een tag, en Dependabot houdt ze bij. Dat geldt ook voor de bestaande actions, niet alleen voor de nieuwe.
-- De branch `v2` is beschermd zoals `main` van een productrepo: review van code owners, geen force push, eigen CI verplicht. Hij draait met de secrets van elke repo die hem aanroept.
+- De branch `v2` is beschermd zoals `main` van een productrepo: één review (een senior mag die overslaan), geen force push, eigen CI verplicht. Hij draait met de secrets van elke repo die hem aanroept.
 
 **Lost op:** fouten die pas bij een afnemer opvallen, zoals de `framework`-input die vijf repo's liet falen, externe actions die ongemerkt veranderen, en één push die code in elke afnemer laat draaien.
 

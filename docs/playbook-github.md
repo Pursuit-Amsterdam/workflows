@@ -45,7 +45,6 @@ Elke repo heeft:
 - `package.json` met een script per check: `lint`, `typecheck`, `test` en `build`.
 - `.nvmrc` met de Node-versie.
 - Drie workflows in `.github/workflows/`: `ci.yml`, `cd.yml` en `check-pr.yml`.
-- `.github/CODEOWNERS` met de regel `* @Pursuit-Amsterdam/senior-developers`.
 - `.github/dependabot.yml`.
 - De gedeelde configuratiepakketten (zie [Gedeelde pakketten](#gedeelde-pakketten)).
 
@@ -141,7 +140,7 @@ Je wijst de reviewer aan in Asana, in de subtaak "PR Review". GitHub stuurt zelf
 | Meer dan 5 regels logica of dataverwerking. | Een developer van hetzelfde project. Anders een senior. |
 | Architectuur of infrastructuur: authenticatie, databaseschema, workflows. | Alleen een senior. |
 
-Een PR heeft altijd de goedkeuring van een senior nodig om te mergen. Laat een andere developer eerst reviewen als dat leerzaam is. Vraag daarna een senior.
+Een PR heeft altijd de goedkeuring van een senior nodig om te mergen. Dat is een afspraak: GitHub telt de goedkeuring van iedereen met schrijfrechten. Laat een andere developer eerst reviewen als dat leerzaam is. Vraag daarna een senior.
 
 ### Wat controleer je
 

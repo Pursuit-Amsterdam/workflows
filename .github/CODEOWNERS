@@ -1,4 +1,0 @@
-# The senior developers own the whole repo. With code-owner review required by
-# the ruleset on v*, a junior's PR needs a senior's review; a senior may merge
-# their own PR. A merge to v2 runs in every repo that calls these workflows.
-* @Pursuit-Amsterdam/senior-developers
