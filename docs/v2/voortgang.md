@@ -2,11 +2,11 @@
 
 # Voortgang van de migratie naar v2
 
-**Stand: 3 november 2026.** 39 van de 46 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 14 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website volgt (geen klant meer).
+**Stand: 25 november 2026.** 40 van de 47 repo's die Pursuit-Amsterdam/workflows gebruiken, draaien op `v2`; 15 daarvan hebben al een productiedeploy of publicatie via `v2` gehad. De 47 komen uit `pnpm audit:consumers`, die sinds #164 ook den-haag-casusregie-automations meetelt (workflows alleen op `develop`). De workflows-repo zelf telt niet mee: `main` blijft v1 tot Task 28. Gearchiveerde repo's tellen niet mee: foodcabinet-website en all-connect-solutions-website zijn gearchiveerd, unconsultants-website telt nog mee: niet zeker of die nog bij ons draait (Bas, 25 november 2026).
 
 Dit document houdt bij per repo hoe ver de migratie is, en wat er in `v2` nog ontbreekt. Het [implementatieplan](implementatieplan.md#plan) houdt bij hoe het gebouwd is. De stand per repo komt uit `pnpm audit:consumers` en de laatste release-run.
 
-## Op v2, productie via v2 bewezen (14)
+## Op v2, productie via v2 bewezen (15)
 
 Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 
@@ -23,6 +23,7 @@ Een release ná de migratie is door de gate gegaan en gedeployd of gepubliceerd.
 | multifill-planning-tool | Vercel; migraties via de Supabase-integratie | v2026.10.26 |
 | web-essentials-dashboard | Vercel, alleen productie; migraties via de Supabase-integratie, edge functions en secrets met de hand | v2026.11.02 (health 200 na het bypass-secret) |
 | gp-map-webapp | Swarm | v2026.10.26; `main` en `develop` op de v2-CI (`main` sinds #205, 2 november 2026), rulesets op beide; `develop` nog niet naar `main` |
+| gp-container-tracking-webapp | Swarm | v0.1.0 (10 november 2026): gate en `deploy-production` groen (run 42833583201) |
 | banner-kit | pakket, release via draft | v0.10.0 |
 | nextjs-feature-flags | pakket, demo-app op Vercel | v0.6.0; de demo-app bouwt de workspace via `packages/demo-app/vercel.json` |
 | workflows-example | testrepo | v0.9.0 |
@@ -36,7 +37,7 @@ CI, check-pr en (waar het bestaat) staging werken al via `v2`. Productie of publ
 | Vercel | translations-management-dashboard, blenheim-masters-landingpage, city-real-estate-website, pursuit-projects-dashboard, github-wrapped-2025, intersekse-website, asana-task-generator, developer-onboarding-project, scm-executives-website |
 | Pakketten (release via draft) | jest-config, eslint-config, prettier-config, typescript-config, web-essentials-cli, web-essentials-js, text-extract, translations-management-js |
 | Banner-repo's (Pages bij een release) | triodos-html-banners, novacollege-html-banners, offlimits-html-banners, warmtefonds-html-banners, snappcar-html-banners |
-| Geen productie, bewust | gp-container-tracking-webapp (staging is de omgeving van de gebruikers), template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip), big-chef-webapp (alleen CI, nog geen deploydoel; Matthijs is admin) |
+| Geen productie, bewust | template-nextjs-vercel (deployt nooit), weber-ddc (geen CD: oplevering als zip), big-chef-webapp (alleen CI, nog geen deploydoel; Matthijs is admin) |
 
 offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerste release lokaal `pnpm build` en `pnpm dev` vergelijken met wat live staat.
 
@@ -76,16 +77,17 @@ offlimits en warmtefonds springen van banner-kit 0.5 naar 0.10: vóór hun eerst
 ## Handwerk dat openstaat
 
 - **Package-token: bewijzen.** Sinds 2 november 2026 staat de gedeelde PAT op de environments. Bewezen voor een deploy: web-essentials-dashboard (run 41467126390) installeerde de private pakketten met de PAT op `Production`. Nog open: een CI-run op `integration` en een Dependabot-run. Eerst in multifill-planning-tool: een CI-run en "Dependabot Updates" opnieuw draaien.
-- **`dependabot.yml` met `env.GITHUB_TOKEN`** in tms-test (`develop`): Dependabot heeft geen `GITHUB_TOKEN`; wordt `secrets.CUSTOM_GITHUB_TOKEN`.
+- **tms-test: `dependabot.yml` op `develop`** heeft nog `env.GITHUB_TOKEN`. Dependabot leest de config alleen van de default branch, en op `main` staat `secrets.CUSTOM_GITHUB_TOKEN` al sinds #25 (21 oktober 2026). `develop` krijgt het met een PR `main` → `develop`; verder verschillen ze niet.
 - **`VERCEL_TOKEN` als environment-secret** op `staging` en `production` in plaats van op org- of repo-niveau.
 - **web-essentials-dashboard: `OP_SERVICE_ACCOUNT_TOKEN` op repo-niveau.** Bas heeft geen toegang tot de waarde. Iemand met beheerrechten in 1Password maakt een service-account-token dat alleen de kluis `web-essentials-dashboard-production` leest, zet het op `Production` en haalt het repo-secret weg. Het repo-secret `CUSTOM_GITHUB_TOKEN` is al weg (25 november 2026, bij de uitrol van Task 32; de environments hebben het).
-- **Oude PR's naar `main` van de workflows-repo:** #22 (packages: read) en #25 (Supabase edge functions) zijn achterhaald door `v2`; #23 is op `v2` opgegaan in #158; #26 (Key Vault) is buiten scope (23 oktober 2026). Sluiten.
 - Cosmetisch: hoofdletters in environmentnamen (`Staging`, `Production`); hernoemen kan niet zonder de secrets opnieuw te zetten. GitHub maakt geen verschil, de audit meldt het niet meer.
 
 ## Logboek
 
 | Datum | Wat |
 | --- | --- |
+| 25 november 2026 | Stand bijgewerkt: 40 van de 47 op `v2`, 15 met productie via `v2`. gp-container-tracking-webapp heeft nu productie: release v0.1.0 (10 november 2026) ging door de gate en `deploy-production`. De vorige stand (39 van 46) telde één repo uit de tabellen niet mee. Stap 6 van Task 30 vervallen door Task 32. |
+| 25 november 2026 | Oude PR's naar `main` van de workflows-repo gesloten: #25 (Supabase edge functions, achterhaald door `cd-supabase`) en #26 (Key Vault, buiten scope). #22 en #23 waren al dicht. |
 | 25 november 2026 | Task 32 uitgerold naar 39 repo's, ook big-chef-webapp en unconsultants-website: per repo `setup-consumer --apply` (review van code owners uit), dan 64 opruim-PR's die CODEOWNERS weghalen, alle gemerged. Geen CODEOWNERS meer, en de audit meldt niets meer over review, code owners of tags. Mee in dezelfde run: `images / pipeline` verplicht in gp-container-tracking-webapp, het repo-secret `CUSTOM_GITHUB_TOKEN` weg uit web-essentials-dashboard. |
 | 25 november 2026 | Geen CODEOWNERS meer (Task 32). Het hele seniorteam stond als reviewer op elke PR, en dat verzoek is niet uit te zetten zolang de review van code owners verplicht is. Terug naar v1: één review van iedereen met schrijfrechten, seniors mogen die overslaan. Bewezen in workflows-example: rood op #57; `setup-consumer --apply`; CODEOWNERS weg met #65 (`develop`), #66 (`main`) en #67 (`acceptance`); groen op #68 (niemand aangevraagd, een review blijft verplicht). Audit van workflows-example van 7 naar 2 bevindingen. Afgewezen op 4 november: de regel "required reviewers" (vraagt het team ook aan, #62) en een eigen status `senior-review` (te omzeilen, #64). big-chef-webapp gaat mee: Matthijs is daar admin. |
 | 12 november 2026 | `setup-onepassword` maskeert alleen nog geheime types (#158, Task 6 stap 6). Bewezen op gp-map staging met dezelfde run twee keer: attempt 2 met de oude action, attempt 3 na de merge (run 41431311104), beide groen. 25 velden en dezelfde 17 build-args; logregels met `***` van 3032 naar 473, alleen nog de geheimen; `WORKER_REPLICAS`, `APP_HOST` en `NEXT_PUBLIC_*` leesbaar, de buildx-regels heel. De staging-deploy convergeert ook weer (attempt 2, 11:52): het probleem van 2 november is niet teruggekomen. |
