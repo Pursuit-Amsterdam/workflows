@@ -905,7 +905,7 @@ De integratie met v2 (leestoken, drift-check, template-grens) staat in een apart
 
 ### Task 30: lichte bescherming uit CODEOWNERS
 
-**Vervangen door [Task 32](#task-32-geen-codeowners) (25 november 2026):** geen CODEOWNERS en geen profielen meer; big-chef-webapp blijft voorlopig licht.
+**Vervangen door [Task 32](#task-32-geen-codeowners) (25 november 2026):** geen CODEOWNERS en geen profielen meer; in big-chef-webapp is Matthijs admin.
 
 **Gebouwd (#152, 3 november 2026); open: stap 6.5–6.7 (wacht op Matthijs).** Use case 30: in een lichte repo hoeft geen PR een review, en mag een release zonder senior, voor iedereen met schrijfrechten. De `*`-regel in CODEOWNERS bepaalt het profiel. `setup-consumer` zet de review- en de tag-ruleset die daarbij horen, en de audit toetst ertegen. De regels, de tabellen en het voorbeeld staan in de [uitwerking](use-cases.md#light). Aanleiding: big-chef-webapp. Die zit nog op v1, is nooit gedeployd (alle 7 CD-runs rood, geen secrets) en krijgt op `v2` alleen CI.
 
@@ -1009,7 +1009,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 32: geen CODEOWNERS
 
-**Bewezen in workflows-example en gemerged (#160); open: de uitrol (stap 9).** Klacht: het hele seniorteam staat als reviewer op elke PR, en elke senior krijgt bij elke PR een melding. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS. Zolang "review van code owners verplicht" aan staat, kan dat teamverzoek niet weg, ook niet met automatisch toewijzen in het team. Besluit (Bas, 11 en 25 november 2026): terug naar v1. Een PR heeft één review nodig, van iedereen met schrijfrechten; seniors (admin) mogen die overslaan, alleen bij een PR. Geen CODEOWNERS, en geen profielen meer: de lichte repo's van Task 30 vervallen. Het eigen project van een medewerker krijgt de eigenaar als admin. **big-chef-webapp blijft buiten deze taak** (Bas, 25 november 2026): lichte rulesets en `* @matthijs-pursuit` blijven staan, en `setup-consumer` en het uitrolscript draaien daar niet. De audit meldt er daarom "no review required" en de CODEOWNERS. Per repo, met `setup-consumer`, niet via een org-ruleset: die zet en leest alleen een org-owner.
+**Bewezen in workflows-example en gemerged (#160); open: de uitrol (stap 9).** Klacht: het hele seniorteam staat als reviewer op elke PR, en elke senior krijgt bij elke PR een melding. Oorzaak: `* @Pursuit-Amsterdam/senior-developers` in CODEOWNERS. Zolang "review van code owners verplicht" aan staat, kan dat teamverzoek niet weg, ook niet met automatisch toewijzen in het team. Besluit (Bas, 11 en 25 november 2026): terug naar v1. Een PR heeft één review nodig, van iedereen met schrijfrechten; seniors (admin) mogen die overslaan, alleen bij een PR. Geen CODEOWNERS, en geen profielen meer: de lichte repo's van Task 30 vervallen. Het eigen project van een medewerker krijgt de eigenaar als admin. **big-chef-webapp gaat mee** (Bas, 25 november 2026; eerst bleef hij erbuiten): Matthijs is daar admin, dus hij slaat de review over en maakt zelf een release, zoals bij licht. Droog: de review gaat van 0 naar 1, CODEOWNERS (`* @matthijs-pursuit`) weg op `main` en `develop`, de tag-ruleset blijft (geen productie). Per repo, met `setup-consumer`, niet via een org-ruleset: die zet en leest alleen een org-owner.
 
 **Afgewezen, getest in workflows-example op 4 november 2026:**
 
@@ -1037,7 +1037,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 - [x] Stap 6: test-PR's dicht, branches weg (#68, `feature/review-test-green`).
 - [x] Stap 7: docs; PR naar `v2` (#160).
 - [x] Stap 8 (25 november 2026): na de merge van #160 de ruleset `version branches: review (seniors may skip)` zonder code owners: 1 review, `require_code_owner_review: false`. `v2` heeft geen CODEOWNERS meer.
-- [ ] Stap 9 (handwerk): uitrol naar de andere 38 repo's met CODEOWNERS, zonder big-chef-webapp. unconsultants-website gaat mee: niet zeker of die nog bij ons draait (Bas, 25 november 2026). Droge run (25 november 2026) over 38 repo's: 62 review-rulesets, alleen de review van code owners uit; 62 keer CODEOWNERS. Los daarvan twee wijzigingen, akkoord (Bas): gp-container-tracking-webapp krijgt `images / pipeline` als verplichte check (draait bij elke PR), web-essentials-dashboard verliest het repo-secret `CUSTOM_GITHUB_TOKEN` (de environments hebben hem). Per repo: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
+- [ ] Stap 9 (handwerk): uitrol naar de andere 39 repo's met CODEOWNERS, ook big-chef-webapp. unconsultants-website gaat mee: niet zeker of die nog bij ons draait (Bas, 25 november 2026). Droge run (25 november 2026) over 38 repo's: 62 review-rulesets, alleen de review van code owners uit; 62 keer CODEOWNERS. Los daarvan twee wijzigingen, akkoord (Bas): gp-container-tracking-webapp krijgt `images / pipeline` als verplichte check (draait bij elke PR), web-essentials-dashboard verliest het repo-secret `CUSTOM_GITHUB_TOKEN` (de environments hebben hem). Per repo: per repo `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
 
 ## "v2 is klaar"
 

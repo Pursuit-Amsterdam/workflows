@@ -82,7 +82,7 @@ Nog geen workflow, wel een toets: het ontwerp mag infra as code (Terraform of Op
 
 **Wat ervoor in de plaats komt:** in het eigen project van een medewerker (geen klantproject) is de eigenaar admin. Hij mergt dan zonder review en maakt zelf een release, net als een senior. De verplichte checks blijven. De audit meldt elke directe admin buiten `senior-developers`, zodat de uitzondering zichtbaar blijft.
 
-**big-chef-webapp blijft voorlopig licht** (Bas, 25 november 2026): de lichte rulesets en `* @matthijs-pursuit` blijven staan, en `setup-consumer` draait daar niet. De audit meldt er "no review required" en de CODEOWNERS.
+**big-chef-webapp** (Bas, 25 november 2026): Matthijs is daar admin. De lichte rulesets en `* @matthijs-pursuit` verdwijnen met de uitrol van Task 32; voor Matthijs verandert er niets.
 
 ---
 
