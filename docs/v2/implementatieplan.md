@@ -1041,6 +1041,41 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 - [x] Stap 9 (handwerk): uitrol naar de andere 39 repo's met CODEOWNERS, ook big-chef-webapp. unconsultants-website gaat mee: niet zeker of die nog bij ons draait (Bas, 25 november 2026). Droge run (25 november 2026) over 38 repo's: 62 review-rulesets, alleen de review van code owners uit; 62 keer CODEOWNERS. Los daarvan twee wijzigingen, akkoord (Bas): gp-container-tracking-webapp krijgt `images / pipeline` als verplichte check (draait bij elke PR), web-essentials-dashboard verliest het repo-secret `CUSTOM_GITHUB_TOKEN` (de environments hebben hem). Per repo: `setup-consumer --apply`, dan het uitrolscript, dan mergen. Seniors krijgen nog één melding per opruim-PR, want de base heeft dan nog CODEOWNERS.
   - [x] Gedaan (25 november 2026): 64 opruim-PR's in 39 repo's gemerged, geen meer open, geen branch over. Nagelopen: geen CODEOWNERS meer op `main` of `develop` (geen van de 39 heeft `acceptance`); alle 64 review-rulesets op 1 review zonder code owners; de twee wijzigingen staan. Audit over de 39: geen bevinding meer over review, code owners of tags. Wel 3 directe admins buiten `senior-developers`: `matthijs-pursuit` in big-chef-webapp (de uitzondering), en het gedeelde account `PursuitAmsterdam` in basko-healthcare-website en unconsultants-website. Dat laatste is weggehaald (Bas, 25 november 2026). Het houdt `write` via de basisrechten van de org, en kan dus nog een PR goedkeuren.
 
+### Task 33: Dependabot draait, en zijn PR's gaan naar `develop`
+
+**Bezig (26 november 2026).** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
+
+- **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag.
+  - De runs falen (tms-test, tellr-website, web-essentials-dashboard, intersekse-website) of stoppen na 55 minuten (basko, city-real-estate, developer-onboarding, multifill, big-chef). Eén run van basko kreeg 36.738 keer een 404.
+  - De kale URL kwam uit `DEPENDABOT_YAML` in `migrate.ts` en uit de standaardinrichting.
+- **Geen `target-branch`.** Dependabot opent zijn PR's tegen `main`, maar `check-pr` laat `dependabot/*` alleen in `develop` toe. Daardoor zijn alle Dependabot-PR's in tms-test, big-chef-webapp (11) en weber-ddc (5) rood. weber-ddc zit bovendien op de limiet van 5 open PR's.
+- **Een `npm-registry` zonder token**, voor registry.npmjs.org. Dependabot keurt dan het hele bestand af. In 14 repo's heeft Dependabot daardoor nooit gedraaid.
+
+**Bestanden:**
+
+- `scripts/lib/dependabot.ts` en de test: de drie controles, en `npmrcWithRegistries`.
+- `scripts/audit-consumers.ts`: de drie bevindingen. De audit leest `.npmrc` op de branch waar Dependabot naartoe gaat, in de map van de update of de dichtstbijzijnde bovenliggende map.
+- `scripts/lib/migrate.ts`:
+  - een nieuwe `dependabot.yml` krijgt `target-branch: develop` als de repo `develop` heeft;
+  - de registry komt er alleen in bij private pakketten, en dan krijgt `.npmrc` de standaardregistry;
+  - bij een bestaand bestand gaan de bevindingen op de checklist.
+- Docs: standaardinrichting, voortgang.
+
+**Stappen:**
+
+- [x] Stap 1 (26 november 2026): pilot in tms-test. #28 zet `registry=` in `.npmrc`.
+  - Run 45785833036 was groen in 17 minuten, na vier rode runs: 3006 verzoeken naar npmjs, 25 naar GitHub Packages, geen enkele voor `@types`.
+  - De negen PR's gingen tegen `main` (#29–#33, #36–#39) en zijn gesloten.
+- [ ] Stap 2: tms-test `target-branch: develop` (#35, gemerged) en `main` → `develop` (#34). Daarna een run tegen `develop` die zijn PR's naar `develop` opent.
+- [x] Stap 3: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` zijn groen (191 tests). De audit op zes repo's geeft de verwachte bevindingen.
+- [ ] Stap 4: docs, en een PR naar `v2`.
+- [ ] Stap 5 (handwerk): uitrol naar de andere repo's.
+  - Overal: de `.npmrc`-regel, en `target-branch: develop` waar `develop` bestaat. De registry zonder token gaat weg.
+  - Open Dependabot-PR's tegen `main` gaan dicht.
+  - intersekse en developer-onboarding hebben geen private pakketten: daar gaat de registry weg.
+  - unconsultants en template-nextjs-vercel krijgen ook de Dependabot-secret.
+- [ ] Stap 6 (besluit): gaan de Dependabot-alerts aan, en de security updates? Security updates gaan altijd naar de default branch. Dan moet `check-pr` `dependabot/*` ook in `main` toelaten.
+
 ## "v2 is klaar"
 
 De afspraak geldt als dit allemaal waar is:
