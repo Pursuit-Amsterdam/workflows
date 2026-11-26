@@ -13,7 +13,8 @@
 // are todos. It does remove an old repo-level CUSTOM_GITHUB_TOKEN, once every
 // environment that needs the token has it. Every repo gets the same review
 // ruleset (lib/protection.ts): one review from anyone with write, admins may
-// skip it on a PR. A CODEOWNERS file is a todo: it asks its owners for a review
+// skip it on a PR. Dependabot alerts go on (security updates stay off: Task 33).
+// A CODEOWNERS file is a todo: it asks its owners for a review
 // on every PR, and removing it takes a PR. Workflow files are migrate-consumer's job.
 // Needs a token with repo admin: the local `gh` login, or GH_TOKEN.
 import { loadConsumer, producedChecks, readCodeowners, usesOnePassword, type Consumer } from './lib/consumer.ts';
@@ -315,6 +316,13 @@ for (const repo of repos) {
     }
 
     if (tagged) await upsertRuleset(repo, rulesets, tagRuleset());
+
+    // Dependabot alerts: what is known to be vulnerable on the default branch. Turning them
+    // on turns on the dependency graph too. Security updates stay off: they open PRs against
+    // main, which check-pr refuses for dependabot/* when there is develop (Task 33).
+    if ((await get('/repos/{owner}/{repo}/vulnerability-alerts', p)) === null) {
+        add({ repo, kind: 'update', message: 'Dependabot alerts on (and the dependency graph)', run: () => send('PUT', '/repos/{owner}/{repo}/vulnerability-alerts', p) });
+    }
 
     // CODEOWNERS asks its owners for a review on every PR. The branches are protected,
     // so removing it takes a PR: a todo, not a change.

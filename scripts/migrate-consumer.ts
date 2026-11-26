@@ -41,7 +41,7 @@ function run(cwd: string, cmd: string, cmdArgs: string[]): string {
 const git = (cwd: string, ...a: string[]): string => run(cwd, 'git', ['-c', 'core.hooksPath=/dev/null', ...a]);
 const read = (dir: string, file: string): string | null => (existsSync(join(dir, file)) ? readFileSync(join(dir, file), 'utf8') : null);
 
-// The patches work on the branch's own copy (package.json, turbo.json), so the
+// The patches work on the branch's own copy (package.json, turbo.json, .npmrc), so the
 // hotfix to main never gets develop's version of those files.
 function writeFiles(dir: string, m: Pick<Migration, 'files' | 'patches'>): void {
     for (const [file, content] of m.files) {
