@@ -15,7 +15,7 @@
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { CHECK_CALL, CI_CALL, loadConsumer, readCodeowners, usesOnePassword } from './lib/consumer.ts';
-import { alertFinding, credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcPaths, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
+import { alertFinding, credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcEnvAuthFinding, npmrcPaths, parseDependabot, probingUpdates, registryPathFindings, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { codeownersFinding, reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
@@ -387,6 +387,7 @@ for (const repo of repos) {
     }
     if (dependabot) {
         for (const f of credentiallessFindings(dependabot)) say(repo, 'dependabot', f);
+        for (const f of registryPathFindings(dependabot)) say(repo, 'dependabot', f);
         // Dependabot only knows its own secrets: ${{ env.GITHUB_TOKEN }} and the like are empty.
         for (const r of dependabot.registries) {
             if (r.url.includes('npm.pkg.github.com') && r.hasCredentials && !/^\$\{\{\s*secrets\.CUSTOM_GITHUB_TOKEN\s*\}\}$/.test(r.token ?? '')) {
@@ -407,6 +408,8 @@ for (const repo of repos) {
                     }
                 }
                 if (!hasDefaultRegistry(found?.text ?? null)) say(repo, 'dependabot', defaultRegistryFinding(probe, directory, branch, found?.path ?? null));
+                const auth = found ? npmrcEnvAuthFinding(found.text, found.path, branch) : null;
+                if (auth) say(repo, 'dependabot', auth);
             }
         }
     }

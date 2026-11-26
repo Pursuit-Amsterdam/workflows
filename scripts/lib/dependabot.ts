@@ -11,6 +11,11 @@
 //   lists first, for every package. GitHub Packages answers @types/* with a copy
 //   from 2022 and the rest with a 404; with /Pursuit-Amsterdam in the URL it proxies
 //   npmjs, but slowly. Either way the runs fail or time out (tms-test #28).
+// - A GitHub Packages URL with a path (/Pursuit-Amsterdam) never matches the requests
+//   for @pursuit-amsterdam/*, so Dependabot leaves the token unused and sends its own:
+//   a 403 where the package does not grant the repo access (big-chef-webapp).
+// - An .npmrc auth line that reads an environment variable (_authToken=${NPM_TOKEN})
+//   sends an empty token, since Dependabot has no such variable (pursuit-projects-dashboard).
 import { parse } from 'yaml';
 
 export interface Update {
@@ -83,6 +88,21 @@ export function credentiallessFindings(d: Dependabot): string[] {
         .map(r => `registry '${r.name}' (${r.url}) has no token or username: Dependabot rejects the whole dependabot.yml and never runs; ${CENTRAL.test(r.url) ? 'remove it, registry.npmjs.org needs no entry' : 'give it a token'}`);
 }
 
+const GITHUB_WITH_PATH = /^(https:\/\/npm\.pkg\.github\.com)\/[^/\s]+.*$/;
+const PLAIN_GITHUB = 'https://npm.pkg.github.com';
+
+/** Each GitHub Packages registry whose URL has a path: Dependabot then sends its own token, not this one. */
+export function registryPathFindings(d: Dependabot): string[] {
+    return d.registries
+        .filter(r => r.type === 'npm-registry' && GITHUB_WITH_PATH.test(r.url))
+        .map(r => `registry '${r.name}' (${r.url}) has a path: Dependabot then does not send its token for @pursuit-amsterdam/* but its own, which gets a 403 where the package does not grant this repo access: use url: ${PLAIN_GITHUB}`);
+}
+
+/** dependabot.yml with every GitHub Packages URL plain (no path); the rest of the text as it was. */
+export function withPlainGithubUrl(text: string): string {
+    return text.replace(/(^\s*url:\s*['"]?)https:\/\/npm\.pkg\.github\.com\/[^\s'"]+/gm, `$1${PLAIN_GITHUB}`);
+}
+
 /** An npm update that lists private registries (their URLs): without a default registry in .npmrc, Dependabot asks them first for every package. */
 export interface Probe {
     update: Update;
@@ -123,6 +143,23 @@ export function npmrcWithRegistries(current: string | null): string | null {
     if (add.length === 0) return null;
     const rest = text.trim() === '' ? '' : `${text.replace(/\n*$/, '')}\n`;
     return `${add.join('\n')}\n${rest}`;
+}
+
+const ENV_AUTH = /^\s*(\/\/[^\s:]+\/:_authToken\s*=\s*\$\{([^}]+)\})\s*$/m;
+const AUTH_NOTE = '# No _authToken here: CI adds its own (setup-node-pnpm), Dependabot uses the\n# registry in .github/dependabot.yml, and locally you put it in ~/.npmrc:\n#   //npm.pkg.github.com/:_authToken=<your token with read:packages>';
+
+/** The finding for an .npmrc auth line that reads an environment variable; null when there is none. */
+export function npmrcEnvAuthFinding(npmrc: string | null, path: string, branch: string): string | null {
+    const m = npmrc === null ? null : ENV_AUTH.exec(npmrc);
+    if (!m) return null;
+    return `${path} on ${branch}: ${m[1]} reads ${m[2]}, which Dependabot does not have, so it sends an empty token and the private packages fail: remove the line (CI adds its own; locally, put the token in ~/.npmrc)`;
+}
+
+/** .npmrc as Dependabot needs it: both registries (npmrcWithRegistries), and no auth line that reads an environment variable; null when nothing changes. */
+export function npmrcForDependabot(current: string | null): string | null {
+    const registries = npmrcWithRegistries(current) ?? current ?? '';
+    const out = registries.replace(new RegExp(ENV_AUTH.source, 'gm'), AUTH_NOTE);
+    return out === (current ?? '') ? null : out;
 }
 
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
