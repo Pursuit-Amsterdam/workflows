@@ -1074,7 +1074,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Er kwamen maar twee PR's, omdat de negen gesloten PR's naar `main` die versies laten overslaan.
 - [x] Stap 3: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` zijn groen (191 tests). De audit op zes repo's geeft de verwachte bevindingen.
 - [x] Stap 4: docs, en een PR naar `v2` (#165).
-- [ ] Stap 5 (handwerk): uitrol naar de andere repo's.
+- [ ] Stap 5 (handwerk): uitrol naar de andere v2-repo's. De v1-repo's (zie voortgang) blijven erbuiten: zij krijgen het bij hun migratie, want `migrate-consumer` schrijft het nu zelf.
   - Overal: de `.npmrc`-regel, en `target-branch: develop` waar `develop` bestaat. De registry zonder token gaat weg.
   - Open Dependabot-PR's tegen `main` gaan dicht.
   - intersekse en developer-onboarding hebben geen private pakketten: daar gaat de registry weg.
@@ -1083,7 +1083,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
   - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
   - Zie [beslissingen](beslissingen.md#decided).
-- [ ] Stap 7 (handwerk): de alerts aan in alle repo's met `setup-consumer --apply`. Daarna de eerste audit van de open alerts.
+- [ ] Stap 7 (handwerk): de alerts aan met `setup-consumer --apply` in de 35 v2-repo's waar dat de enige wijziging is (droge run, 26 november 2026). Daarna de eerste audit van de open alerts. De 7 v1-repo's blijven erbuiten tot hun migratie.
 
 ## "v2 is klaar"
 
