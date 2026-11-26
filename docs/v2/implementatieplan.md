@@ -1068,7 +1068,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - De negen PR's gingen tegen `main` (#29–#33, #36–#39) en zijn gesloten.
 - [ ] Stap 2: tms-test `target-branch: develop` (#35, gemerged) en `main` → `develop` (#34). Daarna een run tegen `develop` die zijn PR's naar `develop` opent.
 - [x] Stap 3: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` zijn groen (191 tests). De audit op zes repo's geeft de verwachte bevindingen.
-- [ ] Stap 4: docs, en een PR naar `v2`.
+- [x] Stap 4: docs, en een PR naar `v2` (#165).
 - [ ] Stap 5 (handwerk): uitrol naar de andere repo's.
   - Overal: de `.npmrc`-regel, en `target-branch: develop` waar `develop` bestaat. De registry zonder token gaat weg.
   - Open Dependabot-PR's tegen `main` gaan dicht.
