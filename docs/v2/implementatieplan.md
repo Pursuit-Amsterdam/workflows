@@ -1043,7 +1043,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 33: Dependabot draait, en zijn PR's gaan naar `develop`
 
-**Bezig (26 november 2026).** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
+**Bezig (26 november 2026): pilot tms-test bewezen, uitrol open.** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
 
 - **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag.
   - De runs falen (tms-test, tellr-website, web-essentials-dashboard, intersekse-website) of stoppen na 55 minuten (basko, city-real-estate, developer-onboarding, multifill, big-chef). Eén run van basko kreeg 36.738 keer een 404.
@@ -1066,7 +1066,11 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 - [x] Stap 1 (26 november 2026): pilot in tms-test. #28 zet `registry=` in `.npmrc`.
   - Run 45785833036 was groen in 17 minuten, na vier rode runs: 3006 verzoeken naar npmjs, 25 naar GitHub Packages, geen enkele voor `@types`.
   - De negen PR's gingen tegen `main` (#29–#33, #36–#39) en zijn gesloten.
-- [ ] Stap 2: tms-test `target-branch: develop` (#35, gemerged) en `main` → `develop` (#34). Daarna een run tegen `develop` die zijn PR's naar `develop` opent.
+- [x] Stap 2 (26 november 2026): tms-test `target-branch: develop` (#35) en `main` → `develop` (#34).
+  - #35 ging eerder dan #34. De run die daarop volgde (45791943684) las `develop` zonder de `.npmrc`-regel. Hij vroeg elk pakket aan GitHub Packages (404 voor `get-intrinsic` en dergelijke) en is na 23 minuten gestopt.
+  - Na #34 was run 45795720774 groen in 15 minuten: 2976 verzoeken naar npmjs, 25 naar GitHub Packages, geen enkele voor `@types`.
+  - Hij opende #40 en #41 naar `develop`; `run-check-pr` en `run-ci` zijn groen. #41 werkt een private pakket bij (`@pursuit-amsterdam/jest-config`), dus de registry met de token werkt ook.
+  - Er kwamen maar twee PR's, omdat de negen gesloten PR's naar `main` die versies laten overslaan.
 - [x] Stap 3: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` zijn groen (191 tests). De audit op zes repo's geeft de verwachte bevindingen.
 - [x] Stap 4: docs, en een PR naar `v2` (#165).
 - [ ] Stap 5 (handwerk): uitrol naar de andere repo's.
