@@ -1043,7 +1043,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 33: Dependabot draait, en zijn PR's gaan naar `develop`
 
-**Bezig (26 november 2026): pilot tms-test bewezen, uitrol open.** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
+**Bezig (26 november 2026): uitgerold naar 25 v2-repo's, runs nalopen; alerts nog aan te zetten.** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
 
 - **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag.
   - De runs falen (tms-test, tellr-website, web-essentials-dashboard, intersekse-website) of stoppen na 55 minuten (basko, city-real-estate, developer-onboarding, multifill, big-chef). Eén run van basko kreeg 36.738 keer een 404.
@@ -1074,11 +1074,15 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Er kwamen maar twee PR's, omdat de negen gesloten PR's naar `main` die versies laten overslaan.
 - [x] Stap 3: de scripts en hun tests (eerst rood). `pnpm lint` en `pnpm test` zijn groen (191 tests). De audit op zes repo's geeft de verwachte bevindingen.
 - [x] Stap 4: docs, en een PR naar `v2` (#165).
-- [ ] Stap 5 (handwerk): uitrol naar de andere v2-repo's. De v1-repo's (zie voortgang) blijven erbuiten: zij krijgen het bij hun migratie, want `migrate-consumer` schrijft het nu zelf.
-  - Overal: de `.npmrc`-regel, en `target-branch: develop` waar `develop` bestaat. De registry zonder token gaat weg.
-  - Open Dependabot-PR's tegen `main` gaan dicht.
-  - intersekse en developer-onboarding hebben geen private pakketten: daar gaat de registry weg.
-  - unconsultants en template-nextjs-vercel krijgen ook de Dependabot-secret.
+- [x] Stap 5 (handwerk, 26 november 2026): uitrol naar 25 v2-repo's, in vier groepen, 44 PR's, alle gemerged. De v1-repo's (zie voortgang) blijven erbuiten: zij krijgen het bij hun migratie, want `migrate-consumer` schrijft het nu zelf.
+  - Per repo: de `.npmrc`-regel waar de repo private pakketten heeft, `target-branch: develop` waar `develop` bestaat, en de registry zonder token weg. intersekse en developer-onboarding hebben geen private pakketten: daar ging de GitHub-registry ook weg.
+  - Repo's met `develop` kregen twee PR's (`hotfix/dependabot-config` → `main`, `feature/dependabot-config` → `develop`), `develop` eerst gemerged. Een merge van `main` naar `develop` gaf in 10 repo's een conflict.
+  - G1 (zonder `develop`): de vijf banner-repo's (Dependabot werkte daar al; de regel voorkomt het probleem) en intersekse-website. intersekse: run 45819050535 groen in 31 minuten, zonder verzoeken naar GitHub Packages, na runs die faalden na 42 tot 52 minuten. Vijf PR's naar `main` (#26–#30).
+  - G2: basko, big-chef, city-real-estate, multifill, tellr-website, template-nextjs-vercel, web-essentials-dashboard, developer-onboarding, unconsultants. De 11 Dependabot-PR's van big-chef naar `main` zijn gesloten. unconsultants kreeg de Dependabot-secret.
+  - G3 (registry zonder token weg): blenheim, gp-map, nextjs-feature-flags, pursuit-projects-dashboard, qpido, scm-executives, tellr-webapp, translations-management-dashboard, variantzorg.
+  - G4: weber-ddc, alleen `target-branch: develop`. De 5 Dependabot-PR's naar `main` (#33–#37) zijn gesloten.
+  - Eerste runs (stand 12:57): groen in template-nextjs-vercel (9 minuten), gp-map (7), blenheim (13), intersekse (31), en `uv`, `github_actions` en `docker_compose` in big-chef. Rood: npm in big-chef (run 45821224038), een 403 `read_package` op `@pursuit-amsterdam/*`. Daar staat een andere Dependabot-secret dan de gedeelde PAT (gezet op 3 november, de rest op 2 november). De andere runs liepen nog.
+- [ ] Stap 5b: de runs nalopen. big-chef: de Dependabot-secret opnieuw zetten met de gedeelde PAT en de run herhalen. weber-ddc: komen de 5 updates terug als PR's naar `develop`?
 - [x] Stap 6 (besluit, Bas, 26 november 2026): **optie A: alerts aan, security updates uit.**
   - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
   - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
