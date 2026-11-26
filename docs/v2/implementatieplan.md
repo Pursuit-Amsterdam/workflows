@@ -1043,9 +1043,9 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 33: Dependabot draait, en zijn PR's gaan naar `develop`
 
-**Bezig (26 november 2026): uitgerold naar 25 v2-repo's, runs nalopen; alerts nog aan te zetten.** Van de 33 repo's met een `dependabot.yml` werkt Dependabot er 8. Er zijn drie oorzaken, en alle drie zitten in onze eigen inrichting:
+**Bezig (26 november 2026): uitgerold naar 25 v2-repo's en de runs nagelopen, alerts aan in 35 repo's; de audit van de alerts en twee controles staan open.** Van de 33 repo's met een `dependabot.yml` werkte Dependabot er 8. Er waren drie oorzaken, en alle drie zitten in onze eigen inrichting. Bij de uitrol kwamen er twee bij (stap 5b):
 
-- **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag.
+- **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag, en gebruikt Dependabot de token niet (stap 5b).
   - De runs falen (tms-test, tellr-website, web-essentials-dashboard, intersekse-website) of stoppen na 55 minuten (basko, city-real-estate, developer-onboarding, multifill, big-chef). Eén run van basko kreeg 36.738 keer een 404.
   - De kale URL kwam uit `DEPENDABOT_YAML` in `migrate.ts` en uit de standaardinrichting.
 - **Geen `target-branch`.** Dependabot opent zijn PR's tegen `main`, maar `check-pr` laat `dependabot/*` alleen in `develop` toe. Daardoor zijn alle Dependabot-PR's in tms-test, big-chef-webapp (11) en weber-ddc (5) rood. weber-ddc zit bovendien op de limiet van 5 open PR's.
@@ -1082,12 +1082,18 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - G3 (registry zonder token weg): blenheim, gp-map, nextjs-feature-flags, pursuit-projects-dashboard, qpido, scm-executives, tellr-webapp, translations-management-dashboard, variantzorg.
   - G4: weber-ddc, alleen `target-branch: develop`. De 5 Dependabot-PR's naar `main` (#33–#37) zijn gesloten.
   - Eerste runs (stand 12:57): groen in template-nextjs-vercel (9 minuten), gp-map (7), blenheim (13), intersekse (31), en `uv`, `github_actions` en `docker_compose` in big-chef. Rood: npm in big-chef (run 45821224038), een 403 `read_package` op `@pursuit-amsterdam/*`. Daar staat een andere Dependabot-secret dan de gedeelde PAT (gezet op 3 november, de rest op 2 november). De andere runs liepen nog.
-- [ ] Stap 5b: de runs nalopen. big-chef: de Dependabot-secret opnieuw zetten met de gedeelde PAT en de run herhalen. weber-ddc: komen de 5 updates terug als PR's naar `develop`?
+- [x] Stap 5b (26 november 2026): de runs nagelopen. Het probleem met de registry is overal weg: geen verzoeken meer voor `@types` aan GitHub Packages, en een handvol 404's per run. Er kwamen twee oorzaken bij:
+  - **Een registry-URL met `/Pursuit-Amsterdam`** (big-chef en heel G3, 10 repo's). Die URL past niet op de verzoeken voor `@pursuit-amsterdam/*` (`npm.pkg.github.com/@pursuit-amsterdam%2F…`). Dependabot gebruikt `CUSTOM_GITHUB_TOKEN` dan niet, maar zijn eigen token (`basic auth` in het log), en die krijgt een 403 waar het pakket de repo geen toegang geeft (big-chef, runs 45821224038, 45825449503, 45827361815; de secret opnieuw zetten hielp niet). Met de kale URL (`url: https://npm.pkg.github.com`, 20 PR's) staat in alle 10 `token auth`, met alleen 200's voor de private pakketten. `migrate-consumer` schreef de kale URL al.
+  - **`//npm.pkg.github.com/:_authToken=${NPM_TOKEN}` in `.npmrc`** (pursuit-projects-dashboard). Dependabot heeft geen `NPM_TOKEN`, dus die regel geeft een lege token (401, `private_source_authentication_failure`). Weg in #38 en #39; CI zet zelf een regel (`setup-node-pnpm`). Dezelfde regel staat in gp-groot-automations (`frontend/.npmrc`).
+  - Groen na de fixes: alle repo's behalve drie. pursuit-projects-dashboard: 13 minuten, `@pursuit-amsterdam/eslint-config` 1.1.0 → 2.0.2 als PR.
+  - **Te lang:** basko (run 45821188624) en tellr-webapp (45822868345, 45831161090) stoppen na 55 minuten; city-real-estate (48) en variantzorg (53) halen het net. Ze openen eerst 5 PR's (de limiet), en lopen daarna toch elk ander pakket na, ongeveer 40 seconden per stuk. De PR's staan er wel.
+  - **De repo zelf:** nextjs-feature-flags heeft `strict-peer-dependencies=true` in `.npmrc`; 19 updates falen op de peer-afhankelijkheden (`dependency_file_not_resolvable`). Voor de eigenaar van de repo.
+- [ ] Stap 5c: de audit meldt een registry-URL met een pad, en `_authToken=${…}` in `.npmrc`. De standaardinrichting zegt al dat de URL kaal blijft.
 - [x] Stap 6 (besluit, Bas, 26 november 2026): **optie A: alerts aan, security updates uit.**
   - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
   - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
   - Zie [beslissingen](beslissingen.md#decided).
-- [ ] Stap 7 (handwerk): de alerts aan met `setup-consumer --apply` in de 35 v2-repo's waar dat de enige wijziging is (droge run, 26 november 2026). Daarna de eerste audit van de open alerts. De 7 v1-repo's blijven erbuiten tot hun migratie.
+- [ ] Stap 7 (handwerk): de alerts aan met `setup-consumer --apply` in de 35 v2-repo's waar dat de enige wijziging is. Gedaan (26 november 2026): de alerts staan in alle 35 aan. Nog open: de eerste audit van de open alerts (`pnpm audit:consumers`). De 7 v1-repo's blijven erbuiten tot hun migratie.
 
 ## "v2 is klaar"
 
