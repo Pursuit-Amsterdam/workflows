@@ -8,11 +8,15 @@ import {
     defaultRegistryFinding,
     dependabotBase,
     hasDefaultRegistry,
+    npmrcEnvAuthFinding,
+    npmrcForDependabot,
     npmrcPaths,
     npmrcWithRegistries,
     parseDependabot,
     probingUpdates,
+    registryPathFindings,
     targetBranchFindings,
+    withPlainGithubUrl,
 } from './dependabot.ts';
 
 const GITHUB = `
@@ -208,6 +212,52 @@ test('npmrcWithRegistries: a new file gets the default and the @pursuit-amsterda
 
 test('npmrcWithRegistries: null when both registries are there', () => {
     assert.equal(npmrcWithRegistries('registry=https://registry.npmjs.org/\n@pursuit-amsterdam:registry=https://npm.pkg.github.com\n'), null);
+});
+
+// A registry URL with a path (Task 33, step 5b): the requests for @pursuit-amsterdam/*
+// never match it, so Dependabot leaves the token unused and sends its own (403).
+const WITH_PATH = GITHUB.replace('url: https://npm.pkg.github.com', 'url: https://npm.pkg.github.com/Pursuit-Amsterdam');
+
+test('registryPathFindings: a GitHub Packages URL with a path', () => {
+    assert.deepEqual(registryPathFindings(parseDependabot(WITH_PATH + NPM_UPDATE())), [
+        "registry 'github-npm' (https://npm.pkg.github.com/Pursuit-Amsterdam) has a path: Dependabot then does not send its token for @pursuit-amsterdam/* but its own, which gets a 403 where the package does not grant this repo access: use url: https://npm.pkg.github.com",
+    ]);
+});
+
+test('registryPathFindings: not for the plain URL, with or without a slash, or another registry', () => {
+    assert.deepEqual(registryPathFindings(parseDependabot(GITHUB + NPM_UPDATE())), []);
+    assert.deepEqual(registryPathFindings(parseDependabot(GITHUB.replace('npm.pkg.github.com', 'npm.pkg.github.com/') + NPM_UPDATE())), []);
+    assert.deepEqual(registryPathFindings(parseDependabot(GITHUB.replace('https://npm.pkg.github.com', 'https://registry.example.com/team') + NPM_UPDATE())), []);
+});
+
+test('withPlainGithubUrl: drops the path from a GitHub Packages URL, leaves the rest', () => {
+    assert.equal(withPlainGithubUrl(WITH_PATH + NPM_UPDATE()), GITHUB + NPM_UPDATE());
+    assert.equal(withPlainGithubUrl(GITHUB + NPM_UPDATE()), GITHUB + NPM_UPDATE());
+});
+
+// _authToken=${VAR} in .npmrc (pursuit-projects-dashboard): Dependabot has no such
+// variable, so it sends an empty token (401). CI appends its own line (setup-node-pnpm).
+const ENV_AUTH = '//npm.pkg.github.com/:_authToken=${NPM_TOKEN}';
+
+test('npmrcEnvAuthFinding: an auth line that reads an environment variable', () => {
+    assert.equal(
+        npmrcEnvAuthFinding(`@pursuit-amsterdam:registry=https://npm.pkg.github.com\n${ENV_AUTH}\n`, '.npmrc', 'develop'),
+        '.npmrc on develop: //npm.pkg.github.com/:_authToken=${NPM_TOKEN} reads NPM_TOKEN, which Dependabot does not have, so it sends an empty token and the private packages fail: remove the line (CI adds its own; locally, put the token in ~/.npmrc)',
+    );
+});
+
+test('npmrcEnvAuthFinding: nothing for no file, a comment, or no auth line', () => {
+    assert.equal(npmrcEnvAuthFinding(null, '.npmrc', 'main'), null);
+    assert.equal(npmrcEnvAuthFinding(`# ${ENV_AUTH}\n`, '.npmrc', 'main'), null);
+    assert.equal(npmrcEnvAuthFinding('registry=https://registry.npmjs.org/\n', '.npmrc', 'main'), null);
+});
+
+test('npmrcForDependabot: both registries, and the environment auth line replaced by a note', () => {
+    const out = npmrcForDependabot(`registry=https://registry.npmjs.org/\n@pursuit-amsterdam:registry=https://npm.pkg.github.com\n${ENV_AUTH}\n`)!;
+    assert.doesNotMatch(out, /^\/\/npm\.pkg\.github\.com\/:_authToken/m);
+    assert.match(out, /^@pursuit-amsterdam:registry=https:\/\/npm\.pkg\.github\.com\n# No _authToken here: CI adds its own \(setup-node-pnpm\)/m);
+    assert.equal(npmrcForDependabot('always-auth=true\n'), npmrcWithRegistries('always-auth=true\n'));
+    assert.equal(npmrcForDependabot('registry=https://registry.npmjs.org/\n@pursuit-amsterdam:registry=https://npm.pkg.github.com\n'), null);
 });
 
 // Alerts (Task 33, option A): on in every repo; the audit names the open critical and high ones.

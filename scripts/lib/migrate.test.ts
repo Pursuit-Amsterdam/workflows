@@ -272,7 +272,7 @@ test('dependabot: without private packages, no registry and no .npmrc change', (
 });
 
 test('dependabot: an existing file stays; what is off goes on the checklist, .npmrc gets the default registry', () => {
-    const old = 'version: 2\nregistries:\n    npm:\n        type: npm-registry\n        url: https://registry.npmjs.org/\n    github:\n        type: npm-registry\n        url: https://npm.pkg.github.com/Pursuit-Amsterdam\n        token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}\nupdates:\n    - package-ecosystem: npm\n      directory: /\n      registries: [npm, github]\n';
+    const old = 'version: 2\nregistries:\n    npm:\n        type: npm-registry\n        url: https://registry.npmjs.org/\n    github:\n        type: npm-registry\n        url: https://npm.pkg.github.com\n        token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}\nupdates:\n    - package-ecosystem: npm\n      directory: /\n      registries: [npm, github]\n';
     const m = migrate(facts({ dependabot: old }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
     assert.equal(m.files.has('.github/dependabot.yml'), false);
     assert.ok(m.checklist.some(l => l.includes("registry 'npm'") && l.includes('never runs')), 'the registry without a token');
@@ -285,6 +285,20 @@ test('dependabot: an npm update in a subdirectory puts its .npmrc on the checkli
     const m = migrate(facts({ dependabot: old }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
     assert.equal(patch(m, '.npmrc'), undefined);
     assert.ok(m.checklist.some(l => l.includes('/frontend') && l.includes('registry=https://registry.npmjs.org/')));
+});
+
+test('dependabot: a GitHub Packages URL with a path becomes the plain URL, on the checklist', () => {
+    const old = `version: 2\nregistries:\n    github:\n        type: npm-registry\n        url: https://npm.pkg.github.com/Pursuit-Amsterdam\n        token: \${{ secrets.CUSTOM_GITHUB_TOKEN }}\nupdates:\n    - package-ecosystem: npm\n      directory: /\n      target-branch: develop\n      registries: [github]\n`;
+    const m = migrate(facts({ dependabot: old }), [{ file: 'check-pr.yml', text: CHECK_PR }]);
+    assert.equal(m.files.get('.github/dependabot.yml'), old.replace('npm.pkg.github.com/Pursuit-Amsterdam', 'npm.pkg.github.com'));
+    assert.ok(m.checklist.some(l => l.includes('url: https://npm.pkg.github.com') && l.includes('/Pursuit-Amsterdam')));
+    assert.equal(m.checklist.some(l => l.includes('has a path')), false, 'fixed, so not also a finding');
+});
+
+test('dependabot: the .npmrc patch drops an auth line that reads an environment variable', () => {
+    const { m } = newDependabot({ packageJson: PRIVATE_PKG });
+    const out = patch(m, '.npmrc')!.apply('@pursuit-amsterdam:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=${NPM_TOKEN}\n')!;
+    assert.doesNotMatch(out, /^\/\/npm\.pkg\.github\.com\/:_authToken=\$\{NPM_TOKEN\}/m);
 });
 
 // CODEOWNERS: v2 uses none (Task 32). GitHub asks its owners for a review on every

@@ -2,7 +2,7 @@
 // a checklist and the environment variables to set out. Pure: no network, no
 // git, so it can be tested on fixtures. What it does not recognise it leaves
 // alone and puts on the checklist; it never converts half a file.
-import { credentiallessFindings, npmrcPaths, npmrcWithRegistries, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './dependabot.ts';
+import { credentiallessFindings, npmrcForDependabot, npmrcPaths, parseDependabot, probingUpdates, registryPathFindings, targetBranchFindings, withPlainGithubUrl, type Dependabot } from './dependabot.ts';
 import { isStarLine, SENIOR_TEAM, type Codeowners } from './protection.ts';
 import { jobs, parseWorkflow, type Workflow } from './workflow.ts';
 
@@ -243,8 +243,8 @@ ${o.privatePackages ? '      registries:\n          - github-npm\n' : ''}`;
 
 const npmrcPatch: Patch = {
     file: '.npmrc',
-    why: 'the default registry, so Dependabot does not ask GitHub Packages first for every package',
-    apply: npmrcWithRegistries,
+    why: 'the default registry, so Dependabot does not ask GitHub Packages first for every package; no auth line that reads an environment variable Dependabot does not have',
+    apply: npmrcForDependabot,
 };
 
 /** dependabot.yml: a new one, or the token fixed in the existing one and what else is off on the checklist. */
@@ -253,8 +253,10 @@ function dependabotFiles(facts: RepoFacts, privatePackages: boolean): { file?: s
         return { file: dependabotYaml({ targetBranch: facts.hasDevelop ? 'develop' : null, privatePackages }), ...(privatePackages ? { patch: npmrcPatch } : {}), checklist: [] };
     }
     const checklist: string[] = [];
-    const fixed = facts.dependabot.replace(/(url:\s*https:\/\/npm\.pkg\.github\.com\S*\s*\n(\s*)token:\s*)\$\{\{\s*env\.GITHUB_TOKEN\s*\}\}/, '$1${{ secrets.CUSTOM_GITHUB_TOKEN }}');
-    if (fixed !== facts.dependabot) checklist.push('`dependabot.yml`: the GitHub Packages registry now reads with `secrets.CUSTOM_GITHUB_TOKEN` (was `env.GITHUB_TOKEN`, which Dependabot does not have).');
+    const tokenFixed = facts.dependabot.replace(/(url:\s*https:\/\/npm\.pkg\.github\.com\S*\s*\n(\s*)token:\s*)\$\{\{\s*env\.GITHUB_TOKEN\s*\}\}/, '$1${{ secrets.CUSTOM_GITHUB_TOKEN }}');
+    if (tokenFixed !== facts.dependabot) checklist.push('`dependabot.yml`: the GitHub Packages registry now reads with `secrets.CUSTOM_GITHUB_TOKEN` (was `env.GITHUB_TOKEN`, which Dependabot does not have).');
+    const fixed = withPlainGithubUrl(tokenFixed);
+    if (fixed !== tokenFixed) checklist.push('`dependabot.yml`: the GitHub Packages registry now has `url: https://npm.pkg.github.com` (was a URL with a path, such as `/Pursuit-Amsterdam`: Dependabot then sends its own token, not `CUSTOM_GITHUB_TOKEN`).');
     let d: Dependabot;
     try {
         d = parseDependabot(fixed);
@@ -262,7 +264,7 @@ function dependabotFiles(facts: RepoFacts, privatePackages: boolean): { file?: s
         return { ...(fixed !== facts.dependabot ? { file: fixed } : {}), checklist: [...checklist, '`dependabot.yml` is not valid YAML: Dependabot does not run. Fix it.'] };
     }
     // `main` stands for the default branch: the checks only compare it with develop.
-    for (const f of [...credentiallessFindings(d), ...targetBranchFindings(d, 'main', facts.hasDevelop)]) checklist.push(`\`dependabot.yml\`: ${f}`);
+    for (const f of [...credentiallessFindings(d), ...registryPathFindings(d), ...targetBranchFindings(d, 'main', facts.hasDevelop)]) checklist.push(`\`dependabot.yml\`: ${f}`);
     const probes = probingUpdates(d);
     for (const p of probes) {
         for (const dir of p.update.directories.filter(x => npmrcPaths(x).length > 1)) {

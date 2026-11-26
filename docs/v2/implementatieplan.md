@@ -1053,9 +1053,9 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 **Bestanden:**
 
-- `scripts/lib/dependabot.ts` en de test: de drie controles, `npmrcWithRegistries` en `alertFinding`.
+- `scripts/lib/dependabot.ts` en de test: de controles (ook `registryPathFindings` en `npmrcEnvAuthFinding`, stap 5c), `npmrcWithRegistries`, `npmrcForDependabot`, `withPlainGithubUrl` en `alertFinding`.
 - `scripts/setup-consumer.ts`: zet de Dependabot-alerts aan.
-- `scripts/audit-consumers.ts`: de drie bevindingen. De audit leest `.npmrc` op de branch waar Dependabot naartoe gaat, in de map van de update of de dichtstbijzijnde bovenliggende map.
+- `scripts/audit-consumers.ts`: de bevindingen. De audit leest `.npmrc` op de branch waar Dependabot naartoe gaat, in de map van de update of de dichtstbijzijnde bovenliggende map.
 - `scripts/lib/migrate.ts`:
   - een nieuwe `dependabot.yml` krijgt `target-branch: develop` als de repo `develop` heeft;
   - de registry komt er alleen in bij private pakketten, en dan krijgt `.npmrc` de standaardregistry;
@@ -1088,7 +1088,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Groen na de fixes: alle repo's behalve drie. pursuit-projects-dashboard: 13 minuten, `@pursuit-amsterdam/eslint-config` 1.1.0 → 2.0.2 als PR.
   - **Te lang:** basko (run 45821188624) en tellr-webapp (45822868345, 45831161090) stoppen na 55 minuten; city-real-estate (48) en variantzorg (53) halen het net. Ze openen eerst 5 PR's (de limiet), en lopen daarna toch elk ander pakket na, ongeveer 40 seconden per stuk. De PR's staan er wel.
   - **De repo zelf:** nextjs-feature-flags heeft `strict-peer-dependencies=true` in `.npmrc`; 19 updates falen op de peer-afhankelijkheden (`dependency_file_not_resolvable`). Voor de eigenaar van de repo.
-- [ ] Stap 5c: de audit meldt een registry-URL met een pad, en `_authToken=${…}` in `.npmrc`. De standaardinrichting zegt al dat de URL kaal blijft.
+- [x] Stap 5c (26 november 2026): de audit meldt een GitHub Packages-URL met een pad (`registryPathFindings`), en een `_authToken=${…}`-regel in de `.npmrc` die Dependabot leest (`npmrcEnvAuthFinding`). `migrate-consumer` maakt de URL kaal en haalt die regel uit `.npmrc` (`npmrcForDependabot`), met een regel op de checklist. Tests eerst rood; `pnpm test` groen (201). De audit op big-chef, pursuit-projects-dashboard en gp-groot-automations geeft geen nieuwe bevindingen: de eerste twee zijn gerepareerd, en gp-groot heeft geen npm-update in Dependabot.
 - [x] Stap 6 (besluit, Bas, 26 november 2026): **optie A: alerts aan, security updates uit.**
   - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
   - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
