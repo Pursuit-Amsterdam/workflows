@@ -124,3 +124,13 @@ export function npmrcWithRegistries(current: string | null): string | null {
     const rest = text.trim() === '' ? '' : `${text.replace(/\n*$/, '')}\n`;
     return `${add.join('\n')}\n${rest}`;
 }
+
+const SEVERITIES = ['critical', 'high', 'medium', 'low'];
+
+/** The open alerts (their severities) as one finding; null when none are open. */
+export function alertFinding(severities: string[]): string | null {
+    if (severities.length === 0) return null;
+    const counts = SEVERITIES.map(s => [s, severities.filter(x => x === s).length] as const).filter(([, n]) => n > 0);
+    const one = severities.length === 1;
+    return `${severities.length} open Dependabot alert${one ? '' : 's'} (${counts.map(([s, n]) => `${n} ${s}`).join(', ')}) on the default branch: fix ${one ? 'it' : 'them'} with a hotfix/* PR, or dismiss ${one ? 'it' : 'them'} with a reason`;
+}

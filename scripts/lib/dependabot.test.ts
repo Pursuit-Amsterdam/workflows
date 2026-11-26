@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    alertFinding,
     credentiallessFindings,
     defaultRegistryFinding,
     dependabotBase,
@@ -207,4 +208,17 @@ test('npmrcWithRegistries: a new file gets the default and the @pursuit-amsterda
 
 test('npmrcWithRegistries: null when both registries are there', () => {
     assert.equal(npmrcWithRegistries('registry=https://registry.npmjs.org/\n@pursuit-amsterdam:registry=https://npm.pkg.github.com\n'), null);
+});
+
+// Alerts (Task 33, option A): on in every repo; the audit names the open critical and high ones.
+test('alertFinding: nothing open is no finding', () => {
+    assert.equal(alertFinding([]), null);
+});
+
+test('alertFinding: counts per severity, most severe first', () => {
+    assert.equal(
+        alertFinding(['high', 'critical', 'high']),
+        '3 open Dependabot alerts (1 critical, 2 high) on the default branch: fix them with a hotfix/* PR, or dismiss them with a reason',
+    );
+    assert.equal(alertFinding(['high']), '1 open Dependabot alert (1 high) on the default branch: fix it with a hotfix/* PR, or dismiss it with a reason');
 });

@@ -15,7 +15,7 @@
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { CHECK_CALL, CI_CALL, loadConsumer, readCodeowners, usesOnePassword } from './lib/consumer.ts';
-import { credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcPaths, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
+import { alertFinding, credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcPaths, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { codeownersFinding, reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
@@ -415,6 +415,19 @@ for (const repo of repos) {
     // Dependabot secrets have no environments: the token is a repo-level Dependabot secret.
     if (dependabotNeedsToken(dep) && !(await names(`/repos/{owner}/{repo}/dependabot/secrets`, p, 'secrets')).includes('CUSTOM_GITHUB_TOKEN')) {
         say(repo, 'dependabot', 'Dependabot secret CUSTOM_GITHUB_TOKEN not set on the repo: every Dependabot run fails on the registry');
+    }
+    // Alerts: what is known to be vulnerable on the default branch. Security updates stay
+    // off: they open PRs against main, which check-pr refuses for dependabot/* when there is develop.
+    // GET vulnerability-alerts: 204 when on, 404 when off.
+    if ((await get('/repos/{owner}/{repo}/vulnerability-alerts', p)) === null) {
+        say(repo, 'dependabot', 'Dependabot alerts off: known vulnerabilities on the default branch go unseen; `pnpm setup-consumer` turns them on');
+    } else {
+        const open = await get<{ security_advisory: { severity: string } }[]>('/repos/{owner}/{repo}/dependabot/alerts', { ...p, state: 'open', severity: 'critical,high', per_page: 100 });
+        if (open === null) say(repo, 'dependabot', 'cannot read Dependabot alerts: the token needs security_events (or Dependabot alerts: read)');
+        else {
+            const f = alertFinding(open.map(a => a.security_advisory.severity));
+            if (f) say(repo, 'dependabot', f);
+        }
     }
 
     // --- the package token: on each environment whose jobs read it, not on the repo

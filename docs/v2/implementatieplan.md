@@ -1053,7 +1053,8 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 **Bestanden:**
 
-- `scripts/lib/dependabot.ts` en de test: de drie controles, en `npmrcWithRegistries`.
+- `scripts/lib/dependabot.ts` en de test: de drie controles, `npmrcWithRegistries` en `alertFinding`.
+- `scripts/setup-consumer.ts`: zet de Dependabot-alerts aan.
 - `scripts/audit-consumers.ts`: de drie bevindingen. De audit leest `.npmrc` op de branch waar Dependabot naartoe gaat, in de map van de update of de dichtstbijzijnde bovenliggende map.
 - `scripts/lib/migrate.ts`:
   - een nieuwe `dependabot.yml` krijgt `target-branch: develop` als de repo `develop` heeft;
@@ -1078,7 +1079,11 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Open Dependabot-PR's tegen `main` gaan dicht.
   - intersekse en developer-onboarding hebben geen private pakketten: daar gaat de registry weg.
   - unconsultants en template-nextjs-vercel krijgen ook de Dependabot-secret.
-- [ ] Stap 6 (besluit): gaan de Dependabot-alerts aan, en de security updates? Security updates gaan altijd naar de default branch. Dan moet `check-pr` `dependabot/*` ook in `main` toelaten.
+- [x] Stap 6 (besluit, Bas, 26 november 2026): **optie A: alerts aan, security updates uit.**
+  - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
+  - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
+  - Zie [beslissingen](beslissingen.md#decided).
+- [ ] Stap 7 (handwerk): de alerts aan in alle repo's met `setup-consumer --apply`. Daarna de eerste audit van de open alerts.
 
 ## "v2 is klaar"
 
