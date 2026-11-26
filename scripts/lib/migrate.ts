@@ -2,6 +2,7 @@
 // a checklist and the environment variables to set out. Pure: no network, no
 // git, so it can be tested on fixtures. What it does not recognise it leaves
 // alone and puts on the checklist; it never converts half a file.
+import { credentiallessFindings, npmrcPaths, npmrcWithRegistries, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './dependabot.ts';
 import { isStarLine, SENIOR_TEAM, type Codeowners } from './protection.ts';
 import { jobs, parseWorkflow, type Workflow } from './workflow.ts';
 
@@ -23,7 +24,7 @@ export interface RepoFacts {
 }
 
 /**
- * An edit to a file that differs per branch (package.json, turbo.json): applied
+ * An edit to a file that differs per branch (package.json, turbo.json, .npmrc): applied
  * to whatever the branch has, so the hotfix to main never gets develop's copy.
  * `apply` returns the new text, or null when there is nothing to do.
  */
@@ -206,26 +207,71 @@ ${extra}        secrets: inherit
 `;
 }
 
-export const DEPENDABOT_YAML = `# Weekly dependency updates. The private @pursuit-amsterdam packages come from
-# GitHub Packages; Dependabot reads them with CUSTOM_GITHUB_TOKEN (a token with
-# read:packages). A run that Dependabot starts gets only Dependabot secrets, so
-# that token must also exist as a Dependabot secret (repo level), not only as an
-# environment secret. Public packages come from registry.npmjs.org as usual.
+/**
+ * A new dependabot.yml: weekly npm updates, as PRs to `targetBranch` (null: the
+ * default branch), and with `privatePackages` the GitHub Packages registry; .npmrc
+ * then needs the default registry too (npmrcWithRegistries).
+ */
+export function dependabotYaml(o: { targetBranch: string | null; privatePackages: boolean }): string {
+    const header = [
+        ...(o.targetBranch
+            ? [`# Weekly dependency updates, as PRs to ${o.targetBranch}: check-pr lets dependabot/* into`, `# ${o.targetBranch} only. Dependabot reads this file on the default branch.`]
+            : ['# Weekly dependency updates, as PRs to the default branch: without develop,', '# check-pr lets dependabot/* in there.']),
+        ...(o.privatePackages
+            ? [
+                  '#',
+                  '# The private @pursuit-amsterdam packages come from GitHub Packages; Dependabot',
+                  '# reads them with CUSTOM_GITHUB_TOKEN (a token with read:packages). A run that',
+                  '# Dependabot starts gets only Dependabot secrets, so that token must also exist',
+                  '# as a Dependabot secret (repo level), not only as an environment secret.',
+                  '# Public packages come from registry.npmjs.org because .npmrc names it as the',
+                  '# default registry. Without that line Dependabot asks GitHub Packages first for',
+                  '# every package, and the runs fail or time out.',
+              ]
+            : []),
+    ];
+    const registries = o.privatePackages ? 'registries:\n    github-npm:\n        type: npm-registry\n        url: https://npm.pkg.github.com\n        token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}\n\n' : '';
+    return `${header.join('\n')}
 version: 2
-registries:
-    github-npm:
-        type: npm-registry
-        url: https://npm.pkg.github.com
-        token: \${{ secrets.CUSTOM_GITHUB_TOKEN }}
-
-updates:
+${registries}updates:
     - package-ecosystem: npm
       directory: /
-      schedule:
+${o.targetBranch ? `      target-branch: ${o.targetBranch}\n` : ''}      schedule:
           interval: weekly
-      registries:
-          - github-npm
-`;
+${o.privatePackages ? '      registries:\n          - github-npm\n' : ''}`;
+}
+
+const npmrcPatch: Patch = {
+    file: '.npmrc',
+    why: 'the default registry, so Dependabot does not ask GitHub Packages first for every package',
+    apply: npmrcWithRegistries,
+};
+
+/** dependabot.yml: a new one, or the token fixed in the existing one and what else is off on the checklist. */
+function dependabotFiles(facts: RepoFacts, privatePackages: boolean): { file?: string; patch?: Patch; checklist: string[] } {
+    if (!facts.dependabot) {
+        return { file: dependabotYaml({ targetBranch: facts.hasDevelop ? 'develop' : null, privatePackages }), ...(privatePackages ? { patch: npmrcPatch } : {}), checklist: [] };
+    }
+    const checklist: string[] = [];
+    const fixed = facts.dependabot.replace(/(url:\s*https:\/\/npm\.pkg\.github\.com\S*\s*\n(\s*)token:\s*)\$\{\{\s*env\.GITHUB_TOKEN\s*\}\}/, '$1${{ secrets.CUSTOM_GITHUB_TOKEN }}');
+    if (fixed !== facts.dependabot) checklist.push('`dependabot.yml`: the GitHub Packages registry now reads with `secrets.CUSTOM_GITHUB_TOKEN` (was `env.GITHUB_TOKEN`, which Dependabot does not have).');
+    let d: Dependabot;
+    try {
+        d = parseDependabot(fixed);
+    } catch {
+        return { ...(fixed !== facts.dependabot ? { file: fixed } : {}), checklist: [...checklist, '`dependabot.yml` is not valid YAML: Dependabot does not run. Fix it.'] };
+    }
+    // `main` stands for the default branch: the checks only compare it with develop.
+    for (const f of [...credentiallessFindings(d), ...targetBranchFindings(d, 'main', facts.hasDevelop)]) checklist.push(`\`dependabot.yml\`: ${f}`);
+    const probes = probingUpdates(d);
+    for (const p of probes) {
+        for (const dir of p.update.directories.filter(x => npmrcPaths(x).length > 1)) {
+            checklist.push(`\`dependabot.yml\`: npm in ${dir} lists a private registry: add \`registry=https://registry.npmjs.org/\` to the \`.npmrc\` Dependabot reads there (${npmrcPaths(dir).join(', then ')}).`);
+        }
+    }
+    const atRoot = probes.some(p => p.update.directories.some(x => npmrcPaths(x).length === 1));
+    return { ...(fixed !== facts.dependabot ? { file: fixed } : {}), ...(atRoot ? { patch: npmrcPatch } : {}), checklist };
+}
 
 // --- CODEOWNERS ---------------------------------------------------------------
 
@@ -468,15 +514,10 @@ export function migrate(facts: RepoFacts, sources: { file: string; text: string 
     if (co.file !== undefined && facts.codeowners) files.set(facts.codeowners.path, co.file);
     if (co.report) report.push(co.report);
     if (co.note) checklist.push(co.note);
-    if (!facts.dependabot) {
-        files.set('.github/dependabot.yml', DEPENDABOT_YAML);
-    } else {
-        const fixed = facts.dependabot.replace(/(url:\s*https:\/\/npm\.pkg\.github\.com\S*\s*\n(\s*)token:\s*)\$\{\{\s*env\.GITHUB_TOKEN\s*\}\}/, '$1${{ secrets.CUSTOM_GITHUB_TOKEN }}');
-        if (fixed !== facts.dependabot) {
-            files.set('.github/dependabot.yml', fixed);
-            checklist.push('`dependabot.yml`: the GitHub Packages registry now reads with `secrets.CUSTOM_GITHUB_TOKEN` (was `env.GITHUB_TOKEN`, which Dependabot does not have).');
-        }
-    }
+    const dep = dependabotFiles(facts, Object.keys(deps).some(k => k.startsWith('@pursuit-amsterdam/')));
+    if (dep.file !== undefined) files.set('.github/dependabot.yml', dep.file);
+    if (dep.patch) patches.push(dep.patch);
+    checklist.push(...dep.checklist);
 
     // --- package.json: what v2 CI needs, and the lessons from the template
     if (!pkg) checklist.push('No `package.json`: v2 CI runs its scripts. Add one, with `packageManager`.');
