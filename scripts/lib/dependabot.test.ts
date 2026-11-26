@@ -185,7 +185,7 @@ test('defaultRegistryFinding: names the file, the branch and the fix', () => {
     assert.deepEqual(p.urls, ['https://npm.pkg.github.com']);
     assert.equal(
         defaultRegistryFinding(p, '/', 'develop', '.npmrc'),
-        'npm in /: .npmrc on develop names no default registry, so Dependabot asks https://npm.pkg.github.com first for every package (GitHub Packages answers @types/* with a copy from 2022 and the rest with a 404, and the runs fail or time out): add registry=https://registry.npmjs.org/',
+        'npm in /: .npmrc on develop names no default registry, so Dependabot asks https://npm.pkg.github.com first for every package, and GitHub Packages answers slowly, stale or with a 404, so the runs fail or time out: add registry=https://registry.npmjs.org/',
     );
     assert.match(defaultRegistryFinding(p, '/frontend', 'main', null), /^npm in \/frontend: no \.npmrc on main names a default registry, so Dependabot asks https:\/\/npm\.pkg\.github\.com first/);
 });

@@ -9,7 +9,8 @@
 //   it: it then never runs.
 // - Without a default registry in .npmrc, Dependabot asks the registries an update
 //   lists first, for every package. GitHub Packages answers @types/* with a copy
-//   from 2022 and the rest with a 404, so the runs fail or time out (tms-test #28).
+//   from 2022 and the rest with a 404; with /Pursuit-Amsterdam in the URL it proxies
+//   npmjs, but slowly. Either way the runs fail or time out (tms-test #28).
 import { parse } from 'yaml';
 
 export interface Update {
@@ -109,7 +110,7 @@ export function hasDefaultRegistry(npmrc: string | null): boolean {
 /** The finding for a probing update whose .npmrc (path, or null when there is none) names no default registry. */
 export function defaultRegistryFinding(p: Probe, directory: string, branch: string, path: string | null): string {
     const where = path ? `${path} on ${branch} names no default registry` : `no .npmrc on ${branch} names a default registry`;
-    return `${p.update.ecosystem} in ${directory}: ${where}, so Dependabot asks ${p.urls.join(', ')} first for every package (GitHub Packages answers @types/* with a copy from 2022 and the rest with a 404, and the runs fail or time out): add registry=${DEFAULT_REGISTRY}`;
+    return `${p.update.ecosystem} in ${directory}: ${where}, so Dependabot asks ${p.urls.join(', ')} first for every package, and GitHub Packages answers slowly, stale or with a 404, so the runs fail or time out: add registry=${DEFAULT_REGISTRY}`;
 }
 
 const HEADER = '# Default registry, spelled out for Dependabot: without it Dependabot asks\n# GitHub Packages first for every public package (see .github/dependabot.yml).\n';

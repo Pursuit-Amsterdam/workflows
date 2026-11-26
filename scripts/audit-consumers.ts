@@ -14,8 +14,8 @@
 // develop's call this repo; the audit then says so.
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
-import { parse as parseYaml } from 'yaml';
 import { CHECK_CALL, CI_CALL, loadConsumer, readCodeowners, usesOnePassword } from './lib/consumer.ts';
+import { credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcPaths, parseDependabot, probingUpdates, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { codeownersFinding, reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
@@ -371,21 +371,42 @@ for (const repo of repos) {
     }
 
     // --- Dependabot: runs it starts get only Dependabot secrets (pull_request and push
-    // alike), and it needs a registry entry to update private @pursuit-amsterdam packages
+    // alike), it needs a registry entry to update private @pursuit-amsterdam packages,
+    // its PRs must target the branch check-pr lets dependabot/* into, and .npmrc must
+    // name the default registry (lib/dependabot.ts)
     const dep = await readFile(repo, '.github/dependabot.yml');
+    let dependabot: Dependabot | null = null;
     if (dep === null) {
         say(repo, 'dependabot', 'no dependabot.yml');
     } else {
-        // Dependabot only knows its own secrets: ${{ env.GITHUB_TOKEN }} and the like are empty.
-        let registries: Record<string, { url?: string; token?: string }> = {};
         try {
-            registries = (parseYaml(dep) as { registries?: typeof registries } | null)?.registries ?? {};
+            dependabot = parseDependabot(dep);
         } catch {
             say(repo, 'dependabot', 'dependabot.yml: not valid YAML');
         }
-        for (const [name, r] of Object.entries(registries)) {
-            if (r?.url?.includes('npm.pkg.github.com') && !/^\$\{\{\s*secrets\.CUSTOM_GITHUB_TOKEN\s*\}\}$/.test(r.token ?? '')) {
-                say(repo, 'dependabot', `registry '${name}' reads GitHub Packages with ${r.token ?? 'no token'}, not \${{ secrets.CUSTOM_GITHUB_TOKEN }}: private packages are not updated`);
+    }
+    if (dependabot) {
+        for (const f of credentiallessFindings(dependabot)) say(repo, 'dependabot', f);
+        // Dependabot only knows its own secrets: ${{ env.GITHUB_TOKEN }} and the like are empty.
+        for (const r of dependabot.registries) {
+            if (r.url.includes('npm.pkg.github.com') && r.hasCredentials && !/^\$\{\{\s*secrets\.CUSTOM_GITHUB_TOKEN\s*\}\}$/.test(r.token ?? '')) {
+                say(repo, 'dependabot', `registry '${r.name}' reads GitHub Packages with ${r.token ?? 'a username'}, not \${{ secrets.CUSTOM_GITHUB_TOKEN }}: private packages are not updated`);
+            }
+        }
+        for (const f of targetBranchFindings(dependabot, c.defaultBranch, c.hasDevelop)) say(repo, 'dependabot', f);
+        // Dependabot reads .npmrc on the branch it targets, in the update's directory or the nearest parent.
+        for (const probe of probingUpdates(dependabot)) {
+            const branch = probe.update.targetBranch ?? c.defaultBranch;
+            for (const directory of probe.update.directories) {
+                let found: { path: string; text: string } | null = null;
+                for (const path of npmrcPaths(directory)) {
+                    const text = await readFile(repo, path, branch);
+                    if (text !== null) {
+                        found = { path, text };
+                        break;
+                    }
+                }
+                if (!hasDefaultRegistry(found?.text ?? null)) say(repo, 'dependabot', defaultRegistryFinding(probe, directory, branch, found?.path ?? null));
             }
         }
     }
