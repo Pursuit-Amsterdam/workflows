@@ -16,6 +16,7 @@ import {
     probingUpdates,
     registryPathFindings,
     targetBranchFindings,
+    usesPrivatePackages,
     withPlainGithubUrl,
 } from './dependabot.ts';
 
@@ -258,6 +259,19 @@ test('npmrcForDependabot: both registries, and the environment auth line replace
     assert.match(out, /^@pursuit-amsterdam:registry=https:\/\/npm\.pkg\.github\.com\n# No _authToken here: CI adds its own \(setup-node-pnpm\)/m);
     assert.equal(npmrcForDependabot('always-auth=true\n'), npmrcWithRegistries('always-auth=true\n'));
     assert.equal(npmrcForDependabot('registry=https://registry.npmjs.org/\n@pursuit-amsterdam:registry=https://npm.pkg.github.com\n'), null);
+});
+
+// The audit asks for a GitHub Packages registry only where a package.json uses
+// @pursuit-amsterdam/* (intersekse-website has none, and no registry, on purpose).
+test('usesPrivatePackages: a @pursuit-amsterdam dependency or devDependency', () => {
+    assert.equal(usesPrivatePackages([JSON.stringify({ devDependencies: { '@pursuit-amsterdam/eslint-config': '^2.0.0' } })]), true);
+    assert.equal(usesPrivatePackages(['{}', JSON.stringify({ dependencies: { '@pursuit-amsterdam/web-essentials': '^1.0.0' } })]), true);
+});
+
+test('usesPrivatePackages: not for public packages only, no package.json, or invalid JSON', () => {
+    assert.equal(usesPrivatePackages([JSON.stringify({ dependencies: { next: '16.0.0', '@types/node': '22.0.0' } })]), false);
+    assert.equal(usesPrivatePackages([]), false);
+    assert.equal(usesPrivatePackages(['{ not json']), false);
 });
 
 // Alerts (Task 33, option A): on in every repo; the audit names the open critical and high ones.

@@ -15,7 +15,7 @@
 // Secret names are visible, values and org-level secrets are not: a deploy
 // secret that is missing on an environment may still exist at org level.
 import { CHECK_CALL, CI_CALL, loadConsumer, readCodeowners, usesOnePassword } from './lib/consumer.ts';
-import { alertFinding, credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcEnvAuthFinding, npmrcPaths, parseDependabot, probingUpdates, registryPathFindings, targetBranchFindings, type Dependabot } from './lib/dependabot.ts';
+import { alertFinding, credentiallessFindings, defaultRegistryFinding, hasDefaultRegistry, npmrcEnvAuthFinding, npmrcPaths, parseDependabot, probingUpdates, registryPathFindings, targetBranchFindings, usesPrivatePackages, type Dependabot } from './lib/dependabot.ts';
 import { ORG, exists, get, list, orgRepos, readFile } from './lib/github.ts';
 import { codeownersFinding, reviewFindings, tagFindings } from './lib/protection.ts';
 import { dependabotNeedsToken, readsTokenDirectly, tokenEnvironments } from './lib/token.ts';
@@ -414,7 +414,19 @@ for (const repo of repos) {
         }
     }
     const tokenEnvs = tokenEnvironments(c.workflows);
-    if (dep !== null && tokenEnvs.length > 0 && !dep.includes('npm.pkg.github.com')) say(repo, 'dependabot', 'no npm-registry for npm.pkg.github.com: private packages are not updated');
+    // A GitHub Packages registry only where an npm update's package.json uses @pursuit-amsterdam/*:
+    // a repo without private packages has none on purpose.
+    if (dependabot && !dependabot.registries.some(r => r.url.includes('npm.pkg.github.com'))) {
+        const manifests: string[] = [];
+        for (const u of dependabot.updates.filter(x => x.ecosystem === 'npm')) {
+            for (const directory of u.directories) {
+                const dir = directory.replace(/^\/+|\/+$/g, '');
+                const text = await readFile(repo, dir ? `${dir}/package.json` : 'package.json', u.targetBranch ?? c.defaultBranch);
+                if (text !== null) manifests.push(text);
+            }
+        }
+        if (usesPrivatePackages(manifests)) say(repo, 'dependabot', 'no npm-registry for npm.pkg.github.com, but package.json uses @pursuit-amsterdam/*: private packages are not updated');
+    }
     // Dependabot secrets have no environments: the token is a repo-level Dependabot secret.
     if (dependabotNeedsToken(dep) && !(await names(`/repos/{owner}/{repo}/dependabot/secrets`, p, 'secrets')).includes('CUSTOM_GITHUB_TOKEN')) {
         say(repo, 'dependabot', 'Dependabot secret CUSTOM_GITHUB_TOKEN not set on the repo: every Dependabot run fails on the registry');
