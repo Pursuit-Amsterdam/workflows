@@ -162,6 +162,18 @@ export function npmrcForDependabot(current: string | null): string | null {
     return out === (current ?? '') ? null : out;
 }
 
+/** Whether any of these package.json texts depends on a @pursuit-amsterdam package; invalid JSON counts as none. */
+export function usesPrivatePackages(packageJsons: string[]): boolean {
+    return packageJsons.some(text => {
+        try {
+            const pkg = JSON.parse(text) as { dependencies?: object; devDependencies?: object };
+            return Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).some(k => k.startsWith('@pursuit-amsterdam/'));
+        } catch {
+            return false;
+        }
+    });
+}
+
 const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 
 /** The open alerts (their severities) as one finding; null when none are open. */

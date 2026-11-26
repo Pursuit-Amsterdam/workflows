@@ -1043,7 +1043,7 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
 
 ### Task 33: Dependabot draait, en zijn PR's gaan naar `develop`
 
-**Bezig (26 november 2026): uitgerold naar 25 v2-repo's en de runs nagelopen, alerts aan in 35 repo's; de audit van de alerts en twee controles staan open.** Van de 33 repo's met een `dependabot.yml` werkte Dependabot er 8. Er waren drie oorzaken, en alle drie zitten in onze eigen inrichting. Bij de uitrol kwamen er twee bij (stap 5b):
+**Klaar (26 november 2026): uitgerold naar 25 v2-repo's, de runs nagelopen, alerts aan in 35 repo's en de eerste meting gedaan.** Van de 33 repo's met een `dependabot.yml` werkte Dependabot er 8. Er waren drie oorzaken, en alle drie zitten in onze eigen inrichting. Bij de uitrol kwamen er twee bij (stap 5b):
 
 - **Geen standaardregistry in `.npmrc`.** Dependabot vraagt elk pakket eerst aan de registry uit `dependabot.yml` (dependabot-core, `registry_finder.rb`). Zonder `/Pursuit-Amsterdam` in de URL geeft GitHub Packages voor `@types/*` een kopie uit 2022 (laatste `@types/node`: 17.0.18) en voor de rest een 404. Met `/Pursuit-Amsterdam` klopt het antwoord, maar het is traag, en gebruikt Dependabot de token niet (stap 5b).
   - De runs falen (tms-test, tellr-website, web-essentials-dashboard, intersekse-website) of stoppen na 55 minuten (basko, city-real-estate, developer-onboarding, multifill, big-chef). Eén run van basko kreeg 36.738 keer een 404.
@@ -1093,7 +1093,11 @@ Wat v2 mist, en wat de repo zelf moet doen, lokaal nagelopen op een clone:
   - Afgewogen tegen B (security updates aan, en `check-pr` laat `dependabot/*` ook in `main` toe) en C (niets).
   - `setup-consumer` zet de alerts aan. De audit meldt alerts die uit staan, en de open alerts van niveau critical en high (`alertFinding`).
   - Zie [beslissingen](beslissingen.md#decided).
-- [ ] Stap 7 (handwerk): de alerts aan met `setup-consumer --apply` in de 35 v2-repo's waar dat de enige wijziging is. Gedaan (26 november 2026): de alerts staan in alle 35 aan. Nog open: de eerste audit van de open alerts (`pnpm audit:consumers`). De 7 v1-repo's blijven erbuiten tot hun migratie.
+- [x] Stap 7 (handwerk, 26 november 2026): de alerts aan met `setup-consumer --apply` in de 35 v2-repo's waar dat de enige wijziging was. De 7 v1-repo's blijven erbuiten tot hun migratie.
+  - Nulmeting (`pnpm audit:consumers`, 26 november 2026): **191 critical en 1322 high** open, in 26 repo's. Het meest in big-chef-webapp (16 critical, 65 high), translations-management-dashboard (13, 87), tms-test (13, 84), qpido-website (11, 88) en pursuit-projects-dashboard (10, 86). Overal leesbaar, nergens uit.
+  - Een alert gaat pas dicht als de fix op `main` staat: de Dependabot-PR's naar `develop` sluiten ze bij de volgende release.
+  - 11 repo's met alerts hebben geen `dependabot.yml` (de config-pakketten, web-essentials-js en -cli, translations-management-js, text-extract, gp-container-tracking-webapp, pursuit-website-2025, integrators-website-2025, workflows-example): daar komen geen update-PR's.
+  - De audit vroeg ook een GitHub Packages-registry in intersekse en developer-onboarding, die geen private pakketten hebben. Hij kijkt nu naar de `package.json` van elke npm-update (`usesPrivatePackages`).
 
 ## "v2 is klaar"
 
